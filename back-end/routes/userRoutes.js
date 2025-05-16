@@ -9,10 +9,10 @@ const { protect } = require('../utils/auth');
 
 // Gọi tới các module xử lý request từ controller
 // router.post('/create-new-user', userController.createAnUser);
-router.get('/', userController.getAllUser);
-router.get('/:userId', protect, userController.getUserById);
-router.get('/:userId/recipes', userController.findAllRecipesByUser);
-router.get('/:userId/recipe/:recipeId', protect, userController.findDetail);
-router.patch('/:userId/edit-information', protect, userController.updateUser);
+// router.get('/', userController.getAllUser);
+// router.get('/:userId', protect, userController.getUserById);
+// router.get('/:userId/recipes', userController.findAllRecipesByUser);
+// router.get('/:userId/recipe/:recipeId', protect, userController.findDetail);
+// router.patch('/:userId/edit-information', protect, userController.updateUser);
 
 module.exports = router;

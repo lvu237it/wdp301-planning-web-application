@@ -1,13 +1,11 @@
-const mongoose = require("mongoose");
-const crypto = require("crypto");
-//Tạo model cho user dựa trên các phương thức có sẵn của mongoose
+const crypto = require('crypto');
+const mongoose = require('mongoose');
+const validator = require('validator');
+const bcrypt = require('bcryptjs');
+// Quản lý thông tin người dùng
 const userSchema = new mongoose.Schema(
   {
     username: {
-      type: String,
-      required: true,
-    },
-    password: {
       type: String,
       required: true,
     },
@@ -15,54 +13,136 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
+      trim: true,
+      validate: [validator.isEmail, 'Vui lòng cung cấp email hợp lệ'],
     },
-    description: {
+    password: {
       type: String,
+      required: true,
+    },
+    passwordConfirm: {
+      type: String,
+      required: [true, 'Vui lòng xác nhận mật khẩu'],
+      validate: {
+        //This only work on CREATE & SAVE!
+        // .save()  .create()
+        validator: function (element) {
+          return element === this.password;
+        },
+        message: 'Mật khẩu xác nhận không khớp!',
+      },
     },
     avatar: String,
     role: {
       type: String,
-      enum: ["user", "admin"],
-      default: "user",
+      enum: ['userSystem', 'adminSystem'],
+      default: 'userSystem',
     },
-    createdAt: {
-      type: Date,
-      default: Date.now(),
+    preferences: {
+      timeZone: { type: String, default: 'Asia/Ho_Chi_Minh' },
+      language: { type: String, default: 'vi' },
     },
-    updatedAt: Date,
     isDeleted: {
       type: Boolean,
       default: false,
     },
     deletedAt: Date,
-    refreshToken: {
-      type: String,
-    },
     passwordChangedAt: {
-      type: String,
+      type: Date,
     },
-    passwordResetToken: {
-      type: String,
-    },
-    passwordResetExpires: {
-      type: String,
-    },
+    passwordResetToken: String,
+    passwordResetExpires: Date,
   },
   {
     timestamps: true,
   }
 );
-userSchema.methods = {
-  createPasswordChangedToken: function () {
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    this.passwordResetToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-    this.passwordResetExpires = Date.now() + 15 * 60 * 1000;
-    return resetToken;
-  },
+
+//Mã hoá mật khẩu trước khi save vào database
+userSchema.pre('save', async function (next) {
+  //Only run this function if password was actually modified
+  if (!this.isModified('password')) {
+    //neu password chua duoc sua doi thi chuyen sang middleware tiep theo
+    return next();
+  }
+  //nguoc lai, hash password va save
+  //Hash the password with cost of 12
+  this.password = await bcrypt.hash(this.password, 12);
+
+  //Delete passwordConfirm field
+  this.passwordConfirm = undefined; //ko muon save pass nay vao database nua nen de lai la undefined
+  next();
+});
+
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password') || this.isNew) {
+    return next();
+    //Nếu ko thay đổi mật khẩu thì sẽ không thay đổi thông tin của passwordChangedAt
+  }
+
+  this.passwordChangedAt = Date.now() - 1000; //Đảm bảo JWT luôn được tạo sau 1 giây kể từ khi mật khẩu thay đổi, tránh việc tạo token mất nhiều thời gian
+  /*
+  nếu một token JWT được tạo ra trước khi mật khẩu của người dùng được thay đổi, 
+  nhưng sau đó người dùng thực hiện đăng nhập bằng token đó sau khi mật khẩu đã thay đổi, 
+  họ vẫn có thể truy cập vào hệ thống mà không cần phải nhập mật khẩu mới.
+
+  Để ngăn chặn tình trạng này, bạn cần đảm bảo rằng mỗi khi mật khẩu của người dùng thay đổi, 
+  tất cả các token JWT hiện có của họ đều trở nên không hợp lệ. 
+  Cách thường được sử dụng để làm điều này là thông qua việc cập nhật trường passwordChangedAt 
+  và kiểm tra thời gian này khi xác thực token. Nếu một token được tạo ra trước thời điểm passwordChangedAt, 
+  nó sẽ không còn hợp lệ và người dùng sẽ phải đăng nhập lại bằng mật khẩu mới.
+  */
+  next();
+});
+
+//Tạo thêm method để tiện cho việc sử dụng trực tiếp từ model
+userSchema.methods.correctPassword = async function (
+  candidatePassword,
+  userPassword
+) {
+  return await bcrypt.compare(candidatePassword, userPassword);
 };
-const User = mongoose.model("User", userSchema);
+
+//
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimestamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10
+    );
+    console.log(
+      'thoi gian thay doi pass: ' + changedTimestamp,
+      'thoi gian expire jwt: ' + JWTTimestamp
+    );
+    return changedTimestamp > JWTTimestamp;
+    //Nếu thời gian thay đổi mật khẩu lớn hơn thời gian phát hành JWT,
+    //trả về true, nghĩa là mật khẩu đã được thay đổi
+    //sau khi JWT được phát hành và JWT này nên bị coi là không hợp lệ.
+  }
+  //False means not changed
+  return false;
+};
+
+userSchema.methods.createPasswordResetToken = function () {
+  // Tạo resetToken (cái cần gửi tới user) để reset password
+  const resetToken = crypto.randomBytes(32).toString('hex'); //32 characters
+  //Sau đó hash token đó và lưu resetToken đã được hash, vào csdl để khi user nhấn vào đường dẫn của resetToken
+  //Thì sẽ lấy hashed token trong csdl ra để đối chiếu với resetToken
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  console.log({ resetToken }, this.passwordResetToken);
+
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
+};
+
+userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
+
+const User = mongoose.model('User', userSchema);
 
 module.exports = User;
