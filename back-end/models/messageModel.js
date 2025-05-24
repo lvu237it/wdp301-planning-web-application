@@ -14,7 +14,6 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Nội dung tin nhắn là bắt buộc'],
     },
-    timestamp: { type: Date, default: Date.now },
     parentMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
     isPinned: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },

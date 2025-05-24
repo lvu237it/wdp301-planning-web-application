@@ -16,7 +16,6 @@ const activityLogSchema = new mongoose.Schema(
     targetId: { type: mongoose.Schema.Types.ObjectId },
     targetType: { type: String, enum: ['task', 'message', 'list'] },
     details: { type: String },
-    timestamp: { type: Date, default: Date.now },
   },
   {
     timestamps: true,

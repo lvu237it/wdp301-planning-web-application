@@ -37,7 +37,6 @@ const notificationSchema = new mongoose.Schema(
     messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
     // relatedId: { type: mongoose.Schema.Types.ObjectId },
     isRead: { type: Boolean, default: false },
-    timestamp: { type: Date, default: Date.now },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },

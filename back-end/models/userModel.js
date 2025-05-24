@@ -21,27 +21,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    passwordConfirm: {
-      type: String,
-      required: [true, 'Vui lòng xác nhận mật khẩu'],
-      validate: {
-        //This only work on CREATE & SAVE!
-        // .save()  .create()
-        validator: function (element) {
-          return element === this.password;
-        },
-        message: 'Mật khẩu xác nhận không khớp!',
-      },
-    },
     avatar: String,
     role: {
       type: String,
       enum: ['userSystem', 'adminSystem'],
       default: 'userSystem',
-    },
-    preferences: {
-      timeZone: { type: String, default: 'Asia/Ho_Chi_Minh' },
-      language: { type: String, default: 'vi' },
     },
     isDeleted: {
       type: Boolean,
