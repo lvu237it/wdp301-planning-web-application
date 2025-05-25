@@ -5,11 +5,11 @@ const emailSchema = new mongoose.Schema(
     sender: {
       email: {
         type: String,
-        default: 'no-reply@yourapp.com',
+        default: 'no-reply@web-plan-pro.com',
       },
       name: {
         type: String,
-        default: 'Hệ thống YourApp',
+        default: 'Ứng dụng web quản lý kế hoạch',
       },
     },
     recipients: [
