@@ -27,6 +27,46 @@ const userSchema = new mongoose.Schema(
       enum: ['userSystem', 'adminSystem'],
       default: 'userSystem',
     },
+    skills: [
+      {
+        type: String,
+        trim: true,
+        lowercase: true,
+      },
+    ],
+    yearOfExperience: {
+      type: Number,
+      min: [0, 'Năm kinh nghiệm không thể nhỏ hơn 0'],
+      default: 0,
+    },
+    availability: {
+      status: {
+        type: String,
+        enum: ['available', 'busy'],
+        default: 'available',
+      },
+      willingToJoin: {
+        type: Boolean,
+        default: true,
+      },
+    },
+    expectedWorkDuration: {
+      min: {
+        type: Number,
+        min: [0, 'Thời gian làm việc tối thiểu không thể nhỏ hơn 0'],
+        default: 0,
+      },
+      max: {
+        type: Number,
+        min: [0, 'Thời gian làm việc tối đa không thể nhỏ hơn 0'],
+        default: 0,
+      },
+      unit: {
+        type: String,
+        enum: ['hours', 'days', 'weeks', 'months'],
+        default: 'hours',
+      },
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -126,6 +166,9 @@ userSchema.methods.createPasswordResetToken = function () {
 
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
+userSchema.index({ skills: 1 });
+userSchema.index({ yearOfExperience: 1 });
+userSchema.index({ 'availability.status': 1 });
 
 const User = mongoose.model('User', userSchema);
 

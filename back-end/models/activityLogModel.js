@@ -12,10 +12,20 @@ const activityLogSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    action: { type: String, required: true },
-    // targetId: Là một ObjectId tham chiếu đến một document cụ thể. (ở đây có thể tham chiếu tới nhiều collection)
+    action: {
+      //log các sự việc liên quan tới task, message, list (các model thường xuyên tương tác và cần theo dõi chi tiết)
+      type: String,
+      required: true,
+      // enum: [
+      //   'task_created',
+      //   'task_updated',
+      //   'message_sent',
+      //   'list_created',
+      // ],
+    },
     targetId: { type: mongoose.Schema.Types.ObjectId },
-    /*
+    /*----------- giải thích ---------------
+    // targetId: Là một ObjectId tham chiếu đến một document cụ thể. (ở đây có thể tham chiếu tới nhiều collection)
     targetId ObjectId
     - (ref: Task when targetType: 'task')
     - (ref: Message when targetType: 'message')
@@ -30,4 +40,6 @@ const activityLogSchema = new mongoose.Schema(
 );
 
 activityLogSchema.index({ boardId: 1, timestamp: -1 });
+activityLogSchema.index({ targetType: 1, targetId: 1 });
+
 module.exports = mongoose.model('ActivityLog', activityLogSchema);

@@ -11,10 +11,10 @@ const calendarSchema = new mongoose.Schema(
     },
     ownerType: {
       type: String,
-      enum: ['user', 'group'],
+      enum: ['user', 'workspace'],
       required: [
         true,
-        'Owner type - Lịch cần xác định thuộc về user hoặc group',
+        'Owner type - Lịch cần xác định thuộc về user hoặc workspace',
       ],
     },
     ownerId: {

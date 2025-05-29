@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 // Quản lý nhóm người dùng
-const groupSchema = new mongoose.Schema(
+const workspaceSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -37,7 +37,7 @@ const groupSchema = new mongoose.Schema(
   }
 );
 
-groupSchema.index({ creator: 1 });
-groupSchema.index({ calendarId: 1 });
+workspaceSchema.index({ creator: 1 });
+workspaceSchema.index({ calendarId: 1 });
 
-module.exports = mongoose.model('Group', groupSchema);
+module.exports = mongoose.model('Workspace', workspaceSchema);

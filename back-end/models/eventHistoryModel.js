@@ -7,41 +7,12 @@ const eventHistorySchema = new mongoose.Schema(
       ref: 'Event',
       required: true,
     },
-    title: {
-      type: String,
-    },
-    startDate: {
-      type: Date,
-    },
-    endDate: {
-      type: Date,
-    },
     participants: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
       },
     ],
-    address: {
-      type: {
-        type: String,
-        enum: ['Point'],
-      },
-      coordinates: {
-        type: [Number],
-        index: '2dsphere',
-      },
-      formattedAddress: {
-        type: String,
-      },
-      placeId: {
-        type: String,
-      },
-    },
-    status: {
-      type: String,
-      enum: ['completed', 'cancelled'],
-    },
     isDeleted: {
       type: Boolean,
       default: false,

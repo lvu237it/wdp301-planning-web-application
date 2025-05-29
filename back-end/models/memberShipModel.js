@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
-// Quản lý thành viên trong nhóm (group)
+// Quản lý thành viên trong nhóm (workspace)
 const membershipSchema = new mongoose.Schema(
   {
-    groupId: {
+    workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Group',
-      required: [true, 'GroupId là bắt buộc'],
+      ref: 'Workspace',
+      required: [true, 'WorkspaceId là bắt buộc'],
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,8 +14,8 @@ const membershipSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['adminGroup', 'memberGroup'],
-      default: 'memberGroup',
+      enum: ['adminWorkspace', 'memberWorkspace'],
+      default: 'memberWorkspace',
     },
     invitationStatus: {
       type: String,
@@ -32,6 +32,6 @@ const membershipSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-membershipSchema.index({ userId: 1, groupId: 1 }, { unique: true });
+membershipSchema.index({ userId: 1, workspaceId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Membership', membershipSchema);

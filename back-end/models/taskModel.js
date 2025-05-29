@@ -14,9 +14,9 @@ const taskSchema = new mongoose.Schema(
       ref: 'Calendar',
       required: true,
     },
-    groupId: {
+    workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Group',
+      ref: 'Workspace',
       required: false,
     },
     boardId: {
@@ -132,7 +132,7 @@ taskSchema.pre('save', function (next) {
   next();
 });
 
-taskSchema.index({ groupId: 1, assignedTo: 1, deadline: 1 });
+taskSchema.index({ workspaceId: 1, assignedTo: 1, deadline: 1 });
 taskSchema.index({ boardId: 1 });
 taskSchema.index({ listId: 1 });
 taskSchema.index({ calendarId: 1 });

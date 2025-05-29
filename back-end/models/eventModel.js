@@ -79,9 +79,9 @@ const eventSchema = new mongoose.Schema(
       type: String,
       default: 'Asia/Ho_Chi_Minh',
     },
-    groupId: {
+    workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Group',
+      ref: 'Workspace',
       required: false,
     },
     boardId: {
