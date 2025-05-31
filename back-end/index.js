@@ -23,7 +23,8 @@ mongoose
   .connect(DBRecipesSharingWebApp) //this is a promise
   .then((con) => {
     // console.log(con.connections);
-    console.log('DB connection successful');
+    console.log('DB connection successful'); 
+    console.log('📌 Database đang dùng:', mongoose.connection.name);
   });
 
 // console.log(app.get('env')); //env - environment: 'development'

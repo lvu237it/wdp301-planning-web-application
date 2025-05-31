@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const Email = require('./models/Email'); // Giả sử model Email đã được định nghĩa
+// const Email = require('./models/Email'); // Giả sử model Email đã được định nghĩa
 
 const sendMail = async (emailDoc) => {
   // Cấu hình email
