@@ -7,9 +7,13 @@ const cors = require('cors');
 const AppError = require('./utils/appError');
 const frontendURL = process.env.FRONTEND_URL;
 // import routers
+const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
 const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
+
 const listRoutes = require('./routes/listRoutes');
+const workspaceRouter = require('./routes/workspaceRoutes');
+
 // các middleware
 app.use(morgan('dev'));
 app.use(express.urlencoded({ extended: true }));
@@ -36,10 +40,11 @@ app.get('/auth/google/callback', (req, res) => {
 });
 
 // routing handlers
+app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
 app.use('/calendar', calendarGoogleAPIRouter);
 app.use('/list', listRoutes);
-
+app.use('/workspace', workspaceRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

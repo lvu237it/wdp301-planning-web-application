@@ -59,7 +59,7 @@ exports.loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Kiểm tra xem có nhập đủ thông tin không
+    // 1. Kiểm tra dữ liệu đầu vào
     if (!email || !password) {
       return res.status(400).json({
         message: 'Missing email or password',
@@ -67,61 +67,60 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    // Tìm user theo email
-    const user = await User.findOne({ email });
+    
+    // 2. Tìm user theo email
+    const user = await User.findOne({ email: email });
+
     if (!user) {
+      console.log('Email không tồn tại:', email);
       return res.status(401).json({
-        message: 'Invalid email ',
+        message: 'Invalid email',
         status: 401,
       });
     }
-
-    // Kiểm tra mật khẩu
+    // 3. Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Sai mật khẩu cho email:', email);
       return res.status(401).json({
         message: 'Invalid password',
         status: 401,
       });
     }
-    // Tạo token truy cập và token refresh
-    const { description, createdAt, role, refreshToken, ...userData } =
-      user.toObject();
-    console.log('createdAt', createdAt);
+
+    // 4. Tạo token truy cập
+    const { role, createdAt, ...userData } = user.toObject();
     const accessToken = generateAccessToken(user._id, role);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Cập nhật token refresh trong database
-    await User.findByIdAndUpdate(
-      user._id,
-      { refreshToken: newRefreshToken },
-      { new: true }
-    );
-
-    // Thiết lập cookie chứa token refresh
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      maxAge: 15 * 60 * 1000, // 15'
+    // 5. Lưu refresh token vào DB
+    await User.findByIdAndUpdate(user._id, {
+      refreshToken: newRefreshToken,
     });
 
-    // Phản hồi thông tin thành công
+    // 6. Gửi cookie + phản hồi thành công
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000, // 15 phút
+    });
+
     res.status(200).json({
       success: true,
       accessToken,
       userData,
       role,
       createdAt,
-      description,
     });
   } catch (error) {
     console.error('Error while logging in:', error);
     res.status(500).json({
       message: 'Internal Server Error',
       status: 500,
-      error,
+      error: error.message,
     });
   }
 };
+
 exports.getCurrentUser = async (req, res) => {
   const { _id } = req.user;
   const user = await User.findById(_id).select('-refreshToken -password -role');
