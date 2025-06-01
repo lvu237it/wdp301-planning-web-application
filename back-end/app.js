@@ -11,6 +11,7 @@ const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
 const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
 const workspaceRouter = require('./routes/workspaceRoutes');
+const boardRouter = require('./routes/boardRoutes');
 
 // các middleware
 app.use(morgan('dev'));
@@ -42,6 +43,7 @@ app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
 app.use('/calendar', calendarGoogleAPIRouter);
 app.use('/workspace', workspaceRouter);
+app.use('/board', boardRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

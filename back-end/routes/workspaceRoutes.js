@@ -10,7 +10,7 @@ router.put('/:id', protect, isAdminWorkspace, workspaceController.updateWorkspac
 router.patch('/:id/close', protect, isAdminWorkspace, workspaceController.closeWorkspace);
 router.delete('/:id', protect, isCreator, workspaceController.deleteWorkspace);
 router.post('/:id/invite', protect,isAdminWorkspace, workspaceController.inviteMember);
-
+router.post('/invite-response', workspaceController.respondToInvite);
 
 
 

@@ -22,6 +22,7 @@ exports.protect = async (req, res, next) => {
 	}
 };
 
+// creator của workspace
 exports.isCreator = async (req, res, next) => {
 	const { id } = req.params;
 	const userId = req.user._id;
@@ -43,6 +44,7 @@ exports.isCreator = async (req, res, next) => {
 	next();
 };
 
+// admin của workspace (<creator)
 exports.isAdminWorkspace = async (req, res, next) => {
 	const { id } = req.params;
 	const userId = req.user._id;
@@ -75,3 +77,71 @@ exports.isAdminWorkspace = async (req, res, next) => {
 	req.workspace = workspace;
 	next();
 };
+
+// creator của board/project
+exports.isCreatorBoard = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const boardId = req.params.id; // hoặc req.body.boardId tuỳ route
+
+    const board = await Board.findById(boardId);
+    if (!board) {
+      return res.status(404).json({ success: false, message: 'Board không tồn tại' });
+    }
+
+    if (board.creator.toString() !== userId.toString()) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'Chỉ Creator mới có thể thực hiện hành động này' });
+    }
+
+    // gán board vào req nếu cần dùng tiếp
+    req.board = board;
+    next();
+  } catch (err) {
+    console.error('Lỗi kiểm tra isCreatorBoard:', err);
+    res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+  }
+};
+
+
+// admin của board/project (<creator)
+exports.isAdminBoard = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const boardId = req.params.id; // hoặc req.body.boardId tuỳ route
+
+    const board = await Board.findById(boardId);
+    if (!board) {
+      return res.status(404).json({ success: false, message: 'Board không tồn tại' });
+    }
+
+    // Nếu là creator thì cũng được
+    if (board.creator.toString() === userId.toString()) {
+      req.board = board;
+      return next();
+    }
+
+    // Kiểm tra xem có membership role = 'admin' và đã accepted
+    const isAdmin = await BoardMembership.exists({
+      boardId,
+      userId,
+      role: 'admin',
+      applicationStatus: 'accepted',
+      isDeleted: false,
+    });
+
+    if (!isAdmin) {
+      return res
+        .status(403)
+        .json({ success: false, message: 'Chỉ Admin hoặc Creator mới có thể thực hiện hành động này' });
+    }
+
+    req.board = board;
+    next();
+  } catch (err) {
+    console.error('Lỗi kiểm tra isAdminBoard:', err);
+    res.status(500).json({ success: false, message: 'Lỗi server', error: err.message });
+  }
+};
+
