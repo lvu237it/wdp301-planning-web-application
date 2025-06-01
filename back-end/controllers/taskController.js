@@ -1,5 +1,44 @@
 const Task = require('../models/taskModel');
 const mongoose = require('mongoose');
+const User = require('../models/userModel');
+const sendEmail = require('../utils/sendMail');
+
+const notifyAssignedUser = async (task) => {
+  try {
+    const assignedUser = await User.findById(task.assignedTo).select('email name');
+    if (!assignedUser || !assignedUser.email) {
+      console.warn(`User không tồn tại hoặc chưa có email: ${task.assignedTo}`);
+      return;
+    }
+    const subject = `Bạn đã được giao task mới: "${task.title}"`;
+    const deadlineText = task.deadline
+      ? new Date(task.deadline).toLocaleString('vi-VN')
+      : 'Chưa có hạn chót';
+
+    const htmlContent = `
+      <h2>Chào ${assignedUser.name || 'bạn'},</h2>
+      <p>Bạn vừa được giao một công việc mới trên WebPlanPro:</p>
+      <ul>
+        <li><strong>Tiêu đề:</strong> ${task.title}</li>
+        <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
+        <li><strong>Hạn chót:</strong> ${deadlineText}</li>
+        <li><strong>Board ID:</strong> ${task.boardId}</li>
+        <li><strong>List ID:</strong> ${task.listId}</li>
+      </ul>
+      <p>Vui lòng đăng nhập vào hệ thống để xem chi tiết và cập nhật tiến độ.</p>
+      <p>Trân trọng,<br/>Đội ngũ WebPlanPro</p>
+    `;
+
+    // 3. Gọi hàm sendEmail để gửi
+    await sendEmail(assignedUser.email, subject, htmlContent);
+    console.log(`Đã gửi email thông báo tới ${assignedUser.email}`);
+  } catch (error) {
+    console.error('Lỗi khi gửi email thông báo task:', error);
+  }
+};
+
+
+
 
 // Get all tasks 
 exports.getAllTask = async (req, res) => {
@@ -174,6 +213,7 @@ exports.updateTask = async (req, res) => {
       });
     }
 
+    // Tìm task cũ để so sánh assignedTo
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
@@ -182,6 +222,9 @@ exports.updateTask = async (req, res) => {
       });
     }
 
+    const oldAssignedTo = task.assignedTo.toString();
+
+    // Kiểm tra các ID mới (nếu có)
     const idFields = { calendarId, workspaceId, boardId, listId, eventId, assignedTo, assignedBy };
     for (const [key, value] of Object.entries(idFields)) {
       if (value !== undefined && value !== null) {
@@ -194,6 +237,7 @@ exports.updateTask = async (req, res) => {
       }
     }
 
+    // Cập nhật các trường nếu được truyền lên
     if (typeof title === 'string' && title.trim() !== '') {
       task.title = title.trim();
     }
@@ -243,7 +287,14 @@ exports.updateTask = async (req, res) => {
       task.progress = progress;
     }
 
+    // Lưu task đã cập nhật
     const updatedTask = await task.save();
+
+    // Nếu assignedTo thay đổi, gọi gửi email
+    const newAssignedTo = updatedTask.assignedTo.toString();
+    if (assignedTo && newAssignedTo !== oldAssignedTo) {
+      await notifyAssignedUser(updatedTask);
+    }
 
     res.status(200).json({
       status: 'success',
