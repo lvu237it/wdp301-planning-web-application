@@ -36,8 +36,23 @@ const calendarSchema = new mongoose.Schema(
     ],
     defaultView: {
       type: String,
-      enum: ['dayGrid', 'timeGrid', 'list'],
-      default: 'dayGrid',
+      enum: [
+        'dayGridMonth',
+        'dayGridWeek',
+        'dayGridDay',
+        'timeGridWeek',
+        'timeGridDay',
+        'listWeek',
+        'listMonth',
+        'listDay',
+        'listYear',
+        'multiMonthYear',
+      ],
+      default: 'dayGridMonth',
+    },
+    allDay: {
+      type: Boolean,
+      default: false,
     },
     timeZone: {
       type: String,
