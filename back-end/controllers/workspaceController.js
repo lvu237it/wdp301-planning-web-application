@@ -198,7 +198,6 @@ exports.inviteMember = async (req, res) => {
         <p>Bạn được mời tham gia workspace <strong>${workspace.name}</strong>.</p>
         <p>Vui lòng nhấn vào liên kết sau để xác nhận lời mời:</p>
         <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
-        <p>Hoặc dán vào trình duyệt: ${inviteLink}</p>
         <p>Nếu không quan tâm, bạn có thể bỏ qua email này.</p>
       `
     );
@@ -218,7 +217,7 @@ exports.inviteMember = async (req, res) => {
 };
 
 
-// Xác nhận lời mời (chưa test)
+// Xác nhận lời mời
 exports.respondToInvite = async (req, res) => {
   try {
     const { token, action } = req.body;
