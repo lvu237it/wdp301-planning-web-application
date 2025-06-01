@@ -1,14 +1,13 @@
 const express = require('express');
 const app = express();
 const morgan = require('morgan');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 // utils
 const AppError = require('./utils/appError');
 const frontendURL = process.env.FRONTEND_URL;
 // import routers
 const userRouter = require('./routes/userRoutes');
-const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
+// const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
 
 // các middleware
 app.use(morgan('dev'));
@@ -24,20 +23,20 @@ app.use(
 );
 
 // Route xử lý callback từ Google OAuth
-app.get('/auth/google/callback', (req, res) => {
-  const code = req.query.code; // Lấy mã ủy quyền từ Google
-  if (code) {
-    console.log('Authorization code received:', code);
-    res.send('Xác thực thành công! Bạn có thể đóng cửa sổ này.');
-  } else {
-    console.error('No authorization code received');
-    res.status(400).send('Lỗi xác thực: Không nhận được mã ủy quyền.');
-  }
-});
+// app.get('/auth/google/callback', (req, res) => {
+//   const code = req.query.code; // Lấy mã ủy quyền từ Google
+//   if (code) {
+//     console.log('Authorization code received:', code);
+//     res.send('Xác thực thành công! Bạn có thể đóng cửa sổ này.');
+//   } else {
+//     console.error('No authorization code received');
+//     res.status(400).send('Lỗi xác thực: Không nhận được mã ủy quyền.');
+//   }
+// });
 
 // routing handlers
 app.use('/users', userRouter);
-app.use('/calendar', calendarGoogleAPIRouter);
+// app.use('/calendar', calendarGoogleAPIRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
