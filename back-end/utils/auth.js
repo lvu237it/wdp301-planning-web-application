@@ -1,21 +1,37 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/userModel');
+// auth.js
+const jwt = require("jsonwebtoken");
+const User = require("./models/userModel");
 
 exports.protect = async (req, res, next) => {
   try {
-    // Token được gửi trong header Authorization theo định dạng: "Bearer <token>"
-    const token = req.headers.authorization?.split(' ')[1];
+    // Expect header: Authorization: "Bearer <token>"
+    const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
-      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET); // Giải mã và lấy thông tin liên quan tới người dùng trong token
-    req.user = await User.findById(decoded._id).select(
-      'role email createdAt description'
-    ); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
-    console.log('req.user', req.user);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded._id);
+    if (!user || user.isDeleted) {
+      return res
+        .status(401)
+        .json({ status: "error", message: "User no longer exists" });
+    }
+
+    req.user = user; // full user document (password excluded later if needed)
     next();
   } catch (error) {
-    res.status(401).json({ status: 'error', message: error.message });
+    return res.status(401).json({ status: "error", message: error.message });
   }
 };
+
+exports.restrictTo =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res
+        .status(403)
+        .json({ status: "error", message: "Forbidden: insufficient rights" });
+    }
+    next();
+  };

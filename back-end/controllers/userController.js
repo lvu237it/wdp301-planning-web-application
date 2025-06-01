@@ -1,108 +1,301 @@
-// const User = require('../models/userModel');
-const mongoose = require('mongoose');
+// controllers/userController.js
+const mongoose = require("mongoose");
+const User = require("../models/userModel");
+const AppError = require("../utils/appError");
 
-// exports.getAllUser = async (req, res) => {
-//   try {
-//     const user = await User.find().select(
-//       'username role email avatar description'
-//     );
+/**
+ * @desc    Get the logged‐in user’s own profile
+ * @route   GET /users/profile
+ * @access  Private
+ */
+exports.getProfile = async (req, res, next) => {
+  try {
+    // req.user was set by auth.protect
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) {
+      return next(new AppError("User not found.", 404));
+    }
 
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found.' });
-//     }
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar || null,
+          skills: user.skills || [],
+          yearOfExperience: user.yearOfExperience,
+          availability: user.availability,
+          expectedWorkDuration: user.expectedWorkDuration,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
-//     res.status(200).json(user);
-//   } catch (error) {
-//     console.error('Error while getting user:', error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// };
+/**
+ * @desc    Update the logged‐in user’s own profile
+ * @route   PUT /users/update
+ * @access  Private
+ */
+exports.updateProfile = async (req, res, next) => {
+  try {
+    // 1) Prevent password or role updates here
+    if (req.body.password || req.body.role) {
+      return next(
+        new AppError("This route is not for password or role updates.", 400)
+      );
+    }
 
-// //Get User in4 by userID
-// exports.getUserById = async (req, res) => {
-//   try {
-//     const { userId } = req.params;
-//     const loggedInUserId = req.user._id; // ID từ token
+    // 2) Filter only allowed fields
+    const allowedFields = [
+      "username",
+      "email",
+      "avatar",
+      "skills",
+      "yearOfExperience",
+      "availability",
+      "expectedWorkDuration",
+    ];
+    const filteredBody = {};
+    Object.keys(req.body).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        filteredBody[key] = req.body[key];
+      }
+    });
 
-//     console.log('🔹 userId from params:', userId);
-//     console.log('🔹 loggedInUserId from token:', loggedInUserId);
+    // 3) If email is changing, ensure it's not already in use
+    if (filteredBody.email) {
+      const existing = await User.findOne({
+        email: filteredBody.email,
+        _id: { $ne: req.user._id },
+      });
+      if (existing) {
+        return next(
+          new AppError("That email is already in use by another account.", 400)
+        );
+      }
+    }
 
-//     // Kiểm tra định dạng ObjectId
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ message: 'Invalid User ID format.' });
-//     }
+    // 4) Update the user
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      filteredBody,
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("-password");
 
-//     // Kiểm tra quyền truy cập
-//     if (!loggedInUserId.equals(userId)) {
-//       return res
-//         .status(403)
-//         .json({ message: 'Forbidden - You can only view your own profile.' });
-//     }
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: {
+          id: updatedUser._id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          avatar: updatedUser.avatar || null,
+          skills: updatedUser.skills || [],
+          yearOfExperience: updatedUser.yearOfExperience,
+          availability: updatedUser.availability,
+          expectedWorkDuration: updatedUser.expectedWorkDuration,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
-//     // Lấy thông tin user từ DB
-//     const user = await User.findById(userId).select('-password');
+/**
+ * @desc    Change password for the logged‐in user
+ * @route   PUT /users/change-password
+ * @access  Private
+ */
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword, passwordConfirm } = req.body;
 
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found.' });
-//     }
+    if (!currentPassword || !newPassword || !passwordConfirm) {
+      return next(new AppError("All three fields are required.", 400));
+    }
 
-//     res.status(200).json({ message: 'success', data: user });
-//   } catch (error) {
-//     console.error('Error while getting user by ID:', error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// };
+    // 1) Fetch user with password
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return next(new AppError("User not found.", 404));
+    }
 
-// //Update in4 user
-// exports.updateUser = async (req, res) => {
-//   try {
-//     const { username, email, password, description } = req.body;
-//     const { userId } = req.params;
-//     const loggedInUserId = req.user._id; // Lấy ID từ token
+    // 2) Check if currentPassword is correct
+    const isMatch = await user.correctPassword(currentPassword, user.password);
+    if (!isMatch) {
+      return next(new AppError("Your current password is incorrect.", 401));
+    }
 
-//     console.log('🔹 userId from params:', userId);
-//     console.log('🔹 loggedInUserId from token:', loggedInUserId);
+    // 3) Check new passwords match
+    if (newPassword !== passwordConfirm) {
+      return next(new AppError("New passwords do not match.", 400));
+    }
 
-//     // Kiểm tra định dạng ObjectId hợp lệ
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ message: 'Invalid User ID format.' });
-//     }
+    // 4) Update password (pre‐save hook will hash)
+    user.password = newPassword;
+    user.passwordChangedAt = Date.now();
+    await user.save();
 
-//     // Kiểm tra quyền cập nhật: Chỉ cho phép user cập nhật thông tin của chính mình
-//     if (!loggedInUserId.equals(userId)) {
-//       return res
-//         .status(403)
-//         .json({ message: 'Forbidden - You can only update your own profile.' });
-//     }
+    // 5) Send a new JWT
+    const token = require("jsonwebtoken").sign(
+      { _id: user._id },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN,
+      }
+    );
+    res.status(200).json({ status: "success", token });
+  } catch (err) {
+    next(err);
+  }
+};
 
-//     // Kiểm tra sự tồn tại của user trong DB
-//     const existingUser = await User.findById(userId);
-//     if (!existingUser) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
+/**
+ * @desc    Deactivate (soft‐delete) the logged‐in user’s own account
+ * @route   DELETE /users/delete-me
+ * @access  Private
+ */
+exports.deactivateMe = async (req, res, next) => {
+  try {
+    // model has `isDeleted` — mark as deleted rather than using non‐existent `isActive`
+    await User.findByIdAndUpdate(req.user._id, { isDeleted: true });
+    res.status(204).json({ status: "success", data: null });
+  } catch (err) {
+    next(err);
+  }
+};
 
-//     // Cập nhật dữ liệu người dùng
-//     const updateData = {
-//       username,
-//       email,
-//       password,
-//       description,
-//       updatedAt: Date.now(),
-//     };
+/**
+ * @desc    Get all users (Admin only)
+ * @route   GET /users
+ * @access  Private (admin only)
+ */
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    // Role in model is 'userSystem' / 'adminSystem'
+    if (req.user.role !== "adminSystem") {
+      return next(new AppError("Admin access required.", 403));
+    }
 
-//     // Thực hiện cập nhật
-//     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-//       new: true,
-//     });
+    const users = await User.find({ isDeleted: false }).select("-password");
+    res.status(200).json({
+      status: "success",
+      results: users.length,
+      data: {
+        users: users.map((u) => ({
+          id: u._id,
+          username: u.username,
+          email: u.email,
+          role: u.role,
+        })),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
-//     return res.status(200).json({
-//       message: 'Update successful',
-//       data: updatedUser,
-//     });
-//   } catch (error) {
-//     console.error('Error while updating user:', error);
-//     return res
-//       .status(500)
-//       .json({ message: 'Server error', error: error.message });
-//   }
-// };
+/**
+ * @desc    Update a user’s role or soft‐delete status (Admin only)
+ * @route   PUT /users/:id
+ * @access  Private (admin only)
+ */
+exports.updateUserById = async (req, res, next) => {
+  try {
+    if (req.user.role !== "adminSystem") {
+      return next(new AppError("Admin access required.", 403));
+    }
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError("Invalid user ID format.", 400));
+    }
+
+    // Prevent admins from demoting themselves
+    if (
+      id === req.user._id.toString() &&
+      req.body.role &&
+      req.body.role !== "adminSystem"
+    ) {
+      return next(new AppError("You cannot change your own role.", 400));
+    }
+
+    // Only allow updating `role` and `isDeleted`
+    const allowedFields = ["role", "isDeleted"];
+    const filteredBody = {};
+    Object.keys(req.body).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        filteredBody[key] = req.body[key];
+      }
+    });
+
+    const updatedUser = await User.findByIdAndUpdate(id, filteredBody, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
+    if (!updatedUser) {
+      return next(new AppError("User not found.", 404));
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: {
+          id: updatedUser._id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          isDeleted: updatedUser.isDeleted,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Delete (hard‐delete) a user by ID (Admin only)
+ * @route   DELETE /users/:id
+ * @access  Private (admin only)
+ */
+exports.deleteUserById = async (req, res, next) => {
+  try {
+    if (req.user.role !== "adminSystem") {
+      return next(new AppError("Admin access required.", 403));
+    }
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError("Invalid user ID format.", 400));
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return next(new AppError("User not found.", 404));
+    }
+
+    if (user.role === "adminSystem") {
+      return next(new AppError("Cannot delete another admin user.", 400));
+    }
+
+    await User.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ status: "success", message: "User deleted successfully." });
+  } catch (err) {
+    next(err);
+  }
+};
