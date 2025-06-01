@@ -6,7 +6,7 @@ const router = express.Router();
 //default: /authentication
 // router.get('/', handler);
 
-// router.post('/register', authenticationController.registerUser);
+router.post('/register', authenticationController.registerUser);
 router.post('/login', authenticationController.loginUser);
 // router.post('/logout', authenticationController.logoutUser);
 // router.post('/forgotpass', authenticationController.forgotPassword);
