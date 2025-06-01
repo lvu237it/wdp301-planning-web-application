@@ -67,7 +67,6 @@ exports.loginUser = async (req, res) => {
       });
     }
 
-    
     // 2. Tìm user theo email
     const user = await User.findOne({ email: email });
 

@@ -50,10 +50,6 @@ const calendarSchema = new mongoose.Schema(
       ],
       default: 'dayGridMonth',
     },
-    allDay: {
-      type: Boolean,
-      default: false,
-    },
     timeZone: {
       type: String,
       default: 'Asia/Ho_Chi_Minh',
