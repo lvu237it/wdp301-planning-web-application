@@ -37,7 +37,7 @@ exports.isCreator = async (req, res, next) => {
 	if (workspace.creator.toString() !== req.user._id.toString()) {
 		return res
 			.status(401)
-			.json({ success: false, mes: 'REQUIRE CREATOR ROLE' });
+			.json({ success: false, mes: 'yêu cầu quyền của Creator' });
 	}
 
 	req.workspace = workspace;
@@ -46,36 +46,62 @@ exports.isCreator = async (req, res, next) => {
 
 // admin của workspace (<creator)
 exports.isAdminWorkspace = async (req, res, next) => {
-	const { id } = req.params;
-	const userId = req.user._id;
+  try {
+    // Lấy workspaceId từ route parameter
+    const workspaceId = req.params.workspaceId;
+    const userId = req.user._id;
+	console.log('workspaceId', workspaceId);
+	
+    if (!workspaceId) {
+      return res.status(400).json({
+        success: false,
+        mes: 'Thiếu workspaceId trong route'
+      });
+    }
 
-	const workspace = await Workspace.findById(id).populate({
-		path: 'members',
-		model: 'Membership',
-	});
+    // Tìm workspace và populate members
+    const workspace = await Workspace.findById(workspaceId).populate({
+      path: 'members',
+      model: 'Membership'
+    });
 
-	if (!workspace) {
-		return res
-			.status(404)
-			.json({ success: false, mes: 'Workspace không tồn tại' });
-	}
+    if (!workspace) {
+      return res.status(404).json({
+        success: false,
+        mes: 'Workspace không tồn tại'
+      });
+    }
 
-	const isCreator = workspace.creator.toString() === userId.toString();
+    // Kiểm tra creator
+    const isCreator = workspace.creator.toString() === userId.toString();
 
-	const member = workspace.members.find(
-		(m) =>
-			m.userId.toString() === userId.toString() && m.role === 'adminWorkspace'
-	);
+    // Kiểm tra xem user có là adminWorkspace không
+    const isAdmin = workspace.members.some(
+      m =>
+        m.userId.toString() === userId.toString() &&
+        m.role === 'adminWorkspace' &&
+        !m.isDeleted &&
+        m.invitationStatus === 'accepted'
+    );
 
-	if (!isCreator && !member) {
-		return res.status(401).json({
-			success: false,
-			mes: 'REQUIRE ADMIN WORKSPACE ROLE OR CREATOR',
-		});
-	}
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        mes: 'Yêu cầu quyền adminWorkspace hoặc creatorWorkspace'
+      });
+    }
 
-	req.workspace = workspace;
-	next();
+    // Lưu workspace vào req để controller dùng tiếp nếu cần
+    req.workspace = workspace;
+    next();
+  } catch (err) {
+    console.error('Lỗi isAdminWorkspace:', err);
+    res.status(500).json({
+      success: false,
+      mes: 'Lỗi server',
+      error: err.message
+    });
+  }
 };
 
 // creator của board/project

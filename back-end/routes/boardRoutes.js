@@ -1,11 +1,12 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 const boardController = require('../controllers/boardController');
-const { isCreatorBoard, isAdminBoard, protect } = require('../utils/auth');
+const { isCreatorBoard, isAdminBoard, protect, isAdminWorkspace } = require('../utils/auth');
 
+router.get('/', protect, boardController.getAllBoards);
 
 // 1. Tạo Board (chỉ cần verifyToken, không cần check role)
-router.post('/create', protect, boardController.createBoard);
+router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
 
 // 2. Cập nhật Board (chỉ creator hoặc admin mới được phép)
 router.put('/:id', protect, isAdminBoard, boardController.updateBoard);

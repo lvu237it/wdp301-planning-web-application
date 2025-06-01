@@ -72,10 +72,10 @@ exports.createBoard = async (req, res) => {
     const { 
       name, 
       description, 
-      workspaceId, 
       visibility,      // 'public' hoặc 'private'
       criteria         // object { skills: [...], yearOfExperience: {min,max}, workDuration: {min,max,unit} }
     } = req.body;
+    const workspaceId = req.params.workspaceId;
     const creatorId = req.user._id;
 
     // 1. Kiểm tra trường bắt buộc
