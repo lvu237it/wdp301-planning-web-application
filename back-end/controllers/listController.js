@@ -1,6 +1,23 @@
 const List = require('../models/listModel');
 const mongoose = require('mongoose');
 
+// get all list
+exports.getAllList = async (req, res) => {
+  try {
+    const lists = await List.find({ isDeleted: false }).sort('position');
+    res.status(200).json({
+      status: 'success',
+      results: lists.length,
+      data: lists
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error',
+      message: error.message 
+    });
+  }
+};
+
 // createList
 exports.createList = async (req, res) => {
   try {

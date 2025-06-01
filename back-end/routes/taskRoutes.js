@@ -1,0 +1,12 @@
+const express = require('express');
+const router = express.Router();
+const taskController = require('../controllers/taskController');
+
+const { protect } = require('../utils/auth');
+router.get('/', taskController.getAllTask);
+router.get('/:id', taskController.getTask);
+router.post('/createTask', taskController.createTask);
+router.put('/updateTask/:id', taskController.updateTask);
+router.delete('/deleteTask/:id', taskController.deleteTask);
+
+module.exports = router;

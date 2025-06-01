@@ -12,6 +12,7 @@ const userRouter = require('./routes/userRoutes');
 const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
 
 const listRoutes = require('./routes/listRoutes');
+const taskRoutes = require('./routes/taskRoutes');
 const workspaceRouter = require('./routes/workspaceRoutes');
 
 // các middleware
@@ -44,6 +45,7 @@ app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
 app.use('/calendar', calendarGoogleAPIRouter);
 app.use('/list', listRoutes);
+app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 
 app.all('*', (req, res, next) => {
