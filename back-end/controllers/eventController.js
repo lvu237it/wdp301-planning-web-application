@@ -6,13 +6,16 @@ const File = require('../models/fileModel');
 const Message = require('../models/messageModel');
 const Calendar = require('../models/calendarModel');
 const sendMail = require('../utils/sendMail');
+const Workspace = require('../models/workspaceModel');
+const Board = require('../models/boardModel');
+const BoardMembership = require('../models/boardMembershipModel');
+const { formatDateToTimeZone } = require('../utils/dateUtils');
 
-exports.createEvent = async (req, res) => {
+exports.createEventForCalendar = async (req, res) => {
   try {
     const {
       title,
       description,
-      calendarId,
       locationName,
       address,
       type,
@@ -24,14 +27,16 @@ exports.createEvent = async (req, res) => {
       timeZone,
       workspaceId,
       boardId,
-      organizer,
-      participants,
       reminderSettings,
       status,
       category,
       color,
-      allDay, // Giả sử allDay sẽ được thêm vào Event
+      allDay,
     } = req.body;
+    const { calendarId } = req.params;
+    const organizer = req.user._id; // Lấy ID người dùng từ token đã xác thực
+    let participants = req.body.participants || [];
+    participants.push({ userId: organizer, status: 'accepted' }); // Tự động thêm người tạo sự kiện là người tham gia
 
     // Kiểm tra các trường bắt buộc
     if (
@@ -49,16 +54,167 @@ exports.createEvent = async (req, res) => {
       });
     }
 
+    //Check calendarId có tồn tại không - isDeleted = false
+    const calendar = await Calendar.findById(calendarId);
+    if (!calendar || calendar.isDeleted) {
+      return res.status(404).json({
+        message: 'Không tìm thấy lịch với calendarId đã cho',
+        status: 404,
+      });
+    }
+
+    //Nếu board tồn tại, kiểm tra workspace, và kiểm tra board có tồn tại trong workspace đó ko
+    if (boardId) {
+      const workspace = await Workspace.findById(workspaceId);
+      if (!workspace || workspace.isDeleted) {
+        return res.status(404).json({
+          message: 'Không tìm thấy workspace với workspaceId đã cho',
+          status: 404,
+        });
+      }
+
+      const board = await Board.findById(boardId, {
+        isDeleted: false,
+      });
+      if (!board || board.isDeleted) {
+        return res.status(404).json({
+          message: 'Không tìm thấy board với boardId đã cho',
+          status: 404,
+        });
+      }
+      // Kiểm tra xem board có thuộc về workspace hay không
+      if (board.workspaceId.toString() !== workspace._id.toString()) {
+        return res.status(400).json({
+          message: 'Board không thuộc về workspace đã cho',
+          status: 400,
+        });
+      }
+
+      // Kiểm tra xem người dùng có ở trong workspace hay không
+      const isWorkspaceMember = workspace.members.some(
+        (member) => member.toString() === organizer.toString()
+      );
+
+      // Nếu không phải là thành viên của workspace, và cũng không phải là người tạo workspace thì ko được tạo event
+      if (
+        !isWorkspaceMember &&
+        workspace.creator.toString() !== organizer.toString()
+      ) {
+        return res.status(403).json({
+          message: 'Bạn không có quyền tạo sự kiện trong workspace này',
+          status: 403,
+        });
+      }
+
+      //Kiểm tra nếu người dùng chưa được join vào board thì không được tạo event
+      const boardMembership = await BoardMembership.findOne({
+        boardId: board._id,
+        userId: organizer,
+      });
+
+      if (!boardMembership) {
+        return res.status(403).json({
+          message: 'Bạn chưa được tham gia board này',
+          status: 403,
+        });
+      }
+
+      //Kiểm tra participant, những người khác, không phải organizer, có trong boardMembership hay không
+      if (participants && participants.length > 0) {
+        for (const participant of participants) {
+          const member = await BoardMembership.findOne({
+            boardId: board._id,
+            userId: participant.userId,
+            invitationResponse: 'accepted', //Chỉ khi người dùng đã chấp nhận lời mời mới được xem là thành viên
+          });
+          if (!member) {
+            return res.status(403).json({
+              message: `Người dùng ${participant.userId} không phải là thành viên của board này`,
+              status: 403,
+            });
+          }
+        }
+      }
+    }
     // Kiểm tra type hợp lệ
     if (!['online', 'offline'].includes(type)) {
       return res.status(400).json({
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
         status: 400,
       });
+    } else if (type === 'online' && !onlineUrl) {
+      return res.status(400).json({
+        message: 'Thiếu onlineUrl cho sự kiện trực tuyến',
+        status: 400,
+      });
+    } else if (type === 'offline' && !address) {
+      return res.status(400).json({
+        message: 'Thiếu địa chỉ cho sự kiện offline',
+        status: 400,
+      });
+    }
+
+    // Kiểm tra thời gian bắt đầu và kết thúc
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start >= end) {
+      return res.status(400).json({
+        message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+        status: 400,
+      });
+    }
+    // Kiểm tra định dạng tọa độ (nếu có)
+    if (address && address.coordinates) {
+      if (
+        !Array.isArray(address.coordinates) ||
+        address.coordinates.length !== 2 ||
+        typeof address.coordinates[0] !== 'number' ||
+        typeof address.coordinates[1] !== 'number'
+      ) {
+        return res.status(400).json({
+          message: 'Tọa độ phải là một mảng [longitude, latitude]',
+          status: 400,
+        });
+      }
+      // Kiểm tra xem tọa độ có hợp lệ không
+      if (
+        address.coordinates[0] < -180 ||
+        address.coordinates[0] > 180 ||
+        address.coordinates[1] < -90 ||
+        address.coordinates[1] > 90
+      ) {
+        return res.status(400).json({
+          message: 'Tọa độ không hợp lệ',
+          status: 400,
+        });
+      }
+    }
+
+    // Kiểm tra trạng thái
+    if (
+      status &&
+      !['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
+    ) {
+      return res.status(400).json({
+        message:
+          'Trạng thái không hợp lệ. Phải là "draft", "scheduled", "completed" hoặc "cancelled"',
+        status: 400,
+      });
+    }
+    // Kiểm tra loại sự kiện
+    if (
+      category &&
+      !['workshop', 'meeting', 'party', 'other'].includes(category)
+    ) {
+      return res.status(400).json({
+        message:
+          'Loại sự kiện không hợp lệ. Phải là "workshop", "meeting", "party" hoặc "other"',
+        status: 400,
+      });
     }
 
     // Tạo sự kiện mới
-    const newEvent = await Event.create({
+    const newEvent = new Event({
       title,
       description,
       calendarId,
@@ -81,28 +237,49 @@ exports.createEvent = async (req, res) => {
       color: color || '#378006',
       allDay: allDay || false,
     });
+    // example for startDate and endDate to insert to postman, with timezone Asia/Ho_Chi_Minh
 
-    // Cập nhật lịch
-    await Calendar.findByIdAndUpdate(calendarId, {
-      $push: { events: newEvent._id },
+    // Lưu sự kiện vào cơ sở dữ liệu
+    const savedEvent = await newEvent.save();
+
+    // Ghi lịch sử sự kiện
+    await EventHistory.create({
+      eventId: newEvent._id,
+      participants: newEvent.participants.map((p) => p.userId),
     });
 
-    // Tạo thông báo
-    if (participants && participants.length > 0) {
-      const notifications = participants.map((participant) => ({
-        userId: participant.userId,
-        type: 'event_invite',
-        notificationType: 'system',
-        content: `Bạn đã được mời tham gia sự kiện: ${title}`,
-        eventId: newEvent._id,
-      }));
-      await Notification.insertMany(notifications);
-    }
+    // Tạo thông báo cho người tham gia // Hoặc gửi email
+
+    //Convert event result with timezone Asia/Ho_Chi_Minh
+    const formattedStartDate = formatDateToTimeZone(
+      savedEvent.startDate,
+      savedEvent.timeZone
+    );
+    const formattedEndDate = formatDateToTimeZone(
+      savedEvent.endDate,
+      savedEvent.timeZone
+    );
+    const createdAt = formatDateToTimeZone(
+      savedEvent.createdAt,
+      savedEvent.timeZone
+    );
+    const updatedAt = formatDateToTimeZone(
+      savedEvent.updatedAt,
+      savedEvent.timeZone
+    );
+
+    const newEventResult = {
+      ...savedEvent.toObject(),
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
+      createdAt,
+      updatedAt,
+    };
 
     res.status(201).json({
       message: 'Tạo sự kiện thành công',
       status: 201,
-      data: newEvent,
+      data: newEventResult,
     });
   } catch (error) {
     console.error('Lỗi khi tạo sự kiện:', error);
