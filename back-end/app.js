@@ -33,6 +33,7 @@ app.use('/workspace', workspaceRouter);
 app.use('/calendar', calendarRouter);
 app.use('/event', eventRouter);
 app.use('/board', boardRouter);
+app.use('/workspace/:workspaceId/board', boardRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

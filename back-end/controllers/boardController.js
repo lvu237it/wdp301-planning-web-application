@@ -72,10 +72,10 @@ exports.createBoard = async (req, res) => {
     const { 
       name, 
       description, 
-      workspaceId, 
       visibility,      // 'public' hoặc 'private'
       criteria         // object { skills: [...], yearOfExperience: {min,max}, workDuration: {min,max,unit} }
     } = req.body;
+    const workspaceId = req.params.workspaceId;
     const creatorId = req.user._id;
 
     // 1. Kiểm tra trường bắt buộc
@@ -135,14 +135,13 @@ exports.createBoard = async (req, res) => {
 // cập nhật Board
 exports.updateBoard = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { boardId } = req.params; // nếu route là /workspace/:workspaceId/board/:boardId
     const updates = req.body;
-    // updates có thể gồm: name, description, calendarId, visibility, criteria, backgroundColor, backgroundImage, v.v.
-
-    // 1. Cập nhật trực tiếp (Mongoose sẽ validate các field mới)
-    const board = await Board.findByIdAndUpdate(id, updates, {
+    console.log('boardId', boardId);
+    
+    const board = await Board.findByIdAndUpdate(boardId, updates, {
       new: true,
-      runValidators: true,   // đảm bảo validate theo schema
+      runValidators: true,
     });
 
     if (!board) {
@@ -166,9 +165,9 @@ exports.updateBoard = async (req, res) => {
 // đóng Board
 exports.closeBoard = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { boardId } = req.params;
 
-    const board = await Board.findById(id);
+    const board = await Board.findById(boardId);
     if (!board) {
       return res.status(404).json({ message: 'Board không tồn tại' });
     }
@@ -197,9 +196,9 @@ exports.closeBoard = async (req, res) => {
 // xóa Board
 exports.deleteBoard = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { boardId } = req.params;
 
-    const board = await Board.findByIdAndDelete(id);
+    const board = await Board.findByIdAndDelete(boardId);
     if (!board) {
       return res
         .status(404)
@@ -208,7 +207,7 @@ exports.deleteBoard = async (req, res) => {
 
     // Mark tất cả BoardMembership liên quan thành deleted (optional)
     await BoardMembership.updateMany(
-      { boardId: id },
+      { boardId: boardId },
       { isDeleted: true, deletedAt: new Date() }
     );
 
@@ -227,7 +226,7 @@ exports.deleteBoard = async (req, res) => {
 // thêm người dùng với read-only role trên Board
 exports.inviteBoardMember = async (req, res) => {
   try {
-    const { id: boardId } = req.params;
+    const { boardId } = req.params;
     const { email, role = 'read-only' } = req.body;
     const inviterId = req.user._id;
 
@@ -305,7 +304,7 @@ exports.respondToBoardInvite = async (req, res) => {
         .json({ message: 'Thiếu token hoặc action không hợp lệ' });
     }
 
-    // 6.1 Tìm membership theo token
+    // 1. Tìm membership theo token
     const membership = await BoardMembership.findOne({ invitationToken: token });
     if (!membership) {
       return res
@@ -313,32 +312,40 @@ exports.respondToBoardInvite = async (req, res) => {
         .json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 
-    // 6.2 Đã xử lý rồi?
+    // 2. Kiểm tra đã xử lý rồi?
     if (membership.invitationResponse !== 'pending') {
       return res
         .status(400)
         .json({ message: 'Lời mời đã được xử lý trước đó' });
     }
 
-    // 6.3 Xử lý action
+    // 3. Xử lý action
+    //    Chúng ta gán invitationResponse (thay vì applicationStatus)
     if (action === 'accept') {
       membership.invitationResponse = 'accepted';
-      // Middleware pre 'save' sẽ tự set applicationStatus = 'applied' → 'accepted' → role = 'member'
     } else {
       membership.invitationResponse = 'declined';
-      // Middleware pre 'save' sẽ tự đánh dấu isDeleted = true
     }
 
+    // Lưu lại trước khi save, để trả về cho client
+    const responseStatus = membership.invitationResponse; // 'accepted' hoặc 'declined'
+
+    // 4. Xóa token để không dùng lại
     membership.invitationToken = undefined;
+
+    // 5. Lưu object; middleware pre('save') sẽ tự bật logic:
+    //    - Nếu accepted → gán applicationStatus='accepted', role='member', invitationResponse=null, appliedAt
+    //    - Nếu declined → gán isDeleted=true, deletedAt
     await membership.save();
 
+    // 6. Trả về cho client
     return res.status(200).json({
       message: `Bạn đã ${action === 'accept' ? 'chấp nhận' : 'từ chối'} lời mời vào Board.`,
-      status: membership.invitationResponse,
+      status: responseStatus, // trả 'accepted' hoặc 'declined'
     });
   } catch (err) {
     console.error('Lỗi khi xử lý invite-response:', err);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi server khi phản hồi lời mời',
       error: err.message,
     });
