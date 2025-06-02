@@ -748,18 +748,31 @@ exports.deleteEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await Event.findByIdAndUpdate(
-      id,
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
-
-    if (!event) {
-      return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
-        status: 404,
+    if (!id) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện',
+        status: 400,
       });
     }
+    const event = await Event.findById(id);
+    if (event.isDeleted) {
+      return res.status(400).json({
+        message: 'Sự kiện đã bị xóa trước đó',
+        status: 400,
+      });
+    }
+    // Kiểm tra xem người dùng có phải là người tạo sự kiện không
+    if (event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền xóa sự kiện này',
+        status: 403,
+      });
+    }
+
+    // Đánh dấu sự kiện là đã xóa
+    event.isDeleted = true;
+    event.deletedAt = new Date();
+    await event.save();
 
     res.status(200).json({
       message: 'Xóa sự kiện thành công',
@@ -778,45 +791,106 @@ exports.deleteEvent = async (req, res) => {
 exports.addParticipant = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, status } = req.body;
+    //mời người tham gia sự kiện theo email
+    const { email } = req.body;
+    console.log('id', id);
+    console.log('email', email);
 
-    if (!userId) {
+    //Kiểm tra sự kiện còn tồn tại không
+    if (!id) {
       return res.status(400).json({
-        message: 'Thiếu userId',
+        message: 'Thiếu id sự kiện',
+        status: 400,
+      });
+    }
+
+    //Kiểm tra người được mời có tồn tại và có trong boardMembership hay không
+    if (!email) {
+      return res.status(400).json({
+        message: 'Thiếu email người được mời',
         status: 400,
       });
     }
 
     const event = await Event.findById(id);
-    if (!event) {
+    if (!event || event.isDeleted) {
       return res.status(404).json({
         message: 'Không tìm thấy sự kiện',
         status: 404,
       });
     }
 
-    if (event.participants.some((p) => p.userId.toString() === userId)) {
-      return res.status(400).json({
-        message: 'Người dùng đã là người tham gia',
-        status: 400,
-      });
-    }
-
-    event.participants.push({ userId, status: status || 'pending' });
-    await event.save();
-
-    await Notification.create({
-      userId,
-      type: 'event_invite',
-      notificationType: 'system',
-      content: `Bạn đã được mời tham gia sự kiện: ${event.title}`,
-      eventId: event._id,
+    const user = await User.findOne({
+      email: email,
+      isDeleted: false,
     });
 
-    res.status(200).json({
-      message: 'Thêm người tham gia thành công',
-      status: 200,
-      data: event,
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy người dùng với email này',
+        status: 404,
+      });
+    }
+    console.log('event', event);
+
+    //Kiểm tra user có trong boardMembership hay không
+    const boardMembership = await BoardMembership.findOne({
+      boardId: event.boardId,
+      userId: user._id,
+      invitationResponse: { $in: ['accepted', 'pending'] },
+    });
+
+    console.log('boardMembership', boardMembership);
+
+    //Người dùng đã ở trong boardMembership thì mới có thể tham gia sự kiện
+    if (boardMembership) {
+      // Kiểm tra xem người dùng đã là người tham gia sự kiện chưa
+      const existingParticipant = event.participants.find(
+        (p) => p.userId.toString() === user._id.toString()
+      );
+      if (
+        existingParticipant &&
+        boardMembership.invitationResponse === 'accepted'
+      ) {
+        return res.status(400).json({
+          message: 'Người dùng đã là người tham gia sự kiện này',
+          status: 400,
+        });
+      } else if (
+        existingParticipant &&
+        boardMembership.invitationResponse === 'pending'
+      ) {
+        return res.status(400).json({
+          message:
+            'Người dùng đã được mời tham gia sự kiện này và đang chờ phản hồi',
+          status: 400,
+        });
+      } else {
+        // Kiểm tra xem người dùng có phải là người tạo sự kiện không
+        if (event.organizer.toString() !== req.user._id.toString()) {
+          return res.status(403).json({
+            message: 'Bạn không có quyền thêm người tham gia vào sự kiện này',
+            status: 403,
+          });
+        }
+
+        // Thêm người dùng vào danh sách người tham gia sự kiện
+        event.participants.push({
+          userId: user._id,
+          status: 'pending', // Trạng thái ban đầu là pending
+        });
+        await event.save();
+
+        return res.status(200).json({
+          message: 'Mời người tham gia thành công',
+          status: 200,
+          data: event,
+        });
+      }
+    }
+    return res.status(403).json({
+      message: 'Người dùng không phải là thành viên của board này',
+      status: 403,
     });
   } catch (error) {
     console.error('Lỗi khi thêm người tham gia:', error);
