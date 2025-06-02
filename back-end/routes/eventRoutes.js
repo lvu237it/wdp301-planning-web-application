@@ -3,7 +3,11 @@ const router = express.Router();
 const eventController = require('../controllers/eventController');
 const auth = require('../utils/auth');
 
-router.post('/', auth.protect, eventController.createEvent);
+router.post(
+  '/create-event-for-calendar/:calendarId',
+  auth.protect,
+  eventController.createEventForCalendar
+);
 router.get('/:id', auth.protect, eventController.getEventById);
 router.get('/', auth.protect, eventController.getAllEvents);
 router.patch('/:id', auth.protect, eventController.updateEvent);

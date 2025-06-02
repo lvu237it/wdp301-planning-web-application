@@ -90,9 +90,10 @@ exports.getCalendarById = async (req, res) => {
   }
 };
 
-exports.getAllCalendars = async (req, res) => {
+exports.getAllCalendarsUserOrGroup = async (req, res) => {
   try {
-    const { ownerType, ownerId } = req.query;
+    const { ownerType } = req.body;
+    const ownerId = req.user._id;
 
     if (!ownerType || !ownerId) {
       return res.status(400).json({
@@ -128,23 +129,45 @@ exports.getAllCalendars = async (req, res) => {
 exports.updateCalendar = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const {
+      name,
+      description,
+      events,
+      tasks,
+      defaultView,
+      timeZone,
+      isPublic,
+    } = req.body;
 
-    // Ngăn cập nhật isDeleted và deletedAt
-    delete updates.isDeleted;
-    delete updates.deletedAt;
-
-    const calendar = await Calendar.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    }).select('-isDeleted -deletedAt');
-
+    //Find calendar by ID
+    const calendar = await Calendar.findById(id).select(
+      '-isDeleted -deletedAt'
+    );
     if (!calendar) {
       return res.status(404).json({
         message: 'Không tìm thấy lịch',
         status: 404,
       });
     }
+    //Check if the user is the owner of the calendar
+    const ownerId = req.user._id;
+    if (calendar.ownerId.toString() !== ownerId.toString()) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền sửa đổi lịch này',
+        status: 403,
+      });
+    }
+    // Cập nhật các trường của lịch
+    calendar.name = name || calendar.name;
+    calendar.description = description || calendar.description;
+    calendar.events = events || calendar.events;
+    calendar.tasks = tasks || calendar.tasks;
+    calendar.defaultView = defaultView || calendar.defaultView;
+    calendar.timeZone = timeZone || calendar.timeZone;
+    calendar.isPublic = isPublic !== undefined ? isPublic : calendar.isPublic;
+    calendar.color = req.body.color || calendar.color; // Cập nhật màu sắc nếu có
+    // Lưu lịch đã cập nhật
+    await calendar.save();
 
     res.status(200).json({
       message: 'Cập nhật lịch thành công',
