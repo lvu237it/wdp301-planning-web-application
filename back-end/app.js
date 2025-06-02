@@ -43,7 +43,7 @@ app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
 app.use('/calendar', calendarGoogleAPIRouter);
 app.use('/workspace', workspaceRouter);
-app.use('/board', boardRouter);
+app.use('/workspace/:workspaceId/board', boardRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
