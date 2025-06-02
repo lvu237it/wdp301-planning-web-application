@@ -8,12 +8,13 @@ exports.createCalendar = async (req, res) => {
       name,
       description,
       ownerType,
-      ownerId,
       defaultView,
       timeZone,
       color,
       isPublic,
     } = req.body;
+
+    const ownerId = req.user._id;
 
     // Kiểm tra các trường bắt buộc
     if (!name || !ownerType || !ownerId) {

@@ -11,10 +11,7 @@ exports.protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // Giải mã và lấy thông tin liên quan tới người dùng trong token
-    req.user = await User.findById(decoded._id).select(
-      'role email createdAt description'
-    ); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
-    console.log('req.user', req.user);
+    req.user = await User.findById(decoded.id).select('role email createdAt'); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
     next();
   } catch (error) {
     res.status(401).json({ status: 'error', message: error.message });
@@ -91,12 +88,10 @@ exports.isCreatorBoard = async (req, res, next) => {
     }
 
     if (board.creator.toString() !== userId.toString()) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: 'Chỉ Creator mới có thể thực hiện hành động này',
-        });
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Creator mới có thể thực hiện hành động này',
+      });
     }
 
     // gán board vào req nếu cần dùng tiếp
@@ -139,12 +134,10 @@ exports.isAdminBoard = async (req, res, next) => {
     });
 
     if (!isAdmin) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: 'Chỉ Admin hoặc Creator mới có thể thực hiện hành động này',
-        });
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ Admin hoặc Creator mới có thể thực hiện hành động này',
+      });
     }
 
     req.board = board;

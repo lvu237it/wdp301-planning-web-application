@@ -5,7 +5,11 @@ const auth = require('../utils/auth');
 
 router.get('/', auth.protect, calendarController.getAllCalendars);
 
-router.post('/', auth.protect, calendarController.createCalendar);
+router.post(
+  '/create-new-calendar',
+  auth.protect,
+  calendarController.createCalendar
+);
 router.get('/:id', auth.protect, calendarController.getCalendarById);
 router.patch('/:id', auth.protect, calendarController.updateCalendar);
 router.delete('/:id', auth.protect, calendarController.deleteCalendar);
