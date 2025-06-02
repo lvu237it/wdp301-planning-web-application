@@ -6,7 +6,7 @@ const router = express.Router();
 const {
   signup,
   login,
-  logout,
+  logoutUser,
   forgotPassword,
   resetPassword,
   updateMyPassword,
@@ -24,6 +24,6 @@ router.patch("/resetPassword/:token", resetPassword);
 router.patch("/updateMyPassword", verifyToken, updateMyPassword);
 
 // Protected route: logout
-router.get("/logout", verifyToken, logout);
+router.get("/logout", verifyToken, logoutUser);
 
 module.exports = router;

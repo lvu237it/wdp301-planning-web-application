@@ -12,7 +12,6 @@ const {
   updateUserById,
   deleteUserById,
 } = require("../controllers/userController");
-
 const { verifyToken, restrictTo } = require("../middlewares/verifyToken");
 
 // ---------------------------
@@ -35,11 +34,12 @@ router
 // PUT /api/users/:id            → updateUserById
 // DELETE /api/users/:id         → deleteUserById
 
-router.route("/").get(restrictTo("admin"), getAllUsers);
+// Only adminSystem can call these admin‐level routes
+router.route("/").get(verifyToken, restrictTo("adminSystem"), getAllUsers);
 
 router
   .route("/:id")
-  .put(restrictTo("admin"), updateUserById)
-  .delete(restrictTo("admin"), deleteUserById);
+  .put(verifyToken, restrictTo("adminSystem"), updateUserById)
+  .delete(verifyToken, restrictTo("adminSystem"), deleteUserById);
 
 module.exports = router;

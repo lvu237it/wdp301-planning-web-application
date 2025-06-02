@@ -1,57 +1,33 @@
-const nodemailer = require("nodemailer");
-const Email = require("../models/emailModel"); // Giả sử model Email đã được định nghĩa
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-const sendMail = async (emailDoc) => {
-  // Cấu hình email
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER, // Tài khoản Google cố định (ví dụ: no-reply@yourapp.com)
-      pass: process.env.EMAIL_PASSWORD, // App Password của tài khoản
-    },
-  });
+// Cấu hình transporter (dùng Gmail hoặc SMTP service khác)
+const transporter = nodemailer.createTransport({
+  service: 'Gmail',
+  auth: {
+    user: process.env.EMAIL_USERNAME, // ví dụ: your_email@gmail.com
+    pass: process.env.EMAIL_PASSWORD, // dùng App Password nếu 2FA
+  },
+});
 
-  // Thực hiện gửi email
+// Hàm gửi email
+const sendEmail = async (to, subject, htmlContent) => {
+
   const mailOptions = {
-    from: process.env.EMAIL_USER, // Người gửi cố định từ biến môi trường
-    to: emailDoc.recipients.map((r) => r.email).join(","), // Danh sách người nhận
-    subject: emailDoc.subject, // Tiêu đề từ document
-    text: emailDoc.body.text, // Nội dung văn bản từ document
-    html: emailDoc.body.html, // Nội dung HTML từ document (nếu có)
+    from: `"WebPlanPro" <${process.env.EMAIL_USERNAME}>`,
+    to,
+    subject,
+    html: htmlContent,
   };
 
   try {
-    // Gửi email
-    await transporter.sendMail(mailOptions);
-
-    // Cập nhật trạng thái sau khi gửi thành công
-    await Email.updateOne(
-      { _id: emailDoc._id },
-      {
-        $set: {
-          status: "sent",
-          "recipients.$[].status": "sent",
-          sentAt: new Date(),
-        },
-      }
-    );
-
-    return { success: true, message: "Email sent successfully" };
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`Email sent: ${info.response}`);
+    return info;
   } catch (error) {
-    // Cập nhật trạng thái nếu gửi thất bại
-    await Email.updateOne(
-      { _id: emailDoc._id },
-      {
-        $set: {
-          status: "failed",
-          "recipients.$[].status": "failed",
-          error: error.message,
-        },
-      }
-    );
-
-    throw new Error(`Failed to send email: ${error.message}`);
+    console.error('Lỗi khi gửi email:', error);
+    throw error;
   }
 };
 
-module.exports = sendMail;
+module.exports = sendEmail;

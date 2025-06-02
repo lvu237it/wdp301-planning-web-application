@@ -100,56 +100,109 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // 1) Check if email & password provided
+    // 1. Kiểm tra dữ liệu đầu vào
     if (!email || !password) {
       return next(new AppError("Please provide email and password.", 400));
     }
 
-    // 2) Check if user exists & not soft‐deleted
-    const user = await User.findOne({ email, isDeleted: false }).select(
-      "+password"
-    );
+    // Tìm user theo email
+    const user = await User.findOne({ email });
     if (!user) {
-      return next(new AppError("Incorrect email or password.", 400));
+      return res.status(401).json({
+        message: 'Invalid email ',
+        status: 401,
+      });
     }
 
-    // 3) Check if password is correct
-    const isCorrect = await user.correctPassword(password, user.password);
-    if (!isCorrect) {
-      return next(new AppError("Incorrect email or password.", 400));
+    // Kiểm tra mật khẩu
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        message: 'Invalid password',
+        status: 401,
+      });
     }
+    // Tạo token truy cập và token refresh
+    const { description, createdAt, role, refreshToken, ...userData } =
+      user.toObject();
+    console.log('createdAt', createdAt);
+    const accessToken = generateAccessToken(user._id, role);
+    const newRefreshToken = generateRefreshToken(user._id);
 
-    // 4) Send JWT
-    createSendToken(user, 200, res);
-  } catch (err) {
-    next(err);
+    // Cập nhật token refresh trong database
+    await User.findByIdAndUpdate(
+      user._id,
+      { refreshToken: newRefreshToken },
+      { new: true }
+    );
+
+    // Thiết lập cookie chứa token refresh
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000, // 15'
+    });
+
+    // Phản hồi thông tin thành công
+    res.status(200).json({
+      success: true,
+      accessToken,
+      userData,
+      role,
+      createdAt,
+      description,
+    });
+  } catch (error) {
+    console.error('Error while logging in:', error);
+    res.status(500).json({
+      message: 'Internal Server Error',
+      status: 500,
+      error,
+    });
   }
 };
-
-/**
- * @desc    Log out user (clear cookie)
- * @route   GET /authentication/logout
- * @access  Private
- */
-exports.logout = (req, res) => {
-  res.cookie("jwt", "loggedout", {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true,
+exports.getCurrentUser = async (req, res) => {
+  const { _id } = req.user;
+  const user = await User.findById(_id).select('-refreshToken -password -role');
+  res.status(200).json({
+    success: !!user,
+    user: user || 'User not found',
   });
-  res.status(200).json({ status: "success" });
 };
 
-/**
- * @desc    Forgot Password – send a reset token via email
- * @route   POST /authentication/forgotPassword
- * @access  Public
- */
-exports.forgotPassword = async (req, res, next) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return next(new AppError("Please provide your email address.", 400));
-    }
+exports.refreshAccessToken = async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) throw new Error('No refresh token in cookies');
+
+  const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+  const user = await User.findOne({ _id: decoded._id, refreshToken });
+
+  res.status(200).json({
+    success: !!user,
+    newAccessToken: user
+      ? generateAccessToken(user._id, user.role)
+      : 'Refresh token not matched',
+  });
+};
+
+exports.logoutUser = async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) throw new Error('No refresh token in cookies');
+
+  await User.findOneAndUpdate(
+    { refreshToken },
+    { refreshToken: '' },
+    { new: true }
+  );
+  res.clearCookie('refreshToken', { httpOnly: true, secure: true });
+  res.status(200).json({
+    success: true,
+    message: 'Logout successful',
+  });
+};
+
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) throw new Error('Missing email');
 
     // 1) Find user by email
     const user = await User.findOne({ email });
@@ -192,9 +245,6 @@ exports.forgotPassword = async (req, res, next) => {
       await user.save({ validateBeforeSave: false });
       return next(new AppError("Error sending email. Try again later.", 500));
     }
-  } catch (err) {
-    next(err);
-  }
 };
 
 /**

@@ -14,7 +14,7 @@ const membershipSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['adminWorkspace', 'memberWorkspace'],
+      enum: ['creatorWorkspace','adminWorkspace', 'memberWorkspace'],
       default: 'memberWorkspace',
     },
     invitationStatus: {

@@ -10,7 +10,7 @@ const workspaceSchema = new mongoose.Schema(
       type: String,
     },
     creator: {
-      //Người tạo nhóm => khác với người là admin hiện tại
+      //Người tạo workspace => khác với người là system admin hiện tại
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Người tạo nhóm là bắt buộc'],
@@ -24,7 +24,6 @@ const workspaceSchema = new mongoose.Schema(
     calendarId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Calendar',
-      required: true,
     },
     isDeleted: {
       type: Boolean,

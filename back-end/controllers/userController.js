@@ -299,3 +299,249 @@ exports.deleteUserById = async (req, res, next) => {
     next(err);
   }
 };
+/**
+ * @desc    Update a user’s role or soft‐delete/reactivate status (Admin only)
+ * @route   PUT /api/users/:id
+ * @access  Private (adminSystem only)
+ */
+exports.updateUserById = async (req, res, next) => {
+  try {
+    // 1) Ensure caller is an adminSystem
+    if (req.user.role !== "adminSystem") {
+      return next(new AppError("Admin access required.", 403));
+    }
+
+    const { id } = req.params;
+    // 2) Validate that :id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError("Invalid user ID format.", 400));
+    }
+
+    // 3) Prevent an Admin from demoting or deleting themselves
+    if (id === req.user._id.toString()) {
+      // If they're trying to change their own role or isDeleted to something non-admin
+      if (
+        (req.body.role && req.body.role !== "adminSystem") ||
+        (typeof req.body.isDeleted === "boolean" && req.body.isDeleted === true)
+      ) {
+        return next(
+          new AppError(
+            "You cannot demote or deactivate your own admin account.",
+            400
+          )
+        );
+      }
+    }
+
+    // 4) Fetch the target user so we can check their current role before deactivating
+    const user = await User.findById(id);
+    if (!user) {
+      return next(new AppError("User not found.", 404));
+    }
+
+    // 5) Build an update object based on what the admin passed in
+    const updateFields = {};
+
+    // 5a) If the admin wants to change the role:
+    if (req.body.role) {
+      // Validate the supplied role is one of your allowed values
+      const allowedRoles = ["userSystem", "adminSystem"];
+      if (!allowedRoles.includes(req.body.role)) {
+        return next(
+          new AppError(`Role must be one of: ${allowedRoles.join(", ")}`, 400)
+        );
+      }
+
+      // Prevent another admin from being demoted (except ourselves, which we already blocked above)
+      if (user.role === "adminSystem" && req.body.role !== "adminSystem") {
+        return next(
+          new AppError(
+            "Cannot demote another admin user. Only self‐demotion is blocked separately.",
+            400
+          )
+        );
+      }
+
+      updateFields.role = req.body.role;
+    }
+
+    // 5b) If the admin wants to toggle isDeleted (soft delete or reactivate):
+    if (typeof req.body.isDeleted === "boolean") {
+      // If trying to deactivate an adminSystem → block
+      if (user.role === "adminSystem" && req.body.isDeleted === true) {
+        return next(
+          new AppError("Cannot deactivate an adminSystem user.", 400)
+        );
+      }
+
+      updateFields.isDeleted = req.body.isDeleted;
+      // Set or clear the deletedAt timestamp
+      if (req.body.isDeleted === true) {
+        updateFields.deletedAt = Date.now();
+      } else {
+        updateFields.deletedAt = null;
+      }
+    }
+
+    // 6) If no updatable fields were provided, return an error
+    if (Object.keys(updateFields).length === 0) {
+      return next(
+        new AppError(
+          "Nothing to update. Provide either { role: <value> } or { isDeleted: <true|false> } in the request body.",
+          400
+        )
+      );
+    }
+
+    // 7) Perform the actual update (returning the new document)
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select("-password"); // never send back the hashed password
+
+    if (!updatedUser) {
+      return next(new AppError("User not found after update.", 404));
+    }
+
+    // 8) Send success response with the updated fields
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: {
+          id: updatedUser._id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          isDeleted: updatedUser.isDeleted,
+          deletedAt: updatedUser.deletedAt,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+/**
+ * @desc    Update a user’s role or soft‐delete/reactivate status (Admin only)
+ * @route   PUT /api/users/:id
+ * @access  Private (adminSystem only)
+ */
+exports.updateUserById = async (req, res, next) => {
+  try {
+    // 1) Ensure caller is an adminSystem
+    if (req.user.role !== "adminSystem") {
+      return next(new AppError("Admin access required.", 403));
+    }
+
+    const { id } = req.params;
+    // 2) Validate that :id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError("Invalid user ID format.", 400));
+    }
+
+    // 3) Prevent an Admin from demoting or deleting themselves
+    if (id === req.user._id.toString()) {
+      // If they're trying to change their own role or isDeleted to something non-admin
+      if (
+        (req.body.role && req.body.role !== "adminSystem") ||
+        (typeof req.body.isDeleted === "boolean" && req.body.isDeleted === true)
+      ) {
+        return next(
+          new AppError(
+            "You cannot demote or deactivate your own admin account.",
+            400
+          )
+        );
+      }
+    }
+
+    // 4) Fetch the target user so we can check their current role before deactivating
+    const user = await User.findById(id);
+    if (!user) {
+      return next(new AppError("User not found.", 404));
+    }
+
+    // 5) Build an update object based on what the admin passed in
+    const updateFields = {};
+
+    // 5a) If the admin wants to change the role:
+    if (req.body.role) {
+      // Validate the supplied role is one of your allowed values
+      const allowedRoles = ["userSystem", "adminSystem"];
+      if (!allowedRoles.includes(req.body.role)) {
+        return next(
+          new AppError(`Role must be one of: ${allowedRoles.join(", ")}`, 400)
+        );
+      }
+
+      // Prevent another admin from being demoted (except ourselves, which we already blocked above)
+      if (user.role === "adminSystem" && req.body.role !== "adminSystem") {
+        return next(
+          new AppError(
+            "Cannot demote another admin user. Only self‐demotion is blocked separately.",
+            400
+          )
+        );
+      }
+
+      updateFields.role = req.body.role;
+    }
+
+    // 5b) If the admin wants to toggle isDeleted (soft delete or reactivate):
+    if (typeof req.body.isDeleted === "boolean") {
+      // If trying to deactivate an adminSystem → block
+      if (user.role === "adminSystem" && req.body.isDeleted === true) {
+        return next(
+          new AppError("Cannot deactivate an adminSystem user.", 400)
+        );
+      }
+
+      updateFields.isDeleted = req.body.isDeleted;
+      // Set or clear the deletedAt timestamp
+      if (req.body.isDeleted === true) {
+        updateFields.deletedAt = Date.now();
+      } else {
+        updateFields.deletedAt = null;
+      }
+    }
+
+    // 6) If no updatable fields were provided, return an error
+    if (Object.keys(updateFields).length === 0) {
+      return next(
+        new AppError(
+          "Nothing to update. Provide either { role: <value> } or { isDeleted: <true|false> } in the request body.",
+          400
+        )
+      );
+    }
+
+    // 7) Perform the actual update (returning the new document)
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select("-password"); // never send back the hashed password
+
+    if (!updatedUser) {
+      return next(new AppError("User not found after update.", 404));
+    }
+
+    // 8) Send success response with the updated fields
+    res.status(200).json({
+      status: "success",
+      data: {
+        user: {
+          id: updatedUser._id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          isDeleted: updatedUser.isDeleted,
+          deletedAt: updatedUser.deletedAt,
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};

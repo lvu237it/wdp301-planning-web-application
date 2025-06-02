@@ -17,7 +17,6 @@ const boardSchema = new mongoose.Schema(
     calendarId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Calendar',
-      required: true,
     },
     backgroundColor: { type: String, default: '#ffffff' },
     backgroundImage: { type: String },
@@ -28,6 +27,7 @@ const boardSchema = new mongoose.Schema(
           type: String,
           trim: true,
           lowercase: true,
+          required: [true, 'kĩ năng là bắt buộc'],
         },
       ],
       yearOfExperience: {
@@ -35,11 +35,13 @@ const boardSchema = new mongoose.Schema(
           type: Number,
           min: [0, 'Năm kinh nghiệm tối thiểu không thể nhỏ hơn 0'],
           default: 0,
+          required: [true, 'Năm kinh nghiệm tối thiểu là bắt buộc'],
         },
         max: {
           type: Number,
           min: [0, 'Năm kinh nghiệm tối đa không thể nhỏ hơn 0'],
           default: 0,
+          required: [true, 'Năm kinh nghiệm tối đa là bắt buộc'],
         },
       },
       workDuration: {
@@ -47,19 +49,23 @@ const boardSchema = new mongoose.Schema(
           type: Number,
           min: [0, 'Thời gian làm việc tối thiểu không thể nhỏ hơn 0'],
           default: 0,
+          required: [true, 'Thời gian làm việc tối thiểu là bắt buộc'],
         },
         max: {
           type: Number,
           min: [0, 'Thời gian làm việc tối đa không thể nhỏ hơn 0'],
           default: 0,
+          required: [true, 'Thời gian làm việc tối đa là bắt buộc'],
         },
         unit: {
           type: String,
           enum: ['hours', 'days', 'weeks', 'months'],
           default: 'hours',
+          required: [true, 'Thời gian làm việc tối đa là bắt buộc'],
         },
       },
     },
+    visibility: { type: String, enum: ['public', 'private'], default: 'public', required: true },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },
