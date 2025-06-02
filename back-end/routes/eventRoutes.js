@@ -6,11 +6,11 @@ const auth = require('../utils/auth');
 router.post(
   '/create-event-for-calendar/:calendarId',
   auth.protect,
-  eventController.createEventForCalendar
+  eventController.createEventForCalendar //ok
 );
-router.get('/:id', auth.protect, eventController.getEventById);
-router.get('/', auth.protect, eventController.getAllEvents);
-router.patch('/:id', auth.protect, eventController.updateEvent);
+router.get('/:id', auth.protect, eventController.getEventById); //ok
+router.get('/', auth.protect, eventController.getAllEvents); //ok
+router.patch('/:id', auth.protect, eventController.updateEvent); //ok
 router.delete('/:id', auth.protect, eventController.deleteEvent);
 router.post('/:id/participants', auth.protect, eventController.addParticipant);
 router.patch(
