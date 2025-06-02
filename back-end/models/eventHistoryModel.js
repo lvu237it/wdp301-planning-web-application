@@ -7,10 +7,28 @@ const eventHistorySchema = new mongoose.Schema(
       ref: 'Event',
       required: true,
     },
+    action: {
+      type: String,
+      enum: [
+        'create',
+        'add_participant',
+        'remove_participant',
+        'update_status',
+      ],
+      required: true,
+    },
     participants: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ['pending', 'accepted', 'declined', 'rejected'],
+          default: 'pending',
+        },
       },
     ],
     isDeleted: {
@@ -27,5 +45,6 @@ const eventHistorySchema = new mongoose.Schema(
 );
 
 eventHistorySchema.index({ eventId: 1 });
+eventHistorySchema.index({ participants: 1 });
 eventHistorySchema.index({ startDate: 1 });
 module.exports = mongoose.model('EventHistory', eventHistorySchema);

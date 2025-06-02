@@ -104,7 +104,7 @@ const eventSchema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         status: {
           type: String,
-          enum: ['pending', 'accepted', 'declined'],
+          enum: ['pending', 'accepted', 'declined', 'rejected'],
           default: 'pending',
         },
       },

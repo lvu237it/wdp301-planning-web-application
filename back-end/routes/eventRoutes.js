@@ -12,33 +12,22 @@ router.get('/:id', auth.protect, eventController.getEventById); //ok
 router.get('/', auth.protect, eventController.getAllEvents); //ok
 router.patch('/:id', auth.protect, eventController.updateEvent); //ok
 router.delete('/:id', auth.protect, eventController.deleteEvent); //ok
-router.post('/:id/invite', auth.protect, eventController.addParticipant);
-router.patch(
-  '/:id/participants/:userId',
+router.post(
+  '/:id/invite',
   auth.protect,
-  eventController.updateParticipantStatus
+  eventController.inviteToBecomeParticipant
+); //ok
+router.patch(
+  '/:id/participants/:userId/update-status',
+  auth.protect,
+  eventController.updateParticipantStatus //ok
 );
 router.delete(
-  '/:id/participants/:userId',
+  '/:id/participants/:userId/remove',
   auth.protect,
-  eventController.removeParticipant
+  eventController.removeParticipant //ok
 );
 router.get('/:id/history', auth.protect, eventController.getEventHistory);
 router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
-router.post('/recurring', auth.protect, eventController.createRecurringEvents);
-router.post('/:id/files', auth.protect, eventController.addFileToEvent);
-router.get('/:id/files', auth.protect, eventController.getEventFiles);
-router.delete(
-  '/:id/files/:fileId',
-  auth.protect,
-  eventController.deleteEventFile
-);
-router.post('/:id/messages', auth.protect, eventController.addMessageToEvent);
-router.get('/:id/messages', auth.protect, eventController.getEventMessages);
-router.delete(
-  '/:id/messages/:messageId',
-  auth.protect,
-  eventController.deleteEventMessage
-);
 
 module.exports = router;
