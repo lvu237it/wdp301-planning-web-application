@@ -9,6 +9,7 @@ const sendMail = require('../utils/sendMail');
 const Workspace = require('../models/workspaceModel');
 const Board = require('../models/boardModel');
 const BoardMembership = require('../models/boardMembershipModel');
+const User = require('../models/userModel');
 const { formatDateToTimeZone } = require('../utils/dateUtils');
 
 exports.createEventForCalendar = async (req, res) => {
@@ -294,23 +295,78 @@ exports.createEventForCalendar = async (req, res) => {
 exports.getEventById = async (req, res) => {
   try {
     const { id } = req.params;
-
+    //populate đầy đủ thông tin để lấy cả người tham gia với trạng thái cụ thể, lịch, workspace, board
+    // lấy cả status của người tham gia vào sự kiện, cụ thể là participants.status
+    if (!id) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện',
+        status: 400,
+      });
+    }
     const event = await Event.findById(id)
-      .populate('participants.userId')
-      .populate('calendarId')
-      .select('-isDeleted -deletedAt');
-
-    if (!event) {
+      .populate('participants.userId', 'name email') // Chỉ lấy name và email của người tham gia
+      .populate('calendarId', 'name color') // Chỉ lấy name và color của lịch
+      .populate('workspaceId', 'name'); // Chỉ lấy name của workspace
+    if (!event || event.isDeleted) {
       return res.status(404).json({
         message: 'Không tìm thấy sự kiện',
         status: 404,
       });
     }
 
+    const organizerFound = await User.findById(event.organizer, 'name email');
+
+    // Chuyển đổi dữ liệu cho FullCalendar
+    const fullCalendarEvent = {
+      id: event._id.toString(),
+      title: event.title,
+      start: event.startDate,
+      end: event.endDate,
+      allDay: event.allDay || false,
+      backgroundColor: event.color,
+      rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
+      extendedProps: {
+        description: event.description,
+        locationName: event.locationName,
+        address: event.address,
+        type: event.type,
+        onlineUrl: event.onlineUrl,
+        meetingCode: event.meetingCode,
+        organizer: {
+          userId: event.organizer._id,
+          name: organizerFound.name,
+          email: organizerFound.email,
+        },
+        participants: event.participants.map((p) => ({
+          userId: p.userId._id,
+          name: p.userId.name,
+          email: p.userId.email,
+          status: p.status,
+        })),
+        calendar: {
+          id: event.calendarId._id,
+          name: event.calendarId.name,
+          color: event.calendarId.color,
+        },
+        workspace: event.workspaceId
+          ? {
+              id: event.workspaceId._id,
+              name: event.workspaceId.name,
+            }
+          : null,
+        board: event.boardId
+          ? {
+              id: event.boardId._id,
+              name: event.boardId.name,
+            }
+          : null,
+      },
+    };
+
     res.status(200).json({
       message: 'Lấy thông tin sự kiện thành công',
       status: 200,
-      data: event,
+      data: fullCalendarEvent,
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin sự kiện:', error);
@@ -322,47 +378,229 @@ exports.getEventById = async (req, res) => {
   }
 };
 
+// model event
+/*
+
+const mongoose = require('mongoose');
+// Quản lý sự kiện
+const eventSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: [true, 'Tiêu đề sự kiện là bắt buộc'],
+    },
+    description: { type: String },
+    calendarId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Calendar',
+      required: true,
+    },
+    locationName: {
+      //Tên cụ thể, toà, số nhà... (trực tiếp input chính xác tên địa điểm)
+      type: String,
+    },
+    address: {
+      // địa chỉ chi tiết thông qua toạ độ
+      type: {
+        type: String,
+        enum: ['Point'], //type: 'Point' chỉ ra rằng coordinates là một mảng [longitude, latitude] đại diện cho một điểm trên bản đồ.
+        required: false,
+      },
+      coordinates: {
+        //coordinates: [Number] lưu tọa độ theo thứ tự [longitude, latitude] (theo chuẩn GeoJSON).
+        type: [Number],
+        index: '2dsphere',
+        required: false,
+      }, // [longitude, latitude]
+      formattedAddress: {
+        type: String,
+        required: false,
+      }, // Địa chỉ đầy đủ từ Geocoding API
+      placeId: {
+        type: String,
+      },
+      mapZoomLevel: {
+        type: Number,
+        default: 15,
+      },
+    },
+    type: {
+      type: String,
+      enum: ['online', 'offline'],
+      required: true,
+    },
+    onlineUrl: {
+      type: String,
+    }, // URL cho sự kiện online (nếu type là online)
+    meetingCode: {
+      type: String,
+    }, // Mã cuộc họp (nếu có)
+    startDate: {
+      type: Date,
+      required: [true, 'Thời gian bắt đầu là bắt buộc'],
+    },
+    endDate: {
+      type: Date,
+      required: [true, 'Thời gian kết thúc là bắt buộc'],
+    },
+    allDay: {
+      type: Boolean,
+      default: false,
+    },
+    recurrence: {
+      //setup sự kiện theo chu kỳ
+      type: {
+        type: String,
+        enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
+        default: null,
+      },
+      interval: {
+        type: Number,
+        default: 1,
+      },
+      endDate: {
+        type: Date,
+      },
+    },
+    timeZone: {
+      type: String,
+      default: 'Asia/Ho_Chi_Minh',
+    },
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      required: false,
+    },
+    boardId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Board',
+      required: false,
+    },
+    organizer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Organizer là bắt buộc'],
+    },
+    participants: [
+      // RSVP - phản hồi tham gia sự kiện
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        status: {
+          type: String,
+          enum: ['pending', 'accepted', 'declined'],
+          default: 'pending',
+        },
+      },
+    ],
+    reminderSettings: [
+      {
+        method: { type: String, enum: ['email', 'popup'], default: 'popup' },
+        minutes: { type: Number, default: 15 },
+      },
+    ],
+    status: {
+      type: String,
+      enum: ['draft', 'scheduled', 'completed', 'cancelled'],
+      default: 'scheduled',
+    },
+    category: {
+      type: String,
+      enum: ['workshop', 'meeting', 'party', 'other'],
+      default: 'other',
+    },
+    color: {
+      type: String,
+      default: '#378006',
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+eventSchema.index({ startDate: 1 });
+eventSchema.index({ organizer: 1 });
+eventSchema.index({ participants: 1 });
+eventSchema.index({ 'address.coordinates': '2dsphere' });
+eventSchema.index({ status: 1 });
+eventSchema.index({ category: 1 });
+eventSchema.index({ calendarId: 1 });
+eventSchema.index({ boardId: 1 });
+module.exports = mongoose.model('Event', eventSchema);
+
+
+*/
+
 exports.getAllEvents = async (req, res) => {
   try {
-    const { calendarId, startDate, endDate, status, category } = req.query;
-
-    if (!calendarId) {
-      return res.status(400).json({
-        message: 'Thiếu calendarId',
-        status: 400,
-      });
-    }
-
-    const query = { calendarId, isDeleted: false };
-    if (startDate && endDate) {
-      query.startDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    }
-    if (status) {
-      query.status = status;
-    }
-    if (category) {
-      query.category = category;
-    }
-
-    const events = await Event.find(query).populate('participants.userId');
-
+    const userId = req.user._id; // Lấy ID người dùng từ token đã xác thực
+    const events = await Event.find({
+      'participants.userId': userId,
+      isDeleted: false,
+      // 'participants.status': { $ne: 'declined' }, // Lọc những sự kiện mà người dùng đã không từ chối
+    })
+      .populate('participants.userId', 'name email') // Chỉ lấy name và email của người tham gia
+      .populate('calendarId', 'name color') // Chỉ lấy name và color của lịch
+      .populate('workspaceId', 'name') // Chỉ lấy name của workspace
+      .populate('boardId', 'name'); // Chỉ lấy name của board
     // Chuyển đổi dữ liệu cho FullCalendar
-    const fullCalendarEvents = events.map((event) => ({
-      id: event._id.toString(),
-      title: event.title,
-      start: event.startDate,
-      end: event.endDate,
-      allDay: event.allDay || false,
-      backgroundColor: event.color,
-      rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
-      extendedProps: {
-        description: event.description,
-        locationName: event.locationName,
-        type: event.type,
-        organizer: event.organizer,
-      },
-    }));
-
+    const fullCalendarEvents = events.map((event) => {
+      const organizerFound = event.participants.find(
+        (p) => p.userId._id.toString() === event.organizer.toString()
+      );
+      return {
+        id: event._id.toString(),
+        title: event.title,
+        start: event.startDate,
+        end: event.endDate,
+        allDay: event.allDay || false,
+        backgroundColor: event.color,
+        rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
+        extendedProps: {
+          description: event.description,
+          locationName: event.locationName,
+          address: event.address,
+          type: event.type,
+          onlineUrl: event.onlineUrl,
+          meetingCode: event.meetingCode,
+          organizer: {
+            userId: event.organizer._id,
+            name: organizerFound.userId.name,
+            email: organizerFound.userId.email,
+          },
+          participants: event.participants.map((p) => ({
+            userId: p.userId._id,
+            name: p.userId.name,
+            email: p.userId.email,
+            status: p.status,
+          })),
+          calendar: {
+            id: event.calendarId._id,
+            name: event.calendarId.name,
+            color: event.calendarId.color,
+          },
+          workspace: event.workspaceId
+            ? {
+                id: event.workspaceId._id,
+                name: event.workspaceId.name,
+              }
+            : null,
+          board: event.boardId
+            ? {
+                id: event.boardId._id,
+                name: event.boardId.name,
+              }
+            : null,
+        },
+      };
+    });
     res.status(200).json({
       message: 'Lấy danh sách sự kiện thành công',
       status: 200,
@@ -381,46 +619,120 @@ exports.getAllEvents = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const {
+      title,
+      description,
+      locationName,
+      address,
+      type,
+      onlineUrl,
+      meetingCode,
+      startDate,
+      endDate,
+      allDay,
+      recurrence,
+      reminderSettings,
+      status,
+      category,
+      color,
+    } = req.body;
 
-    // Ngăn cập nhật isDeleted và deletedAt
-    delete updates.isDeleted;
-    delete updates.deletedAt;
+    //Cho phép cập nhật 1 số trường có thể thay đổi nhiều, không bao gồm participants, organizer, calendarId, workspaceId, boardId
+    if (!id) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện',
+        status: 400,
+      });
+    }
 
-    const event = await Event.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    }).select('-isDeleted -deletedAt');
-
-    if (!event) {
+    const event = await Event.findById(id);
+    if (!event || event.isDeleted) {
       return res.status(404).json({
         message: 'Không tìm thấy sự kiện',
         status: 404,
       });
     }
 
+    //Kiểm tra xem người đăng nhập có phải là người tạo event không, nếu không thì không thể cập nhật
+    if (event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền cập nhật sự kiện này',
+        status: 403,
+      });
+    }
+    console.log('type onlineofline', type);
+    //Nếu sự kiện online thì có thể cập nhật onlineUrl hoặc meetingCode
+    if (type === 'online') {
+      if (!onlineUrl && !meetingCode) {
+        return res.status(400).json({
+          message: 'Thiếu onlineUrl hoặc meetingCode cho sự kiện trực tuyến',
+          status: 400,
+        });
+      }
+      event.type = 'online'; // Đặt type là online
+      if (onlineUrl) {
+        event.onlineUrl = onlineUrl;
+      }
+      if (meetingCode) {
+        event.meetingCode = meetingCode;
+      }
+      event.address = null; // Đặt address là null nếu là sự kiện online
+      event.locationName = null; // Đặt locationName là null nếu là sự kiện online
+    } else if (type === 'offline') {
+      //Nếu sự kiện offline thì có thể cập nhật address, locationName
+      if (!address || !locationName) {
+        return res.status(400).json({
+          message: 'Thiếu address hoặc locationName cho sự kiện offline',
+          status: 400,
+        });
+      }
+      event.type = 'offline'; // Đặt type là offline
+      event.address = address;
+      event.locationName = locationName;
+      event.onlineUrl = null; // Đặt onlineUrl là null nếu là sự kiện offline
+    } else {
+      return res.status(400).json({
+        message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
+        status: 400,
+      });
+    }
+
+    if (startDate && endDate) {
+      // Kiểm tra thời gian bắt đầu và kết thúc
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (start >= end) {
+        return res.status(400).json({
+          message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+          status: 400,
+        });
+      }
+
+      event.startDate = start || event.startDate;
+      event.endDate = end || event.endDate;
+    }
+    // Cập nhật các trường khác
+    event.title = title || event.title;
+    event.description = description || event.description;
+    event.allDay = allDay || event.allDay;
+    event.recurrence = recurrence || event.recurrence;
+    event.reminderSettings = reminderSettings || event.reminderSettings;
+    event.status = status || event.status;
+    event.category = category || event.category;
+    event.color = color || event.color;
+    event.timeZone = req.body.timeZone || event.timeZone || 'Asia/Ho_Chi_Minh';
+
+    const updatedEvent = await event.save();
     // Ghi lịch sử sự kiện
     await EventHistory.create({
-      eventId: id,
-      participants: event.participants.map((p) => p.userId),
+      eventId: updatedEvent._id,
+      participants: updatedEvent.participants.map((p) => p.userId),
     });
-
-    // Thông báo cập nhật
-    if (event.participants && event.participants.length > 0) {
-      const notifications = event.participants.map((participant) => ({
-        userId: participant.userId,
-        type: 'event_update',
-        notificationType: 'system',
-        content: `Sự kiện "${event.title}" đã được cập nhật`,
-        eventId: event._id,
-      }));
-      await Notification.insertMany(notifications);
-    }
 
     res.status(200).json({
       message: 'Cập nhật sự kiện thành công',
       status: 200,
-      data: event,
+      data: updatedEvent,
     });
   } catch (error) {
     console.error('Lỗi khi cập nhật sự kiện:', error);
