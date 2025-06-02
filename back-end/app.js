@@ -8,7 +8,6 @@ const frontendURL = process.env.FRONTEND_URL;
 // import routers
 const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
-const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
 const workspaceRouter = require('./routes/workspaceRoutes');
 const calendarRouter = require('./routes/calendarRoutes');
 const eventRouter = require('./routes/eventRoutes');
@@ -27,25 +26,12 @@ app.use(
   })
 );
 
-// Route xử lý callback từ Google OAuth
-// app.get('/auth/google/callback', (req, res) => {
-//   const code = req.query.code; // Lấy mã ủy quyền từ Google
-//   if (code) {
-//     console.log('Authorization code received:', code);
-//     res.send('Xác thực thành công! Bạn có thể đóng cửa sổ này.');
-//   } else {
-//     console.error('No authorization code received');
-//     res.status(400).send('Lỗi xác thực: Không nhận được mã ủy quyền.');
-//   }
-// });
-
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
-app.use('/calendar', calendarGoogleAPIRouter);
 app.use('/workspace', workspaceRouter);
 app.use('/calendar', calendarRouter);
-app.use('/events', eventRouter);
+app.use('/event', eventRouter);
 app.use('/board', boardRouter);
 
 app.all('*', (req, res, next) => {
