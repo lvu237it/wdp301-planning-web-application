@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const Workspace = require('../models/workspaceModel');
-
-
+const Board = require('../models/boardModel');
+const BoardMembership = require('../models/boardMembershipModel');
 exports.protect = async (req, res, next) => {
 	try {
 		// Token được gửi trong header Authorization theo định dạng: "Bearer <token>"
@@ -108,7 +108,7 @@ exports.isAdminWorkspace = async (req, res, next) => {
 exports.isCreatorBoard = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const boardId = req.params.id; // hoặc req.body.boardId tuỳ route
+    const boardId = req.params.boardId; // hoặc req.body.boardId tuỳ route
 
     const board = await Board.findById(boardId);
     if (!board) {
@@ -135,8 +135,9 @@ exports.isCreatorBoard = async (req, res, next) => {
 exports.isAdminBoard = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const boardId = req.params.id; // hoặc req.body.boardId tuỳ route
-
+    const boardId = req.params.boardId; // hoặc req.body.boardId tuỳ route
+    console.log('boardId', boardId);
+    
     const board = await Board.findById(boardId);
     if (!board) {
       return res.status(404).json({ success: false, message: 'Board không tồn tại' });
