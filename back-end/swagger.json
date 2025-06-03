@@ -1,0 +1,846 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Web PlanPro Application API",
+    "description": "Swagger documentation for Web PlanPro Application",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "605c5f1a4d3e2c2aa0b8f123"
+          },
+          "username": {
+            "type": "string",
+            "example": "CuongNguyen"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "cuong@example.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["userSystem", "adminSystem"],
+            "example": "userSystem"
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "description": "Soft‐delete flag",
+            "example": false
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when user was deactivated (or null if active)",
+            "nullable": true,
+            "example": "2025-06-01T15:45:00.000Z"
+          },
+          "reminderSettings": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": ["email", "popup"],
+                "example": "email"
+              },
+              "daysBefore": {
+                "type": "integer",
+                "example": 1
+              }
+            },
+            "description": "Optional: the user’s personal reminder preferences"
+          }
+        },
+        "required": ["id", "username", "email", "role", "isDeleted"]
+      },
+      "UserAdminResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "605c5f1a4d3e2c2aa0b8f123"
+              },
+              "username": {
+                "type": "string",
+                "example": "CuongNguyen"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "example": "cuong@example.com"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["userSystem", "adminSystem"],
+                "example": "adminSystem"
+              },
+              "isDeleted": {
+                "type": "boolean",
+                "example": true
+              },
+              "deletedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true,
+                "example": "2025-06-01T15:45:00.000Z"
+              }
+            }
+          }
+        }
+      },
+      "AuthPayload": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["message"]
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/authentication/signup": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "email", "password", "passwordConfirm"],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "CuongNguyen"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "cuong@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "MyP@ssw0rd"
+                  },
+                  "passwordConfirm": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "MyP@ssw0rd"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully; returns JWT + user data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthPayload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. missing fields)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authentication/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log in as an existing user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "cuong@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "MyP@ssw0rd"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful login; returns JWT + user data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthPayload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (incorrect email/password)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authentication/logout": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Log out current user (clears JWT cookie)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully logged out"
+          },
+          "401": {
+            "description": "Unauthorized (no token or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authentication/forgotPassword": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Send a password reset token to user’s email",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "cuong@example.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token sent to email"
+          },
+          "404": {
+            "description": "No user found with that email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authentication/resetPassword/{token}": {
+      "patch": {
+        "tags": ["Authentication"],
+        "summary": "Reset password using token sent via email",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "abcdef12345"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["password", "passwordConfirm"],
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  },
+                  "passwordConfirm": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successful; returns new JWT"
+          },
+          "400": {
+            "description": "Invalid or expired token / passwords mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authentication/updateMyPassword": {
+      "patch": {
+        "tags": ["Authentication"],
+        "summary": "Update password for logged‐in user",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword", "passwordConfirm"],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "OldP@ssw0rd"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  },
+                  "passwordConfirm": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password updated; returns new JWT"
+          },
+          "401": {
+            "description": "Unauthorized (wrong current password or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/profile": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get the logged‐in user’s own profile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns user’s profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/update": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "Update the logged‐in user’s own username, email, or reminder settings",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "NewUsername"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "new@example.com"
+                  },
+                  "reminderSettings": {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "enum": ["email", "popup"],
+                        "example": "popup"
+                      },
+                      "daysBefore": {
+                        "type": "integer",
+                        "example": 2
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns updated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. email in use)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no/invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/change-password": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "Change password for the logged‐in user",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword", "passwordConfirm"],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "OldP@ssw0rd"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  },
+                  "passwordConfirm": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "NewP@ssw0rd"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully; returns new JWT"
+          },
+          "400": {
+            "description": "Validation error or wrong current password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/delete-me": {
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Deactivate (soft‐delete) the logged‐in user’s account",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Account deactivated; no content"
+          },
+          "401": {
+            "description": "Unauthorized (invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get all users (admin only)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users (excluding passwords)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "integer",
+                      "example": 42
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (not an admin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no/invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "Change a user’s role or deactivate/reactivate their account (admin only)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "605c5f1a4d3e2c2aa0b8f123"
+            },
+            "description": "MongoDB ObjectId of the target user"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": ["userSystem", "adminSystem"],
+                    "example": "adminSystem",
+                    "description": "If provided, updates the user’s role. Only 'userSystem' or 'adminSystem' are allowed."
+                  },
+                  "isDeleted": {
+                    "type": "boolean",
+                    "example": true,
+                    "description": "If true, soft‐delete (deactivate). If false, reactivate (undelete)."
+                  }
+                },
+                "minProperties": 1,
+                "description": "At least one of 'role' or 'isDeleted' must be present."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user data (role and/or isDeleted toggled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAdminResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (invalid ID format, no fields to update, trying to demote/deactivate admin self or another admin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (not an adminSystem)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Delete (hard‐delete) a user by ID (admin only)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "605c5f1a4d3e2c2aa0b8f123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID or cannot delete another admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (not an adminSystem)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas>Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
