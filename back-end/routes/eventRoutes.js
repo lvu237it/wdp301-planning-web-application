@@ -11,7 +11,7 @@ router.post(
 router.get('/:id', auth.protect, eventController.getEventById); //ok
 router.get('/', auth.protect, eventController.getAllEvents); //ok
 router.patch('/:id', auth.protect, eventController.updateEvent); //ok
-router.delete('/:id', auth.protect, eventController.deleteEvent); //ok
+router.delete('/delete-event/:id', auth.protect, eventController.deleteEvent); //ok
 router.post(
   '/:id/invite',
   auth.protect,

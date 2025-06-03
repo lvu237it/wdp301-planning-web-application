@@ -245,7 +245,7 @@ exports.createEventForCalendar = async (req, res) => {
     // Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
     await EventHistory.create({
       eventId: savedEvent._id,
-      action: 'create',
+      action: 'create_event',
       participants: savedEvent.participants.map((p) => ({
         userId: p.userId,
         status: p.status,
@@ -615,6 +615,7 @@ exports.deleteEvent = async (req, res) => {
     // Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
     await EventHistory.create({
       eventId: event._id,
+      action: 'delete_event',
       participants: event.participants.map((p) => ({
         userId: p.userId,
         status: p.status,
@@ -825,7 +826,7 @@ exports.updateParticipantStatus = async (req, res) => {
     //Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
     await EventHistory.create({
       eventId: event._id,
-      action: 'update_status',
+      action: 'update_participant_status',
       participants: [
         { userId: event.participants[participantIndex].userId, status },
       ],
@@ -930,7 +931,7 @@ exports.getEventHistory = async (req, res) => {
     const event = await Event.findById(id)
       .populate('organizer', 'name email') // Populate organizer để lấy name và email
       .populate('participants.userId', 'name email'); // Populate participants để kiểm tra quyền
-    if (!event || event.isDeleted) {
+    if (!event) {
       return res.status(404).json({
         message: 'Không tìm thấy sự kiện',
         status: 404,
