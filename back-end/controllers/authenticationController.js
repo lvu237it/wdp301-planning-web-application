@@ -1,4 +1,5 @@
 // controllers/authenticationController.js
+
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -6,14 +7,38 @@ const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const sendMail = require("../utils/sendMail");
 
-// Create JWT signed with _id
-const signToken = (id) => {
-  return jwt.sign({ _id: id }, process.env.JWT_SECRET, {
-    expiresIn: "2d",
+/**
+ * Generate a JWT access token.
+ * Payload includes user ID and role.
+ * Expires in the shorter lifespan (e.g., process.env.JWT_EXPIRES_IN, default "2d").
+ */
+const generateAccessToken = (userId, role) => {
+  return jwt.sign({ _id: userId, role }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || "2d",
   });
 };
 
-// Send token in HTTP‐only cookie + JSON response
+/**
+ * Generate a JWT refresh token.
+ * Payload includes only user ID. Expires in a longer lifespan
+ * (e.g., process.env.JWT_REFRESH_EXPIRES_IN, default "7d").
+ */
+const generateRefreshToken = (userId) => {
+  return jwt.sign({ _id: userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+  });
+};
+
+// Create JWT signed with _id (used by createSendToken for legacy flows)
+const signToken = (id) => {
+  return jwt.sign({ _id: id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || "2d",
+  });
+};
+
+// -----------------------------------------------------------------------------
+// Helper to send token in an HTTP‐only cookie + JSON response (legacy signup flow)
+// -----------------------------------------------------------------------------
 const createSendToken = (user, statusCode, res) => {
   try {
     const token = signToken(user._id);
@@ -23,7 +48,7 @@ const createSendToken = (user, statusCode, res) => {
       httpOnly: true,
     });
 
-    // Remove password from response
+    // Remove password from response object
     user.password = undefined;
 
     res.status(statusCode).json({
@@ -51,11 +76,11 @@ const createSendToken = (user, statusCode, res) => {
   }
 };
 
-/**
- * @desc    User signup (register a new account)
- * @route   POST /authentication/signup
- * @access  Public
- */
+// -----------------------------------------------------------------------------
+// @desc    User signup (register a new account)
+// @route   POST /authentication/signup
+// @access  Public
+// -----------------------------------------------------------------------------
 exports.signup = async (req, res, next) => {
   try {
     const { username, email, password, passwordConfirm } = req.body;
@@ -84,125 +109,187 @@ exports.signup = async (req, res, next) => {
       // Ignore mailing errors
     }
 
-    // 4) Send JWT
+    // 4) Send JWT (legacy flow)
     createSendToken(newUser, 201, res);
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * @desc    User login
- * @route   POST /authentication/login
- * @access  Public
- */
+// -----------------------------------------------------------------------------
+// @desc    User login
+// @route   POST /authentication/login
+// @access  Public
+// -----------------------------------------------------------------------------
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Kiểm tra dữ liệu đầu vào
+    // 1) Check input
     if (!email || !password) {
       return next(new AppError("Please provide email and password.", 400));
     }
 
-    // Tìm user theo email
-    const user = await User.findOne({ email });
+    // 2) Find user by email (select refreshToken and password explicitly if needed)
+    const user = await User.findOne({ email }).select(
+      "+password +refreshToken"
+    );
     if (!user) {
       return res.status(401).json({
-        message: 'Invalid email ',
+        message: "Invalid email",
         status: 401,
       });
     }
 
-    // Kiểm tra mật khẩu
+    // 3) Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({
-        message: 'Invalid password',
+        message: "Invalid password",
         status: 401,
       });
     }
-    // Tạo token truy cập và token refresh
-    const { description, createdAt, role, refreshToken, ...userData } =
-      user.toObject();
-    console.log('createdAt', createdAt);
-    const accessToken = generateAccessToken(user._id, role);
+
+    // 4) Generate new tokens
+    const accessToken = generateAccessToken(user._id, user.role);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Cập nhật token refresh trong database
-    await User.findByIdAndUpdate(
-      user._id,
-      { refreshToken: newRefreshToken },
-      { new: true }
-    );
+    // 5) Update refresh token in database
+    user.refreshToken = newRefreshToken;
+    await user.save({ validateBeforeSave: false });
 
-    // Thiết lập cookie chứa token refresh
-    res.cookie('refreshToken', newRefreshToken, {
+    // 6) Set cookie for refresh token (HTTP‐only)
+    res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      maxAge: 15 * 60 * 1000, // 15'
+      maxAge: 15 * 60 * 1000, // 15 minutes (adjust if you want a longer lifespan)
+      secure: process.env.NODE_ENV === "production", // set secure flag in production
+      sameSite: "Strict",
     });
 
-    // Phản hồi thông tin thành công
+    // 7) Prepare userData to return (omit sensitive fields)
+    const { password: pw, refreshToken: rt, ...userData } = user.toObject();
+
+    // 8) Return success response
     res.status(200).json({
       success: true,
       accessToken,
-      userData,
-      role,
-      createdAt,
-      description,
+      user: {
+        ...userData,
+        role: user.role,
+        createdAt: user.createdAt,
+        description: user.description || null,
+      },
     });
   } catch (error) {
-    console.error('Error while logging in:', error);
+    console.error("Error while logging in:", error);
     res.status(500).json({
-      message: 'Internal Server Error',
+      message: "Internal Server Error",
       status: 500,
-      error,
+      error: error.message,
     });
   }
 };
-exports.getCurrentUser = async (req, res) => {
-  const { _id } = req.user;
-  const user = await User.findById(_id).select('-refreshToken -password -role');
-  res.status(200).json({
-    success: !!user,
-    user: user || 'User not found',
-  });
+
+// -----------------------------------------------------------------------------
+// @desc    Get the currently logged‐in user’s data
+// @route   GET /authentication/me
+// @access  Private
+// -----------------------------------------------------------------------------
+exports.getCurrentUser = async (req, res, next) => {
+  try {
+    const { _id } = req.user;
+    const user = await User.findById(_id).select(
+      "-refreshToken -password -role"
+    );
+    res.status(200).json({
+      success: !!user,
+      user: user || "User not found",
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.refreshAccessToken = async (req, res) => {
-  const { refreshToken } = req.cookies;
-  if (!refreshToken) throw new Error('No refresh token in cookies');
+// -----------------------------------------------------------------------------
+// @desc    Refresh access token using a valid refresh token from cookie
+// @route   GET /authentication/refresh-token
+// @access  Public (but requires a valid HTTP‐only cookie)
+// -----------------------------------------------------------------------------
+exports.refreshAccessToken = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      return next(new AppError("No refresh token in cookies.", 401));
+    }
 
-  const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
-  const user = await User.findOne({ _id: decoded._id, refreshToken });
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return next(new AppError("Invalid or expired refresh token.", 401));
+    }
 
-  res.status(200).json({
-    success: !!user,
-    newAccessToken: user
-      ? generateAccessToken(user._id, user.role)
-      : 'Refresh token not matched',
-  });
+    // 1) Find user with matching refreshToken
+    const user = await User.findOne({ _id: decoded._id, refreshToken });
+    if (!user) {
+      return next(new AppError("Refresh token does not match any user.", 401));
+    }
+
+    // 2) Generate a brand‐new access token
+    const newAccessToken = generateAccessToken(user._id, user.role);
+    res.status(200).json({
+      success: true,
+      accessToken: newAccessToken,
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.logoutUser = async (req, res) => {
-  const { refreshToken } = req.cookies;
-  if (!refreshToken) throw new Error('No refresh token in cookies');
+// -----------------------------------------------------------------------------
+// @desc    Logout user: clear refresh token from DB + cookie
+// @route   POST /authentication/logout
+// @access  Private
+// -----------------------------------------------------------------------------
+exports.logoutUser = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      return next(new AppError("No refresh token in cookies.", 400));
+    }
 
-  await User.findOneAndUpdate(
-    { refreshToken },
-    { refreshToken: '' },
-    { new: true }
-  );
-  res.clearCookie('refreshToken', { httpOnly: true, secure: true });
-  res.status(200).json({
-    success: true,
-    message: 'Logout successful',
-  });
+    // 1) Remove refresh token from DB
+    await User.findOneAndUpdate(
+      { refreshToken },
+      { refreshToken: "" },
+      { new: true }
+    );
+
+    // 2) Clear the HTTP‐only cookie
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logout successful",
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
-  if (!email) throw new Error('Missing email');
+// -----------------------------------------------------------------------------
+// @desc    Forgot Password: send a reset token to user’s email
+// @route   POST /authentication/forgotPassword
+// @access  Public
+// -----------------------------------------------------------------------------
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return next(new AppError("Missing email", 400));
 
     // 1) Find user by email
     const user = await User.findOne({ email });
@@ -229,7 +316,6 @@ exports.forgotPassword = async (req, res) => {
       "host"
     )}/authentication/resetPassword/${resetToken}`;
     const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to: ${resetURL}\nIf you didn't forget your password, please ignore this email.`;
-
     try {
       await sendMail(
         user.email,
@@ -239,19 +325,23 @@ exports.forgotPassword = async (req, res) => {
       res
         .status(200)
         .json({ status: "success", message: "Token sent to email!" });
-    } catch (_) {
+    } catch (emailErr) {
+      // Revert on failure
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
       return next(new AppError("Error sending email. Try again later.", 500));
     }
+  } catch (err) {
+    next(err);
+  }
 };
 
-/**
- * @desc    Reset Password – set a new password using the token
- * @route   PATCH /authentication/resetPassword/:token
- * @access  Public
- */
+// -----------------------------------------------------------------------------
+// @desc    Reset Password – set a new password using the token
+// @route   PATCH /authentication/resetPassword/:token
+// @access  Public
+// -----------------------------------------------------------------------------
 exports.resetPassword = async (req, res, next) => {
   try {
     const hashedToken = crypto
@@ -281,18 +371,18 @@ exports.resetPassword = async (req, res, next) => {
     user.passwordResetExpires = undefined;
     await user.save();
 
-    // 4) Send new JWT
+    // 4) Send new JWT (legacy flow)
     createSendToken(user, 200, res);
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * @desc    Update the logged‐in user’s password
- * @route   PATCH /authentication/updateMyPassword
- * @access  Private
- */
+// -----------------------------------------------------------------------------
+// @desc    Update the logged‐in user’s password
+// @route   PATCH /authentication/updateMyPassword
+// @access  Private
+// -----------------------------------------------------------------------------
 exports.updateMyPassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword, passwordConfirm } = req.body;
@@ -323,7 +413,7 @@ exports.updateMyPassword = async (req, res, next) => {
     user.passwordChangedAt = Date.now();
     await user.save();
 
-    // 5) Send new JWT
+    // 5) Send new JWT (legacy flow)
     const token = signToken(user._id);
     res.status(200).json({ status: "success", token });
   } catch (err) {
