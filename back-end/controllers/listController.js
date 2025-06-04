@@ -18,6 +18,38 @@ exports.getAllList = async (req, res) => {
   }
 };
 
+exports.getListById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'ID không hợp lệ',
+      });
+    }
+
+    const list = await List.findOne({ _id: id, isDeleted: false });
+    if (!list) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Không tìm thấy danh sách',
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: list,
+    });
+  } catch (error) {
+    console.error('Error while getting list by ID:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+    });
+  }
+};
+
 // createList
 exports.createList = async (req, res) => {
   try {

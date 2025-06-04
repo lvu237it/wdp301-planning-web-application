@@ -58,7 +58,7 @@ exports.getAllTask = async (req, res) => {
 };
 
 // Get một task theo ID
-exports.getTask = async (req, res) => {
+exports.getTaskId = async (req, res) => {
   try {
     const { id } = req.params;
 
