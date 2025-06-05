@@ -13,7 +13,7 @@ exports.getAllBoards = async (req, res) => {
 
     // 1. Lấy list workspaceId mà user thuộc về (membership của workspace)
     // Membership ở đây là model workspaceMembership (không phải boardMembership)
-    
+
     const userWorkspaceDocs = await WorkspaceMembership.find({
       userId,
       invitationStatus: 'accepted',
@@ -31,24 +31,25 @@ exports.getAllBoards = async (req, res) => {
 
     const boardIds = userBoardDocs.map((doc) => doc.boardId);
 
-    // 3. Query trả ra:  
-    //    - Các board có workspaceId ∈ workspaceIds và visibility = 'public'  
-    //    - Hoặc board._id ∈ boardIds (bất kể visibility ra sao)  
+    // 3. Query trả ra:
+    //    - Các board có workspaceId ∈ workspaceIds và visibility = 'public'
+    //    - Hoặc board._id ∈ boardIds (bất kể visibility ra sao)
     //    - Và tất cả đều phải isDeleted = false
 
     const boards = await Board.find({
       isDeleted: false,
       $or: [
-        { 
+        {
           workspaceId: { $in: workspaceIds },
-          visibility: 'public'
+          visibility: 'public',
         },
-        { 
-          _id: { $in: boardIds }
-        }
-      ]
-    }).populate('creator', 'username email') // (tuỳ chọn) fetch luôn người tạo
-      .populate('workspaceId', 'name')       // (tuỳ chọn) fetch tên workspace
+        {
+          _id: { $in: boardIds },
+        },
+      ],
+    })
+      .populate('creator', 'username email') // (tuỳ chọn) fetch luôn người tạo
+      .populate('workspaceId', 'name') // (tuỳ chọn) fetch tên workspace
       .lean();
 
     return res.status(200).json({ boards });
@@ -61,44 +62,46 @@ exports.getAllBoards = async (req, res) => {
   }
 };
 
-
-
 // tạo Board
 exports.createBoard = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { 
-      name, 
-      description, 
-      visibility,      // 'public' hoặc 'private'
-      criteria         // object { skills: [...], yearOfExperience: {min,max}, workDuration: {min,max,unit} }
+    const {
+      name,
+      description,
+      visibility, // 'public' hoặc 'private'
+      criteria, // object { skills: [...], yearOfExperience: {min,max}, workDuration: {min,max,unit} }
     } = req.body;
-    const workspaceId = req.params.workspaceId;
+    const workspaceId = req.params.workspaceId; // nếu route là /workspace/:workspaceId/board/create
     const creatorId = req.user._id;
 
     // 1. Kiểm tra trường bắt buộc
     if (!name || !workspaceId || !visibility || !criteria) {
-      throw new Error('Thiếu thông tin bắt buộc: name, workspaceId, visibility hoặc criteria');
+      throw new Error(
+        'Thiếu thông tin bắt buộc: name, workspaceId, visibility hoặc criteria'
+      );
     }
 
     // 2. Tạo Board
     //     - visibility đã được validate theo enum ['public','private']
     //     - criteria phải chứa đầy đủ các trường required theo schema
     const [newBoard] = await Board.create(
-      [{
-        name,
-        description,
-        creator: creatorId,
-        workspaceId,
-        visibility,
-        criteria
-      }],
+      [
+        {
+          name,
+          description,
+          creator: creatorId,
+          workspaceId,
+          visibility,
+          criteria,
+        },
+      ],
       { session }
     );
 
-    // 3. Tạo BoardMembership cho creator với role 'admin' 
+    // 3. Tạo BoardMembership cho creator với role 'admin'
     const [membership] = await BoardMembership.create(
       [
         {
@@ -108,7 +111,7 @@ exports.createBoard = async (req, res) => {
           applicationStatus: 'accepted',
           invitationResponse: null,
           invitedBy: null,
-        }
+        },
       ],
       { session }
     );
@@ -138,7 +141,7 @@ exports.updateBoard = async (req, res) => {
     const { boardId } = req.params; // nếu route là /workspace/:workspaceId/board/:boardId
     const updates = req.body;
     console.log('boardId', boardId);
-    
+
     const board = await Board.findByIdAndUpdate(boardId, updates, {
       new: true,
       runValidators: true,
@@ -160,7 +163,6 @@ exports.updateBoard = async (req, res) => {
     });
   }
 };
-
 
 // đóng Board
 exports.closeBoard = async (req, res) => {
@@ -305,7 +307,9 @@ exports.respondToBoardInvite = async (req, res) => {
     }
 
     // 1. Tìm membership theo token
-    const membership = await BoardMembership.findOne({ invitationToken: token });
+    const membership = await BoardMembership.findOne({
+      invitationToken: token,
+    });
     if (!membership) {
       return res
         .status(400)
@@ -340,7 +344,9 @@ exports.respondToBoardInvite = async (req, res) => {
 
     // 6. Trả về cho client
     return res.status(200).json({
-      message: `Bạn đã ${action === 'accept' ? 'chấp nhận' : 'từ chối'} lời mời vào Board.`,
+      message: `Bạn đã ${
+        action === 'accept' ? 'chấp nhận' : 'từ chối'
+      } lời mời vào Board.`,
       status: responseStatus, // trả 'accepted' hoặc 'declined'
     });
   } catch (err) {
@@ -351,4 +357,3 @@ exports.respondToBoardInvite = async (req, res) => {
     });
   }
 };
-

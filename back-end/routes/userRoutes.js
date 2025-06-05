@@ -12,12 +12,12 @@ const {
   updateUserById,
   deleteUserById,
 } = require("../controllers/userController");
-const { verifyToken, restrictTo } = require("../middlewares/verifyToken");
+const { protect } = require("../middlewares/auth");
 
 // ---------------------------
 // All routes below require valid JWT
 // ---------------------------
-router.use(verifyToken);
+router.use(protect);
 
 // “Self-Service” (any authenticated user)
 router
@@ -35,11 +35,11 @@ router
 // DELETE /api/users/:id         → deleteUserById
 
 // Only adminSystem can call these admin‐level routes
-router.route("/").get(verifyToken, restrictTo("adminSystem"), getAllUsers);
+router.route("/").get(protect, getAllUsers);
 
 router
   .route("/:id")
-  .put(verifyToken, restrictTo("adminSystem"), updateUserById)
-  .delete(verifyToken, restrictTo("adminSystem"), deleteUserById);
+  .put(protect, updateUserById)
+  .delete(protect, deleteUserById);
 
 module.exports = router;

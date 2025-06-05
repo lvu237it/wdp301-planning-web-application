@@ -143,7 +143,7 @@
     }
   ],
   "paths": {
-    "/authentication/signup": {
+    "/signup": {
       "post": {
         "tags": ["Authentication"],
         "summary": "Register a new user",
@@ -153,7 +153,12 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["username", "email", "password", "passwordConfirm"],
+                "required": [
+                  "username",
+                  "email",
+                  "password",
+                  "passwordConfirm"
+                ],
                 "properties": {
                   "username": {
                     "type": "string",
@@ -203,7 +208,7 @@
         }
       }
     },
-    "/authentication/login": {
+    "/login": {
       "post": {
         "tags": ["Authentication"],
         "summary": "Log in as an existing user",
@@ -254,7 +259,7 @@
         }
       }
     },
-    "/authentication/logout": {
+    "/logout": {
       "get": {
         "tags": ["Authentication"],
         "summary": "Log out current user (clears JWT cookie)",
@@ -280,7 +285,7 @@
         }
       }
     },
-    "/authentication/forgotPassword": {
+    "/forgotPassword": {
       "post": {
         "tags": ["Authentication"],
         "summary": "Send a password reset token to user’s email",
@@ -319,7 +324,7 @@
         }
       }
     },
-    "/authentication/resetPassword/{token}": {
+    "/resetPassword/{token}": {
       "patch": {
         "tags": ["Authentication"],
         "summary": "Reset password using token sent via email",
@@ -374,7 +379,7 @@
         }
       }
     },
-    "/authentication/updateMyPassword": {
+    "/updateMyPassword": {
       "patch": {
         "tags": ["Authentication"],
         "summary": "Update password for logged‐in user",
@@ -389,7 +394,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["currentPassword", "newPassword", "passwordConfirm"],
+                "required": [
+                  "currentPassword",
+                  "newPassword",
+                  "passwordConfirm"
+                ],
                 "properties": {
                   "currentPassword": {
                     "type": "string",
@@ -554,7 +563,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["currentPassword", "newPassword", "passwordConfirm"],
+                "required": [
+                  "currentPassword",
+                  "newPassword",
+                  "passwordConfirm"
+                ],
                 "properties": {
                   "currentPassword": {
                     "type": "string",

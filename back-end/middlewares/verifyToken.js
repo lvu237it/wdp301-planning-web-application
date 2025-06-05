@@ -40,7 +40,7 @@ const verifyToken = async (req, res, next) => {
 
     // 4) Optionally: ensure that the user still exists and is active
     const currentUser = await User.findById(decoded.id);
-    if (!currentUser || !currentUser.isActive) {
+    if (!currentUser) {
       return res.status(401).json({
         success: false,
         message: "The user belonging to this token no longer exists",
