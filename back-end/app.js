@@ -1,16 +1,20 @@
 const express = require('express');
 const app = express();
+
 const morgan = require('morgan');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+
 // utils
 const AppError = require('./utils/appError');
 const frontendURL = process.env.FRONTEND_URL;
 // import routers
 const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
-const calendarGoogleAPIRouter = require('./routes/calendarGoogleAPIRoutes');
 const workspaceRouter = require('./routes/workspaceRoutes');
+const calendarRouter = require('./routes/calendarRoutes');
+const eventRouter = require('./routes/eventRoutes');
 const boardRouter = require('./routes/boardRoutes');
 
 // các middleware
@@ -25,6 +29,16 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+// ————————————————
+// 2) Swagger UI (serve swagger.json at /api-docs)
+// ————————————————
+// Load your swagger.json (which should reference /auth and /users, not /api/auth)
+const swaggerDocument = require('./swagger.json');
+
+// Serve the Swagger UI. Now you can visit http://localhost:3000/api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+console.log('Swagger UI is available at http://localhost:3000/api-docs');
 
 // Route xử lý callback từ Google OAuth
 app.get('/auth/google/callback', (req, res) => {
@@ -41,7 +55,8 @@ app.get('/auth/google/callback', (req, res) => {
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
-app.use('/calendar', calendarGoogleAPIRouter);
+app.use('/calendar', calendarRouter);
+app.use('/event', eventRouter);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
 

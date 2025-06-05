@@ -60,6 +60,10 @@ const eventSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Thời gian kết thúc là bắt buộc'],
     },
+    allDay: {
+      type: Boolean,
+      default: false,
+    },
     recurrence: {
       //setup sự kiện theo chu kỳ
       type: {
@@ -100,7 +104,7 @@ const eventSchema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         status: {
           type: String,
-          enum: ['pending', 'accepted', 'declined'],
+          enum: ['pending', 'accepted', 'declined', 'rejected'],
           default: 'pending',
         },
       },
@@ -146,6 +150,4 @@ eventSchema.index({ status: 1 });
 eventSchema.index({ category: 1 });
 eventSchema.index({ calendarId: 1 });
 eventSchema.index({ boardId: 1 });
-const Event = mongoose.model('Event', eventSchema);
-
-module.exports = Event;
+module.exports = mongoose.model('Event', eventSchema);
