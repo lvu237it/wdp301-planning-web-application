@@ -73,10 +73,10 @@ exports.createWorkspace = async (req, res) => {
 // Cập nhật workspace
 exports.updateWorkspace = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { workspaceId } = req.params;
     const updates = req.body;
 
-    const workspace = await Workspace.findByIdAndUpdate(id, updates, {
+    const workspace = await Workspace.findByIdAndUpdate(workspaceId, updates, {
       new: true,
       runValidators: true,
     });
@@ -100,9 +100,9 @@ exports.updateWorkspace = async (req, res) => {
 // Đóng workspace
 exports.closeWorkspace = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { workspaceId } = req.params;
 
-    const workspace = await Workspace.findById(id);
+    const workspace = await Workspace.findById(workspaceId);
     if (!workspace) {
       return res.status(404).json({ message: 'Workspace không tồn tại' });
     }
@@ -130,9 +130,9 @@ exports.closeWorkspace = async (req, res) => {
 // Xóa workspace
 exports.deleteWorkspace = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { workspaceId } = req.params;
 
-    const workspace = await Workspace.findByIdAndDelete(id);
+    const workspace = await Workspace.findByIdAndDelete(workspaceId);
     if (!workspace) {
       return res
         .status(404)

@@ -11,12 +11,7 @@ const {
 router.get('/', protect, boardController.getAllBoards);
 
 // 1. Tạo Board (chỉ cần verifyToken, không cần check role)
-router.post(
-  '/create/:workspaceId',
-  protect,
-  isAdminWorkspace,
-  boardController.createBoard
-);
+router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
 
 // 2. Cập nhật Board (chỉ creator hoặc admin mới được phép)
 router.put('/:boardId', protect, isAdminBoard, boardController.updateBoard);
