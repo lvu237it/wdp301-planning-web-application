@@ -44,3 +44,11 @@ body {
     background-color: #ffffff;
   }
 }
+
+.login-background {
+  background: linear-gradient(135deg, #00b894, #00cec9);
+}
+
+.button-login:hover {
+  background-color: #00a184;
+}
