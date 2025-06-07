@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
+const auth = require('./utils/auth');
 
 // utils
 const AppError = require('./utils/appError');
@@ -18,6 +19,9 @@ const workspaceRouter = require('./routes/workspaceRoutes');
 const calendarRouter = require('./routes/calendarRoutes');
 const eventRouter = require('./routes/eventRoutes');
 const boardRouter = require('./routes/boardRoutes');
+const fileRouter = require('./routes/fileRoutes');
+
+const fileController = require('./controllers/fileController');
 
 // các middleware
 app.use(morgan('dev'));
@@ -42,18 +46,6 @@ const swaggerDocument = require('./swagger.json');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 console.log('Swagger UI is available at http://localhost:3000/api-docs');
 
-// Route xử lý callback từ Google OAuth
-app.get('/auth/google/callback', (req, res) => {
-  const code = req.query.code; // Lấy mã ủy quyền từ Google
-  if (code) {
-    console.log('Authorization code received:', code);
-    res.send('Xác thực thành công! Bạn có thể đóng cửa sổ này.');
-  } else {
-    console.error('No authorization code received');
-    res.status(400).send('Lỗi xác thực: Không nhận được mã ủy quyền.');
-  }
-});
-
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
@@ -63,6 +55,8 @@ app.use('/list', listRoutes);
 app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
+app.use('/files', fileRouter);
+app.use('/auth/google/callback', fileController.handleGoogleAuthCallback);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
