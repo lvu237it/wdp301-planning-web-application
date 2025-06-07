@@ -22,6 +22,5 @@ router.delete(
   calendarController.deleteCalendar //ok
 );
 router.get('/:id/events', auth.protect, calendarController.getCalendarEvents);
-router.get('/:id/tasks', auth.protect, calendarController.getCalendarTasks);
 
 module.exports = router;
