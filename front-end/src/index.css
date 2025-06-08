@@ -1,11 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Playwrite+DK+Uloopet:wght@100..400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Playwrite+CU:wght@100..400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
-:root {
-  /* font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif; */
-  /* line-height: 1.5; */
-  /* font-weight: 400; */
 
+/* Root Variables and Theme Colors */
+:root {
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
@@ -15,14 +13,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Định nghĩa màu */
+  /* Color Variables */
   --linen: #ece7e3;
   --spruce: #4b7767;
   --spruce-light: #6a9283;
   --white: #ffffff;
   --off-white: #e0e7e4;
+  --menu-bg: #2c3e50;
+  --menu-hover: rgba(255, 255, 255, 0.1);
+  --menu-active: rgba(255, 255, 255, 0.2);
+  --header-shadow: rgba(0, 0, 0, 0.1);
+  --notification-badge: #e74c3c;
+  --border-color: #ddd;
 }
 
+/* Reset Styles */
 * {
   margin: 0;
   padding: 0;
@@ -38,6 +43,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Light Theme Override */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -45,10 +51,166 @@ body {
   }
 }
 
+/* Auth Pages Styles */
 .login-background {
   background: linear-gradient(135deg, #00b894, #00cec9);
 }
 
 .button-login:hover {
   background-color: #00a184;
+}
+
+/* MenuBar Component Styles */
+.menu-bar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 200px;
+  height: 100vh;
+  background-color: #00b894;
+  z-index: 1000;
+}
+
+.logo-container {
+  padding: 15px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo {
+  max-width: 120px;
+  height: auto;
+}
+
+.menu-items {
+  padding: 15px 0;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  color: var(--white);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.menu-item:hover {
+  background-color: var(--white);
+  color: #000;
+}
+
+.menu-item.active {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.menu-item .icon {
+  margin-right: 12px;
+  font-size: 1.1em;
+}
+
+.menu-item .label {
+  font-size: 0.9rem;
+}
+
+/* Header Component Styles */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1.5rem;
+  background-color: var(--white);
+  box-shadow: 0 2px 4px var(--header-shadow);
+  position: fixed;
+  top: 0;
+  left: 200px;
+  right: 0;
+  z-index: 900;
+  height: 60px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.search-bar {
+  position: relative;
+  width: 300px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.notification-btn {
+  position: relative;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: var(--notification-badge);
+  color: white;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 50%;
+  min-width: 18px;
+}
+
+.avatar {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Home Layout Styles */
+.home-container {
+  min-height: 100vh;
+  background-color: #f5f6fa;
+}
+
+.main-content {
+  margin-left: 200px;
+  min-height: 100vh;
+}
+
+.content {
+  padding: 75px 1.5rem 1.5rem;
+  min-height: calc(100vh - 60px);
 }
