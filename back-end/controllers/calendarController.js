@@ -38,7 +38,6 @@ exports.createCalendar = async (req, res) => {
         ownerId,
         isDeleted: false,
       });
-      console.log('personalCalendar', personalCalendar);
       if (personalCalendar.length > 0) {
         console.log('Lịch cá nhân đã tồn tại');
         return res.status(409).json({
