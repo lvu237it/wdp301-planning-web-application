@@ -13,7 +13,6 @@ exports.createCalendar = async (req, res) => {
       color,
       isPublic,
     } = req.body;
-
     const ownerId = req.user._id;
 
     // Kiểm tra các trường bắt buộc
@@ -32,6 +31,41 @@ exports.createCalendar = async (req, res) => {
       });
     }
 
+    //Nếu là lịch cá nhân, kiểm tra và tạo nếu user chưa có
+    if (ownerType === 'user') {
+      //Kiểm tra lịch cá nhân có tồn tại chưa
+      const personalCalendar = await Calendar.find({
+        ownerId,
+        isDeleted: false,
+      });
+      console.log('personalCalendar', personalCalendar);
+      if (personalCalendar.length > 0) {
+        console.log('Lịch cá nhân đã tồn tại');
+        return res.status(409).json({
+          message: 'Bạn đã có lịch cá nhân của mình',
+          status: 409,
+        });
+      }
+
+      // Tạo lịch mới
+      const newCalendar = await Calendar.create({
+        name,
+        description,
+        ownerType,
+        ownerId,
+        defaultView: defaultView || 'dayGridMonth',
+        timeZone: timeZone || 'Asia/Ho_Chi_Minh',
+        color: color || '#378006',
+        isPublic: isPublic || false,
+      });
+
+      return res.status(201).json({
+        message: 'Tạo lịch cá nhân thành công',
+        status: 201,
+        data: newCalendar,
+      });
+    }
+
     // Tạo lịch mới
     const newCalendar = await Calendar.create({
       name,
@@ -44,14 +78,14 @@ exports.createCalendar = async (req, res) => {
       isPublic: isPublic || false,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Tạo lịch thành công',
       status: 201,
       data: newCalendar,
     });
   } catch (error) {
     console.error('Lỗi khi tạo lịch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,
@@ -75,14 +109,14 @@ exports.getCalendarById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Lấy thông tin lịch thành công',
       status: 200,
       data: calendar,
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,
@@ -111,14 +145,14 @@ exports.getAllCalendarsUserOrGroup = async (req, res) => {
       .populate('tasks')
       .select('-isDeleted -deletedAt');
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Lấy danh sách lịch thành công',
       status: 200,
       data: calendars,
     });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách lịch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,
@@ -169,14 +203,14 @@ exports.updateCalendar = async (req, res) => {
     // Lưu lịch đã cập nhật
     await calendar.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Cập nhật lịch thành công',
       status: 200,
       data: calendar,
     });
   } catch (error) {
     console.error('Lỗi khi cập nhật lịch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,
@@ -201,311 +235,19 @@ exports.deleteCalendar = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Xóa lịch thành công',
       status: 200,
     });
   } catch (error) {
     console.error('Lỗi khi xóa lịch:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,
     });
   }
 };
-
-/*
-
-const mongoose = require('mongoose');
-// Quản lý lịch cá nhân/nhóm
-const calendarSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Tên lịch là bắt buộc'],
-    },
-    description: {
-      type: String,
-    },
-    ownerType: {
-      type: String,
-      enum: ['user', 'workspace'],
-      required: [
-        true,
-        'Owner type - Lịch cần xác định thuộc về user hoặc workspace',
-      ],
-    },
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: [true, 'Lịch cần thuộc về 1 người dùng hoặc nhóm cụ thể'],
-      refPath: 'ownerType',
-    },
-    events: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Event',
-      },
-    ],
-    tasks: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Task',
-      },
-    ],
-    defaultView: {
-      type: String,
-      enum: [
-        'dayGridMonth',
-        'dayGridWeek',
-        'dayGridDay',
-        'timeGridWeek',
-        'timeGridDay',
-        'listWeek',
-        'listMonth',
-        'listDay',
-        'listYear',
-        'multiMonthYear',
-      ],
-      default: 'dayGridMonth',
-    },
-    timeZone: {
-      type: String,
-      default: 'Asia/Ho_Chi_Minh',
-    },
-    color: {
-      type: String,
-      default: '#378006',
-    },
-    isPublic: {
-      type: Boolean,
-      default: false,
-    },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
-    deletedAt: {
-      type: Date,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-calendarSchema.index({ ownerId: 1, ownerType: 1 });
-calendarSchema.index({ name: 1 });
-module.exports = mongoose.model('Calendar', calendarSchema);
-
-
-*/
-// const mongoose = require('mongoose');
-// // Quản lý sự kiện
-// const eventSchema = new mongoose.Schema(
-//   {
-//     title: {
-//       type: String,
-//       required: [true, 'Tiêu đề sự kiện là bắt buộc'],
-//     },
-//     description: { type: String },
-//     calendarId: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: 'Calendar',
-//       required: true,
-//     },
-//     locationName: {
-//       //Tên cụ thể, toà, số nhà... (trực tiếp input chính xác tên địa điểm)
-//       type: String,
-//     },
-//     address: {
-//       // địa chỉ chi tiết thông qua toạ độ
-//       type: {
-//         type: String,
-//         enum: ['Point'], //type: 'Point' chỉ ra rằng coordinates là một mảng [longitude, latitude] đại diện cho một điểm trên bản đồ.
-//         required: false,
-//       },
-//       coordinates: {
-//         //coordinates: [Number] lưu tọa độ theo thứ tự [longitude, latitude] (theo chuẩn GeoJSON).
-//         type: [Number],
-//         index: '2dsphere',
-//         required: false,
-//       }, // [longitude, latitude]
-//       formattedAddress: {
-//         type: String,
-//         required: false,
-//       }, // Địa chỉ đầy đủ từ Geocoding API
-//       placeId: {
-//         type: String,
-//       },
-//       mapZoomLevel: {
-//         type: Number,
-//         default: 15,
-//       },
-//     },
-//     type: {
-//       type: String,
-//       enum: ['online', 'offline'],
-//       required: true,
-//     },
-//     onlineUrl: {
-//       type: String,
-//     }, // URL cho sự kiện online (nếu type là online)
-//     meetingCode: {
-//       type: String,
-//     }, // Mã cuộc họp (nếu có)
-//     startDate: {
-//       type: Date,
-//       required: [true, 'Thời gian bắt đầu là bắt buộc'],
-//     },
-//     endDate: {
-//       type: Date,
-//       required: [true, 'Thời gian kết thúc là bắt buộc'],
-//     },
-//     allDay: {
-//       type: Boolean,
-//       default: false,
-//     },
-//     recurrence: {
-//       //setup sự kiện theo chu kỳ
-//       type: {
-//         type: String,
-//         enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
-//         default: null,
-//       },
-//       interval: {
-//         type: Number,
-//         default: 1,
-//       },
-//       endDate: {
-//         type: Date,
-//       },
-//     },
-//     timeZone: {
-//       type: String,
-//       default: 'Asia/Ho_Chi_Minh',
-//     },
-//     workspaceId: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: 'Workspace',
-//       required: false,
-//     },
-//     boardId: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: 'Board',
-//       required: false,
-//     },
-//     organizer: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: 'User',
-//       required: [true, 'Organizer là bắt buộc'],
-//     },
-//     participants: [
-//       // RSVP - phản hồi tham gia sự kiện
-//       {
-//         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-//         status: {
-//           type: String,
-//           enum: ['pending', 'accepted', 'declined', 'rejected'],
-//           default: 'pending',
-//         },
-//       },
-//     ],
-//     reminderSettings: [
-//       {
-//         method: { type: String, enum: ['email', 'popup'], default: 'popup' },
-//         minutes: { type: Number, default: 15 },
-//       },
-//     ],
-//     status: {
-//       type: String,
-//       enum: ['draft', 'scheduled', 'completed', 'cancelled'],
-//       default: 'scheduled',
-//     },
-//     category: {
-//       type: String,
-//       enum: ['workshop', 'meeting', 'party', 'other'],
-//       default: 'other',
-//     },
-//     color: {
-//       type: String,
-//       default: '#378006',
-//     },
-//     isDeleted: {
-//       type: Boolean,
-//       default: false,
-//     },
-//     deletedAt: {
-//       type: Date,
-//     },
-//   },
-//   {
-//     timestamps: true,
-//   }
-// );
-
-// eventSchema.index({ startDate: 1 });
-// eventSchema.index({ organizer: 1 });
-// eventSchema.index({ participants: 1 });
-// eventSchema.index({ 'address.coordinates': '2dsphere' });
-// eventSchema.index({ status: 1 });
-// eventSchema.index({ category: 1 });
-// eventSchema.index({ calendarId: 1 });
-// eventSchema.index({ boardId: 1 });
-// module.exports = mongoose.model('Event', eventSchema);
-
-/*
-
-
-*/
-// exports.getCalendarEvents = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { startDate, endDate, status } = req.query;
-
-//     const query = { calendarId: id, isDeleted: false };
-//     if (startDate && endDate) {
-//       query.startDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
-//     }
-//     if (status) {
-//       query.status = status;
-//     }
-
-//     const events = await Event.find(query).populate('participants.userId');
-
-//     // Chuyển đổi dữ liệu cho FullCalendar
-//     const fullCalendarEvents = events.map((event) => ({
-//       id: event._id.toString(),
-//       title: event.title,
-//       start: event.startDate,
-//       end: event.endDate,
-//       allDay: event.allDay || false, // Giả sử allDay sẽ được thêm vào Event
-//       backgroundColor: event.color,
-//       rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
-//       extendedProps: {
-//         description: event.description,
-//         locationName: event.locationName,
-//         type: event.type,
-//         organizer: event.organizer,
-//       },
-//     }));
-
-//     res.status(200).json({
-//       message: 'Lấy danh sách sự kiện thành công',
-//       status: 200,
-//       data: fullCalendarEvents,
-//     });
-//   } catch (error) {
-//     console.error('Lỗi khi lấy danh sách sự kiện:', error);
-//     res.status(500).json({
-//       message: 'Lỗi máy chủ',
-//       status: 500,
-//       error: error.message,
-//     });
-//   }
-// };
-
-// Hàm chuyển đổi recurrence sang RRule
 
 exports.getCalendarEvents = async (req, res) => {
   try {
@@ -642,14 +384,14 @@ exports.getCalendarEvents = async (req, res) => {
       },
     }));
 
-    res.status(200).json({
+    return res.status(200).json({
       message: `Lấy danh sách sự kiện từ lịch ${id} thành công`,
       status: 200,
       data: fullCalendarEvents,
     });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách sự kiện:', error);
-    res.status(500).json({
+    return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
       error: error.message,

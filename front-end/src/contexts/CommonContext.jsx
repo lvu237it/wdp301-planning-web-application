@@ -18,7 +18,10 @@ export const Common = ({ children }) => {
     return JSON.parse(localStorage.getItem('userData')) || null;
   });
 
-  const [loading, setLoading] = useState(true);
+  // Enhanced responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const isTablet = useMediaQuery({ minWidth: 769, maxWidth: 1024 });
+  const isDesktop = useMediaQuery({ minWidth: 1025 });
 
   // const { from } = location.state || { from: '/' }; // Nếu không có thông tin from thì mặc định về trang chủ
 
@@ -44,11 +47,6 @@ export const Common = ({ children }) => {
         // Update state
         setAccessToken(accessToken);
         setUserDataLocal(user);
-
-        // Configure axios defaults for future requests
-        axios.defaults.headers.common[
-          'Authorization'
-        ] = `Bearer ${accessToken}`;
 
         toast.success('Login successful!');
         navigate('/'); // or wherever your home page is
@@ -81,9 +79,6 @@ export const Common = ({ children }) => {
         setAccessToken(token);
         setUserDataLocal(data.user);
 
-        // Configure axios defaults
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
         toast.success('Registration successful!');
         navigate('/');
         return true;
@@ -104,11 +99,29 @@ export const Common = ({ children }) => {
     setAccessToken(null);
     setUserDataLocal(null);
 
-    // Remove axios default header
-    delete axios.defaults.headers.common['Authorization'];
-
     // Navigate to login
     navigate('/login');
+  };
+
+  //Create a personal calendar for user (if needed)
+  const createInitialCalendar = async () => {
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/calendar/create-new-calendar`,
+        {
+          name: 'Personal Working Calendar',
+          description: 'A calendar for each user in system',
+          ownerType: 'user',
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+    } catch (error) {
+      // console.error('Error creating calendar:', error.response?.data?.message);
+    }
   };
 
   // Set up axios interceptor for handling 401 responses
@@ -125,13 +138,6 @@ export const Common = ({ children }) => {
 
     return () => axios.interceptors.response.eject(interceptor);
   }, []);
-
-  // Set up initial axios authorization header
-  useEffect(() => {
-    if (accessToken) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-    }
-  }, [accessToken]);
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
@@ -165,7 +171,9 @@ export const Common = ({ children }) => {
   return (
     <CommonContext.Provider
       value={{
-        Toaster,
+        isMobile,
+        isTablet,
+        isDesktop,
         toast,
         navigate,
         userDataLocal,
@@ -176,6 +184,7 @@ export const Common = ({ children }) => {
         login,
         register,
         logout,
+        createInitialCalendar,
       }}
     >
       <Toaster
