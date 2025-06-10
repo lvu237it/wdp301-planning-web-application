@@ -677,27 +677,6 @@ const Calendar = () => {
       <div className='calendar-overlay' />
       <div className='calendar-content'>
         <Container fluid>
-          {/* Header with Search */}
-          <motion.div
-            className='calendar-header'
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className='d-flex align-items-center justify-content-between my-4 position-relative'>
-              <button className='back-button' onClick={() => navigate(-1)}>
-                <FaArrowLeft />
-              </button>
-              <Form.Control
-                type='text'
-                placeholder='Tìm kiếm sự kiện...'
-                value={searchTerm}
-                onChange={handleSearchChange}
-                style={{ maxWidth: '200px' }}
-              />
-            </div>
-          </motion.div>
-
           {/* Main Content */}
           <Row className='calendar-main-container'>
             <Col lg={7} className='order-1 order-lg-1'>

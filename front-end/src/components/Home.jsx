@@ -3,6 +3,7 @@ import MenuBar from './layout/MenuBar';
 import Header from './layout/Header';
 import { useCommon } from '../contexts/CommonContext';
 import { useEffect, useState } from 'react';
+import { Spinner } from 'react-bootstrap';
 
 const Home = () => {
   const {
@@ -49,13 +50,29 @@ const Home = () => {
       {showGoogleAuthModal && (
         <div className='google-modal-overlay'>
           <div className='google-modal-content'>
-            <h2>Xác thực Google</h2>
+            <h2>Bạn cần xác thực Google để tiếp tục</h2>
             <p>
-              Để sử dụng các tính năng như tải file lên Drive và tạo sự kiện
-              online, bạn cần cấp quyền cho ứng dụng. Bạn có muốn tiếp tục?
+              Để sử dụng đầy đủ 1 số các tính năng và đồng bộ dữ liệu của bạn
+              với tài khoản Google cá nhân, bạn cần cấp quyền cho ứng dụng. Bạn
+              có muốn tiếp tục?
             </p>
-            <button onClick={handleConfirmGoogleAuth} disabled={isLoading}>
-              {isLoading ? 'Đang xử lý...' : 'Có'}
+            <button
+              onClick={handleConfirmGoogleAuth}
+              disabled={isLoading}
+              style={{ position: 'relative' }}
+            >
+              {isLoading ? (
+                <Spinner
+                  as='span'
+                  animation='border'
+                  size='sm'
+                  color='light'
+                  role='status'
+                  aria-hidden='true'
+                />
+              ) : (
+                'Có'
+              )}
             </button>
             <button onClick={handleCancelGoogleAuth} disabled={isLoading}>
               Không
