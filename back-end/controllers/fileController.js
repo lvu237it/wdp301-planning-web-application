@@ -85,7 +85,6 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
     const { code, state } = req.query;
     console.log('handleGoogleAuthCallback - code:', code); // Debug
     console.log('handleGoogleAuthCallback - state:', state); // Debug
-    console.log('handleGoogleAuthCallback - req.user:', req.user); // Debug
 
     if (!code) {
       return next(new AppError('Không nhận được mã xác thực', 400));
