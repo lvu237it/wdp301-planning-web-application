@@ -23,7 +23,7 @@ mongoose
   .connect(DBRecipesSharingWebApp) //this is a promise
   .then((con) => {
     // console.log(con.connections);
-    console.log('DB connection successful'); 
+    console.log('DB connection successful');
     console.log('📌 Database đang dùng:', mongoose.connection.name);
   });
 
@@ -37,8 +37,8 @@ mongoose
   và giữ logic nghiệp vụ (business logic) trong Model
   */
 
-// const port = process.env.PORT;
-const port = 3000;
+const port = process.env.PORT;
+// const port = 3000;
 const server = app.listen(port, () => {
   console.log(`App running on port ${port}...`);
 });
