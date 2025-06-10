@@ -31,6 +31,27 @@ export const Common = ({ children }) => {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
+  const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
+  const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
+
+  //Kiểm tra xem người dùng đã xác thực Google chưa
+  const checkGoogleAuth = async () => {
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/files/check-google-auth`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (response.data.status === 'success') {
+        setIsGoogleAuthenticated(true);
+      } else {
+        setShowGoogleAuthModal(true); // Hiển thị modal nếu chưa xác thực
+      }
+    } catch (error) {
+      setShowGoogleAuthModal(true); // Hiển thị modal nếu có lỗi hoặc chưa xác thực
+    }
+  };
 
   // Authentication functions
   const login = async (email, password) => {
@@ -156,6 +177,20 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Xử lý xác thực Google
+  const handleGoogleAuth = async () => {
+    try {
+      const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (response.data.status === 'success') {
+        window.location.href = response.data.data.authUrl; // Redirect đến Google
+      }
+    } catch (error) {
+      toast.error('Lỗi khi khởi tạo xác thực Google');
+    }
+  };
+
   // Set up axios interceptor for handling 401 responses
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
@@ -168,8 +203,14 @@ export const Common = ({ children }) => {
       }
     );
 
+    if (accessToken && userDataLocal) {
+      checkGoogleAuth(); // Kiểm tra xác thực Google khi có token
+      createInitialCalendar();
+      getCalendarUser();
+    }
+
     return () => axios.interceptors.response.eject(interceptor);
-  }, []);
+  }, [accessToken, userDataLocal]);
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
@@ -220,6 +261,10 @@ export const Common = ({ children }) => {
         getCalendarUser,
         calendarUser,
         setCalendarUser,
+        showGoogleAuthModal,
+        setShowGoogleAuthModal,
+        handleGoogleAuth,
+        isGoogleAuthenticated,
       }}
     >
       <Toaster

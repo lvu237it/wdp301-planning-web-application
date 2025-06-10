@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Container,
   Row,
@@ -47,6 +47,9 @@ const Calendar = () => {
     getCalendarUser,
   } = useCommon();
 
+  // Thêm ref cho FullCalendar
+  const calendarRef = useRef(null);
+
   // State quản lý
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -56,7 +59,7 @@ const Calendar = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [calendarView] = useState('dayGridMonth');
+  const [calendarView, setCalendarView] = useState('dayGridMonth');
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     title: '',
@@ -162,8 +165,14 @@ const Calendar = () => {
           const formattedEvents = response.data.data.map((event) => ({
             id: event.id,
             title: event.title,
-            start: new Date(event.start),
-            end: event.end ? new Date(event.end) : null,
+            start: new Date(event.start).toLocaleString('en-US', {
+              timeZone: 'Asia/Ho_Chi_Minh',
+            }),
+            end: event.end
+              ? new Date(event.end).toLocaleString('en-US', {
+                  timeZone: 'Asia/Ho_Chi_Minh',
+                })
+              : null,
             allDay: event.allDay || false,
             backgroundColor:
               eventTypes[event.extendedProps.type]?.color || '#4CAF50',
@@ -183,15 +192,8 @@ const Calendar = () => {
               rrule: event.extendedProps.rrule,
             },
           }));
-
-          // const filtered = searchQuery
-          //   ? formattedEvents.filter((event) =>
-          //       event.title.toLowerCase().includes(searchQuery.toLowerCase())
-          //     )
-          //   : formattedEvents;
           console.log('formattedEvents', formattedEvents);
           setEvents(formattedEvents);
-          // setFilteredEvents(filtered);
         } else {
           setEvents([]);
           setFilteredEvents([]);
@@ -251,10 +253,7 @@ const Calendar = () => {
       setSelectedDate(new Date(arg.start));
       debouncedFetchEvents(arg.start, arg.end, searchTerm);
     },
-    [
-      debouncedFetchEvents,
-      // searchQuery
-    ]
+    [debouncedFetchEvents, searchTerm]
   );
 
   // Xử lý tìm kiếm
@@ -307,11 +306,11 @@ const Calendar = () => {
       const newEnd = event.end ? toISODateTime(event.end) : null;
       try {
         const response = await axios.patch(
-          `${apiBaseUrl}/calendar/${event.id}`,
+          `${apiBaseUrl}/event/${event.id}`,
           { startDate: newStart, endDate: newEnd },
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        if (response.data.status === 'success') {
+        if (response.data.status === 200) {
           toast.success('Cập nhật thời gian sự kiện thành công');
           debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
         }
@@ -331,6 +330,28 @@ const Calendar = () => {
       searchTerm,
     ]
   );
+
+  // Xử lý click nút "Today"
+  const handleTodayClick = useCallback(() => {
+    const calendarApi = calendarRef.current.getApi();
+    const now = new Date();
+    calendarApi.gotoDate(now); // Chuyển đến ngày hiện tại
+    if (calendarView === 'timeGridDay') {
+      const currentHour = now.getHours().toString().padStart(2, '0') + ':00';
+      calendarApi.scrollToTime(currentHour); // Focus vào giờ hiện tại
+    }
+    setSelectedDate(now);
+    debouncedFetchEvents(
+      now,
+      new Date(now.getFullYear(), now.getMonth() + 1, 0),
+      searchTerm
+    );
+  }, [calendarView, debouncedFetchEvents, searchTerm]);
+
+  // Cập nhật view khi thay đổi
+  const handleViewChange = useCallback((view) => {
+    setCalendarView(view);
+  }, []);
 
   // Xử lý mở form tạo sự kiện
   const handleCreateClick = useCallback(() => {
@@ -418,8 +439,6 @@ const Calendar = () => {
           payload,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-
-        console.log('create', response);
 
         if (response.data.status === 201) {
           toast.success('Thêm sự kiện thành công');
@@ -537,7 +556,7 @@ const Calendar = () => {
         `${apiBaseUrl}/event/${selectedEvent.id}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (response.data.status === 'success') {
+      if (response.data.status === 200) {
         toast.success('Xóa sự kiện thành công');
         setShowEventModal(false);
         setShowDeleteModal(false);
@@ -613,13 +632,13 @@ const Calendar = () => {
       },
       timeGridWeek: {
         dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'numeric' },
-        slotMinTime: '06:00:00',
-        slotMaxTime: '22:00:00',
+        slotMinTime: '00:00:00',
+        slotMaxTime: '23:59:59',
       },
       timeGridDay: {
         dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'long' },
-        slotMinTime: '06:00:00',
-        slotMaxTime: '22:00:00',
+        slotMinTime: '00:00:00',
+        slotMaxTime: '23:59:59',
       },
     },
     buttonText: {
@@ -633,6 +652,7 @@ const Calendar = () => {
     weekNumbers: !isMobile,
     weekNumberTitle: 'Tuần',
     weekNumberCalculation: 'ISO',
+    // timeZone: 'Asia/Ho_Chi_Minh', // Đảm bảo múi giờ
     nowIndicator: true,
     selectMirror: true,
     dayMaxEventRows: isMobile ? 2 : 4,
@@ -644,6 +664,12 @@ const Calendar = () => {
       hour12: true,
     },
     datesSet: handleDatesSet,
+    customButtons: {
+      today: {
+        text: 'Hôm nay',
+        click: handleTodayClick,
+      },
+    },
   };
 
   return (
@@ -662,16 +688,6 @@ const Calendar = () => {
               <button className='back-button' onClick={() => navigate(-1)}>
                 <FaArrowLeft />
               </button>
-              {/* <div
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                }}
-                className='text-center'
-              >
-                <div className='calendar-title'>Personal Working Calendar</div>
-              </div> */}
               <Form.Control
                 type='text'
                 placeholder='Tìm kiếm sự kiện...'
@@ -691,7 +707,11 @@ const Calendar = () => {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
-                <FullCalendar {...calendarOptions} />
+                <FullCalendar
+                  ref={calendarRef}
+                  {...calendarOptions}
+                  viewDidMount={(info) => handleViewChange(info.view.type)}
+                />
               </motion.div>
             </Col>
             <Col lg={5} className='order-2 order-lg-2'>
@@ -1055,18 +1075,6 @@ const Calendar = () => {
               </Form.Group>
               {formData.type === 'online' && (
                 <>
-                  {/* <Form.Group className='mb-3'>
-                    <Form.Label>Link sự kiện</Form.Label>
-                    <Form.Control
-                      type='url'
-                      value={formData.onlineUrl}
-                      onChange={(e) =>
-                        setFormData({ ...formData, onlineUrl: e.target.value })
-                      }
-                      placeholder='Nhập URL sự kiện trực tuyến...'
-                    />
-                  </Form.Group> */}
-
                   <Form.Group className='mb-3'>
                     <Form.Label>Mã cuộc họp</Form.Label>
                     <Form.Control

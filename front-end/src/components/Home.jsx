@@ -5,15 +5,41 @@ import { useCommon } from '../contexts/CommonContext';
 import { useEffect } from 'react';
 
 const Home = () => {
-  const { createInitialCalendar, getCalendarUser, userDataLocal, accessToken } =
-    useCommon();
+  const {
+    createInitialCalendar,
+    getCalendarUser,
+    userDataLocal,
+    accessToken,
+    showGoogleAuthModal,
+    setShowGoogleAuthModal,
+    handleGoogleAuth,
+    isGoogleAuthenticated,
+    navigate,
+  } = useCommon();
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (accessToken && userDataLocal) {
+    if (accessToken && userDataLocal && !isGoogleAuthenticated) {
       createInitialCalendar();
       getCalendarUser();
     }
-  }, [userDataLocal, accessToken]);
+  }, [accessToken, userDataLocal, isGoogleAuthenticated]);
+
+  const handleConfirmGoogleAuth = async () => {
+    setIsLoading(true);
+    await handleGoogleAuth();
+    setIsLoading(false);
+  };
+
+  const handleCancelGoogleAuth = () => {
+    setShowGoogleAuthModal(false); // Ẩn modal nếu chọn "Không"
+  };
+
+  if (!accessToken || !userDataLocal) {
+    navigate('/login');
+    return null; // Hoặc redirect về login nếu chưa đăng nhập
+  }
 
   return (
     <div className='home-container'>
@@ -24,6 +50,24 @@ const Home = () => {
           <Outlet />
         </main>
       </div>
+
+      {showGoogleAuthModal && (
+        <div className='google-modal-overlay'>
+          <div className='google-modal-content'>
+            <h2>Xác thực Google</h2>
+            <p>
+              Để sử dụng các tính năng như tải file lên Drive và tạo sự kiện
+              online, bạn cần cấp quyền cho ứng dụng. Bạn có muốn tiếp tục?
+            </p>
+            <button onClick={handleConfirmGoogleAuth} disabled={isLoading}>
+              {isLoading ? 'Đang xử lý...' : 'Có'}
+            </button>
+            <button onClick={handleCancelGoogleAuth} disabled={isLoading}>
+              Không
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

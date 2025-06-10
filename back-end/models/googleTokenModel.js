@@ -6,7 +6,13 @@ const googleTokenSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  service: {
+    type: String, // Thêm trường service để phân biệt (ví dụ: 'drive', 'meet')
+    required: true,
+    index: true,
+  },
   scopes: {
+    //Với mỗi 1 service tương ứng thì sẽ có thể có nhiều scopes khác nhau
     type: [String], // Lưu danh sách scope được cấp
     required: true,
     index: true, // Tạo index để tối ưu hóa truy vấn

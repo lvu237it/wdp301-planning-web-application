@@ -1,10 +1,14 @@
 const { SpacesServiceClient } = require('@google-apps/meet').v2;
 const { authorize } = require('../utils/googleAuthUtils');
+const AppError = require('../utils/appError');
 
-exports.createMeetSpace = async (
-  req,
-  scopes = ['https://www.googleapis.com/auth/meetings.space.created']
-) => {
+const ALL_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
+];
+
+exports.createMeetSpace = async (req, scopes = ALL_SCOPES) => {
   try {
     const userId = req.user._id;
     const authClient = await authorize(userId, scopes);

@@ -2,12 +2,13 @@ const { google } = require('googleapis');
 const GoogleToken = require('../models/googleTokenModel');
 const AppError = require('../utils/appError');
 
-const DEFAULT_SCOPES = [
-  'https://www.googleapis.com/auth/meetings.space.created',
+const ALL_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
 ];
 
-async function loadSavedCredentialsIfExist(userId, scopes = DEFAULT_SCOPES) {
+async function loadSavedCredentialsIfExist(userId, scopes = ALL_SCOPES) {
   const tokenDoc = await GoogleToken.findOne({
     userId,
     scopes: { $all: scopes },
@@ -28,7 +29,7 @@ async function loadSavedCredentialsIfExist(userId, scopes = DEFAULT_SCOPES) {
   return null;
 }
 
-async function saveCredentials(client, userId, scopes = DEFAULT_SCOPES) {
+async function saveCredentials(client, userId, scopes = ALL_SCOPES) {
   await GoogleToken.findOneAndUpdate(
     { userId, scopes: { $all: scopes } },
     {
@@ -43,7 +44,7 @@ async function saveCredentials(client, userId, scopes = DEFAULT_SCOPES) {
   );
 }
 
-async function authorize(userId, scopes = DEFAULT_SCOPES) {
+async function authorize(userId, scopes = ALL_SCOPES) {
   let client = await loadSavedCredentialsIfExist(userId, scopes);
   if (client) return client;
 

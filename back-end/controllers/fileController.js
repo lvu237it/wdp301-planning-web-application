@@ -6,9 +6,12 @@ const GoogleToken = require('../models/googleTokenModel');
 const AppError = require('../utils/appError');
 const { authorize, saveCredentials } = require('../utils/googleAuthUtils');
 
-// Định nghĩa scope cho Google Drive API
-const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-
+// Định nghĩa scope chung cho cả Drive và Meet
+const ALL_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
+];
 /**
  * Lấy URL xác thực Google cho frontend
  */
@@ -34,7 +37,7 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
 
     const authUrl = client.generateAuthUrl({
       access_type: 'offline',
-      scope: DRIVE_SCOPES, // Sử dụng scope Drive
+      scope: ALL_SCOPES, // Sử dụng scope Drive
       prompt: 'consent',
       state,
     });
@@ -46,6 +49,31 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
   } catch (error) {
     console.error('Lỗi khi tạo URL xác thực:', error.message);
     next(new AppError('Không thể tạo URL xác thực: ' + error.message, 500));
+  }
+};
+
+/**
+ * Kiểm tra xem người dùng đã xác thực Google hay chưa
+ */
+exports.checkGoogleAuth = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const tokenDoc = await GoogleToken.findOne({
+      userId,
+      scopes: { $all: ALL_SCOPES },
+    });
+    if (tokenDoc) {
+      res
+        .status(200)
+        .json({ status: 'success', message: 'Đã xác thực Google' });
+    } else {
+      res
+        .status(401)
+        .json({ status: 'error', message: 'Chưa xác thực Google' });
+    }
+  } catch (error) {
+    console.error('Lỗi khi kiểm tra xác thực:', error.message);
+    next(new AppError('Lỗi khi kiểm tra xác thực: ' + error.message, 500));
   }
 };
 
@@ -88,7 +116,7 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
 
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
-    await saveCredentials(client, userId, DRIVE_SCOPES); // Lưu token với scope Drive
+    await saveCredentials(client, userId, ALL_SCOPES); // Lưu token với scope Drive
 
     res.status(200).json({
       status: 'success',
@@ -118,7 +146,7 @@ exports.uploadFile = async (req, res, next) => {
       return next(new AppError('Chưa chọn file để tải lên', 400));
     }
 
-    const auth = await authorize(userId, DRIVE_SCOPES); //Sử dụng scope Drive
+    const auth = await authorize(userId, ALL_SCOPES); //Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     const fileMetadata = {
@@ -158,7 +186,7 @@ exports.uploadFile = async (req, res, next) => {
 exports.listFiles = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const auth = await authorize(userId, DRIVE_SCOPES); // Sử dụng scope Drive
+    const auth = await authorize(userId, ALL_SCOPES); // Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     const { data } = await drive.files.list({
@@ -183,7 +211,7 @@ exports.deleteFile = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { fileId } = req.params;
-    const auth = await authorize(userId, DRIVE_SCOPES); // Sử dụng scope Drive
+    const auth = await authorize(userId, ALL_SCOPES); // Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     await drive.files.delete({ fileId });

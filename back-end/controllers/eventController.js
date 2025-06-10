@@ -12,8 +12,13 @@ const BoardMembership = require('../models/boardMembershipModel');
 const User = require('../models/userModel');
 const { formatDateToTimeZone } = require('../utils/dateUtils');
 const { createMeetSpace } = require('./meetController');
+const AppError = require('../utils/appError');
 
-const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
+const ALL_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
+];
 
 exports.createEventForCalendar = async (req, res) => {
   try {
@@ -238,7 +243,8 @@ exports.createEventForCalendar = async (req, res) => {
     });
 
     if (type === 'online') {
-      const meetUrl = await createMeetSpace(req, MEET_SCOPES); // Truyền scope Meet
+      const meetUrl = await createMeetSpace(req, ALL_SCOPES); // Truyền scope Meet
+      console.log('meetUrl', meetUrl);
       if (!meetUrl) throw new AppError('Không thể tạo link Meet', 500);
       newEvent.onlineUrl = meetUrl;
       console.log('Meeting created', meetUrl);
