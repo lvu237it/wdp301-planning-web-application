@@ -5,11 +5,13 @@ import { useCommon } from '../contexts/CommonContext';
 import { useEffect } from 'react';
 
 const Home = () => {
-  const { createInitialCalendar, userDataLocal, accessToken } = useCommon();
+  const { createInitialCalendar, getCalendarUser, userDataLocal, accessToken } =
+    useCommon();
 
   useEffect(() => {
     if (accessToken && userDataLocal) {
       createInitialCalendar();
+      getCalendarUser();
     }
   }, [userDataLocal, accessToken]);
 

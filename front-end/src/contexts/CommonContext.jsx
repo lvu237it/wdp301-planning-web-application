@@ -29,6 +29,8 @@ export const Common = ({ children }) => {
   // và build lại để chạy server frontend trên môi trường dev hoặc production
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
 
+  const [calendarUser, setCalendarUser] = useState(null);
+
   // Authentication functions
   const login = async (email, password) => {
     try {
@@ -107,7 +109,7 @@ export const Common = ({ children }) => {
   const createInitialCalendar = async () => {
     try {
       const response = await axios.post(
-        `${apiBaseUrl}/calendar/create-new-calendar`,
+        `${apiBaseUrl}/calendar`,
         {
           name: 'Personal Working Calendar',
           description: 'A calendar for each user in system',
@@ -121,6 +123,35 @@ export const Common = ({ children }) => {
       );
     } catch (error) {
       // console.error('Error creating calendar:', error.response?.data?.message);
+    }
+  };
+
+  // Get user calendar
+  const getCalendarUser = async () => {
+    try {
+      const response = await axios.get(`${apiBaseUrl}/calendar/get-by-user`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      console.log('Lấy lịch user:', response.data);
+      if (response.data.status === 200 && response.data.data?.length > 0) {
+        setCalendarUser(response.data.data[0]); // Lấy lịch đầu tiên
+      }
+    } catch (error) {
+      console.error(
+        'Lỗi khi lấy lịch user:',
+        error.response?.data?.message || error.message
+      );
+      if (error.response?.status === 404) {
+        // Không tìm thấy lịch, thử tạo mới
+        const created = await createUserCalendarInitialCalendar();
+        if (!created) {
+          toast.error('Không thể tạo lịch cá nhân');
+        }
+      } else {
+        toast.error('Lỗi khi tải lịch');
+      }
     }
   };
 
@@ -185,6 +216,9 @@ export const Common = ({ children }) => {
         register,
         logout,
         createInitialCalendar,
+        getCalendarUser,
+        calendarUser,
+        setCalendarUser,
       }}
     >
       <Toaster

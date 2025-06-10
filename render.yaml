@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: backend-service
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+
+    healthCheckPath: /health # Tùy chọn
