@@ -30,18 +30,48 @@ async function loadSavedCredentialsIfExist(userId, scopes = ALL_SCOPES) {
 }
 
 async function saveCredentials(client, userId, scopes = ALL_SCOPES) {
-  await GoogleToken.findOneAndUpdate(
-    { userId, scopes: { $all: scopes } },
-    {
+  // await GoogleToken.findOneAndUpdate(
+  //   { userId, scopes: { $all: scopes } },
+  //   {
+  //     userId,
+  //     scopes,
+  //     accessToken: client.credentials.access_token,
+  //     refreshToken: client.credentials.refresh_token,
+  //     expiryDate: client.credentials.expiry_date,
+  //     updatedAt: Date.now(),
+  //   },
+  //   { upsert: true, new: true }
+  // );
+
+  // Kiểm tra nếu tài liệu đã tồn tại
+  const existingToken = await GoogleToken.findOne({ userId });
+  if (existingToken) {
+    // Nếu đã tồn tại, cập nhật với scopes mới (ghi đè hoặc hợp nhất tùy ý)
+    await GoogleToken.findOneAndUpdate(
+      { userId },
+      {
+        $set: {
+          accessToken: client.credentials.access_token,
+          refreshToken: client.credentials.refresh_token,
+          expiryDate: client.credentials.expiry_date,
+          updatedAt: Date.now(),
+          scopes: scopes, // Ghi đè scopes
+        },
+      },
+      { new: true }
+    );
+  } else {
+    // Nếu chưa tồn tại, tạo mới
+    const newToken = new GoogleToken({
       userId,
       scopes,
       accessToken: client.credentials.access_token,
       refreshToken: client.credentials.refresh_token,
       expiryDate: client.credentials.expiry_date,
       updatedAt: Date.now(),
-    },
-    { upsert: true, new: true }
-  );
+    });
+    await newToken.save();
+  }
 }
 
 async function authorize(userId, scopes = ALL_SCOPES) {
