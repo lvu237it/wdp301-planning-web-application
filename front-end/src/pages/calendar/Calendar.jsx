@@ -212,6 +212,10 @@ const Calendar = () => {
     [accessToken, apiBaseUrl, toast, calendarUser, eventTypes]
   );
 
+  useEffect(() => {
+    console.log('Events fetched:', events);
+  }, [events]);
+
   // Khởi tạo lấy sự kiện
   useEffect(() => {
     if (!accessToken || !userDataLocal?._id) {
@@ -586,7 +590,7 @@ const Calendar = () => {
   const calendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: calendarView,
-    events: filteredEvents,
+    events: events,
     dateClick: handleDateClick,
     eventClick: handleEventClick,
     eventDrop: handleEventDrop,
@@ -658,7 +662,7 @@ const Calendar = () => {
               <button className='back-button' onClick={() => navigate(-1)}>
                 <FaArrowLeft />
               </button>
-              <div
+              {/* <div
                 style={{
                   position: 'absolute',
                   left: '50%',
@@ -667,7 +671,7 @@ const Calendar = () => {
                 className='text-center'
               >
                 <div className='calendar-title'>Personal Working Calendar</div>
-              </div>
+              </div> */}
               <Form.Control
                 type='text'
                 placeholder='Tìm kiếm sự kiện...'
@@ -1124,7 +1128,7 @@ const Calendar = () => {
                 </Form.Select>
               </Form.Group>
               <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (ID người dùng)</Form.Label>
+                <Form.Label>Người tham gia (email người dùng)</Form.Label>
                 <Form.Control
                   type='text'
                   value={formData.participants.map((p) => p.userId).join(',')}
@@ -1137,7 +1141,7 @@ const Calendar = () => {
                         .filter((p) => p.userId),
                     })
                   }
-                  placeholder='Nhập email để mời người tham gia, cách nhau bằng dấu phẩy...'
+                  placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
                 />
                 <Form.Text className='text-muted'>
                   Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
