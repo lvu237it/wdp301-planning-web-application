@@ -117,11 +117,13 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
     client.setCredentials(tokens);
     await saveCredentials(client, userId, ALL_SCOPES); // Lưu token với scope Drive
 
-    res.status(200).json({
-      status: 'success',
-      message:
-        'Xác thực Google Drive thành công. Bạn có thể sử dụng các tính năng Google Drive.',
-    });
+    // res.status(200).json({
+    //   status: 'success',
+    //   message:
+    //     'Xác thực Google thành công. Bạn có thể tiếp tục sử dụng các tính năng.',
+    // });
+    // Redirect về frontend sau khi thành công
+    res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
   } catch (error) {
     console.error('Lỗi trong handleGoogleAuthCallback:', error.message);
     const errorMessage = req.query.error

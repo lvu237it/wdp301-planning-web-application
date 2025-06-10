@@ -27,8 +27,8 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
@@ -43,7 +43,7 @@ export const Common = ({ children }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      console.log('checkgoogleAuth response:', response);
+      // console.log('checkgoogleAuth response:', response);
 
       if (response.data.status === 'success') {
         setIsGoogleAuthenticated(true);
@@ -185,7 +185,7 @@ export const Common = ({ children }) => {
       const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      console.log('get google auth url response:', response);
+      // console.log('get google auth url response:', response);
 
       if (response.data.status === 'success') {
         window.location.href = response.data.data.authUrl; // Redirect đến Google
