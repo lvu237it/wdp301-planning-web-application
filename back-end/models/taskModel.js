@@ -12,7 +12,7 @@ const taskSchema = new mongoose.Schema(
     calendarId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Calendar',
-      required: true,
+      required: false,
     },
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -27,7 +27,7 @@ router.delete(
   auth.protect,
   eventController.removeParticipant //ok
 );
-router.get('/:id/history', auth.protect, eventController.getEventHistory);
+router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
 
 module.exports = router;

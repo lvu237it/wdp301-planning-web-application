@@ -1,41 +1,48 @@
-import { useEffect, useState } from 'react';
-import './App.css';
-import RecipesList from './components/RecipesList';
 import { Routes, Route } from 'react-router-dom';
-import RecipeDetail from './components/RecipeDetail';
-import AdminRecipes from './components/AdminRecipes';
-import AdminRecipeDetail from './components/AdminRecipeDetails';
-import Login from './components/Login';
-import ForgotPassword from './components/ForgotPassword';
-import ResetPassword from './components/ResetPassword';
-import SavedRecipes from './components/SavedRecipes';
-import ChefsCommunity from './components/ChefsCommunity';
-import ChefDetail from './components/ChefDetail';
-import UserProfile from './components/UserProfile';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import Home from './components/Home';
+import Dashboard from './pages/dashboard/Dashboard';
+import Workspaces from './pages/workspaces/Workspaces';
+import Boards from './pages/boards/Boards';
+import Calendar from './pages/calendar/Calendar';
+import Profile from './pages/profile/Profile';
 
 function App() {
   return (
-    <>
-      <Routes>
-        <Route path='/' element={<RecipesList />} />
-        <Route path='/saved-recipes' element={<SavedRecipes />} />
-        <Route path='/community-chef' element={<ChefsCommunity />} />
-        <Route path='/chef/:id' element={<ChefDetail />} />
-        <Route path='/login' element={<Login />} />
-        <Route path='/forgot' element={<ForgotPassword />} />
-        <Route path='/reset/:token' element={<ResetPassword />} />
-        <Route
-          path='/recipe-details/:recipeNameSlug'
-          element={<RecipeDetail />}
-        />
-        <Route path='/admin/recipes' element={<AdminRecipes />} />
-        <Route path='/user-profile' element={<UserProfile />} />
-        <Route
-          path='/admin/recipes/:recipeId'
-          element={<AdminRecipeDetail />}
-        />
-      </Routes>
-    </>
+    <Routes>
+      {/* Public routes */}
+      <Route path='/login' element={<Login />} />
+      <Route path='/register' element={<Register />} />
+
+      {/* Protected routes */}
+      <Route
+        path='/'
+        element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path='dashboard' element={<Dashboard />} />
+        <Route path='workspaces' element={<Workspaces />} />
+        <Route path='boards' element={<Boards />} />
+        <Route path='calendar' element={<Calendar />} />
+        <Route path='profile' element={<Profile />} />
+      </Route>
+
+      {/* Catch all route - 404 */}
+      <Route
+        path='*'
+        element={
+          <div className='text-center mt-5'>
+            <h1>404 - Page Not Found</h1>
+          </div>
+        }
+      />
+    </Routes>
   );
 }
 

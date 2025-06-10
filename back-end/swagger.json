@@ -854,6 +854,343 @@
           }
         }
       }
+    },
+    "/files/google-auth": {
+      "get": {
+        "summary": "Lấy URL xác thực Google",
+        "tags": ["Files"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "authUrl": {
+                          "type": "string",
+                          "example": "https://accounts.google.com/o/oauth2/v2/auth?..."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "summary": "Xử lý callback từ Google OAuth",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Xác thực thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "message": {
+                      "type": "string",
+                      "example": "Xác thực Google Drive thành công. Bạn có thể sử dụng các tính năng Google Drive."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid code or state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/upload": {
+      "post": {
+        "summary": "Tải file lên Google Drive",
+        "tags": ["Files"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tải file thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fileId": {
+                          "type": "string",
+                          "example": "1a2b3c4d5e6f7g8h9i0j"
+                        },
+                        "fileName": {
+                          "type": "string",
+                          "example": "example.pdf"
+                        },
+                        "webViewLink": {
+                          "type": "string",
+                          "example": "https://drive.google.com/file/d/..."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file selected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/list": {
+      "get": {
+        "summary": "Liệt kê file trong Google Drive",
+        "tags": ["Files"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "1a2b3c4d5e6f7g8h9i0j"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "example.pdf"
+                          },
+                          "mimeType": {
+                            "type": "string",
+                            "example": "application/pdf"
+                          },
+                          "webViewLink": {
+                            "type": "string",
+                            "example": "https://drive.google.com/file/d/..."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{fileId}": {
+      "delete": {
+        "summary": "Xóa file khỏi Google Drive",
+        "tags": ["Files"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "1a2b3c4d5e6f7g8h9i0j"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Xóa file thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "message": {
+                      "type": "string",
+                      "example": "Xóa file thành công"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized (no or invalid token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

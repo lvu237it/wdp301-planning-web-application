@@ -70,7 +70,7 @@ const createSendToken = (user, statusCode, res) => {
     });
   } catch (err) {
     res.status(500).json({
-      error,
+      error: err,
     });
   }
 };
@@ -86,18 +86,32 @@ exports.signup = async (req, res, next) => {
 
     // 1) Basic validation
     if (!username || !email || !password) {
-      return next(
-        new AppError('Username, email, and password are required.', 400)
-      );
+      return res.status(400).json({
+        status: 'error',
+        message: 'Username, email, and password are required.',
+      });
     }
     if (password !== passwordConfirm) {
-      return next(new AppError('Passwords do not match.', 400));
+      return res.status(400).json({
+        status: 'error',
+        message: 'Passwords do not match.',
+      });
     }
 
-    // 2) Create new user; pre‐save hook will hash the password
+    // 2) Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        status: 'error',
+        message:
+          'This email is already registered. Please use a different email or login.',
+      });
+    }
+
+    // 3) Create new user; pre‐save hook will hash the password
     const newUser = await User.create({ username, email, password });
 
-    // 3) Send welcome email (optional)
+    // 4) Send welcome email (optional)
     try {
       await sendMail(
         newUser.email,
@@ -108,10 +122,14 @@ exports.signup = async (req, res, next) => {
       // Ignore mailing errors
     }
 
-    // 4) Send JWT (legacy flow)
+    // 5) Send JWT (legacy flow)
     createSendToken(newUser, 201, res);
   } catch (err) {
-    next(err);
+    // Handle other errors
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while creating your account.',
+    });
   }
 };
 
@@ -193,7 +211,7 @@ exports.login = async (req, res, next) => {
 };
 
 // -----------------------------------------------------------------------------
-// @desc    Get the currently logged‐in user’s data
+// @desc    Get the currently logged‐in user's data
 // @route   GET /authentication/me
 // @access  Private
 // -----------------------------------------------------------------------------
@@ -284,7 +302,7 @@ exports.logoutUser = async (req, res, next) => {
 };
 
 // -----------------------------------------------------------------------------
-// @desc    Forgot Password: send a reset token to user’s email
+// @desc    Forgot Password: send a reset token to user's email
 // @route   POST /authentication/forgotPassword
 // @access  Public
 // -----------------------------------------------------------------------------
@@ -381,7 +399,7 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 // -----------------------------------------------------------------------------
-// @desc    Update the logged‐in user’s password
+// @desc    Update the logged‐in user's password
 // @route   PATCH /authentication/updateMyPassword
 // @access  Private
 // -----------------------------------------------------------------------------
