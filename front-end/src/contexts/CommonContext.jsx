@@ -27,8 +27,8 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
@@ -197,15 +197,15 @@ export const Common = ({ children }) => {
 
   // Set up axios interceptor for handling 401 responses
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          logout();
-        }
-        return Promise.reject(error);
-      }
-    );
+    // const interceptor = axios.interceptors.response.use(
+    //   (response) => response,
+    //   (error) => {
+    //     if (error.response?.status === 401) {
+    //       logout();
+    //     }
+    //     return Promise.reject(error);
+    //   }
+    // );
 
     if (accessToken && userDataLocal) {
       checkGoogleAuth(); // Kiểm tra xác thực Google khi có token
@@ -213,7 +213,7 @@ export const Common = ({ children }) => {
       getCalendarUser();
     }
 
-    return () => axios.interceptors.response.eject(interceptor);
+    // return () => axios.interceptors.response.eject(interceptor);
   }, [accessToken, userDataLocal]);
 
   const uploadImageToCloudinary = async (file) => {

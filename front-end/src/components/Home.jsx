@@ -36,11 +36,6 @@ const Home = () => {
     setShowGoogleAuthModal(false); // Ẩn modal nếu chọn "Không"
   };
 
-  if (!accessToken || !userDataLocal) {
-    navigate('/login');
-    return null; // Hoặc redirect về login nếu chưa đăng nhập
-  }
-
   return (
     <div className='home-container'>
       <MenuBar />
