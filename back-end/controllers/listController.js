@@ -177,6 +177,7 @@ exports.deleteList = async (req, res) => {
       });
     }
 
+    const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
       return res.status(404).json({
         status: 'fail',
@@ -184,15 +185,12 @@ exports.deleteList = async (req, res) => {
       });
     }
 
-    const boardId = list.boardId;
-    const deletedPosition = list.position;
+    const { boardId, position: deletedPosition } = list;
 
     await List.deleteOne({ _id: id });
+
     await List.updateMany(
-      {
-        boardId,
-        position: { $gt: deletedPosition }
-      },
+      { boardId, position: { $gt: deletedPosition }, isDeleted: false },
       { $inc: { position: -1 } }
     );
 
