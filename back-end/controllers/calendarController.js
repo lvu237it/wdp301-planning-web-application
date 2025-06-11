@@ -486,7 +486,7 @@ exports.getCalendarEvents = async (req, res) => {
     // Fetch events
     const events = await Event.find(query)
       .populate('participants.userId', 'name email')
-      .populate('organizer', 'name email')
+      .populate('organizer', 'username email')
       .populate('calendarId', 'name color')
       .populate('workspaceId', 'name')
       .populate('boardId', 'name')
@@ -512,7 +512,7 @@ exports.getCalendarEvents = async (req, res) => {
         timeZone: event.timeZone,
         organizer: {
           userId: event.organizer._id,
-          name: event.organizer.name,
+          username: event.organizer.username,
           email: event.organizer.email,
         },
         participants: event.participants.map((p) => ({

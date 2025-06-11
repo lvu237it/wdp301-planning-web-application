@@ -33,6 +33,59 @@ const toISODateTime = (dateTime) => {
   return new Date(dateTime).toISOString();
 };
 
+// Helper function để tạo Google Maps URL
+const generateMapsUrl = (address, locationName) => {
+  if (!address && !locationName) return null;
+
+  // Nếu address là object với coordinates (từ geocoding)
+  if (
+    typeof address === 'object' &&
+    address?.coordinates &&
+    Array.isArray(address.coordinates)
+  ) {
+    const [lng, lat] = address.coordinates;
+    if (lat && lng) {
+      // Sử dụng place ID nếu có (chính xác nhất)
+      if (address.placeId) {
+        return `https://www.google.com/maps/place/?q=place_id:${address.placeId}`;
+      }
+      // Fallback về coordinates
+      return `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+  }
+
+  // Fallback: search bằng địa chỉ text
+  const searchQuery = [
+    locationName,
+    typeof address === 'string' ? address : address?.formattedAddress,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  if (searchQuery) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      searchQuery
+    )}`;
+  }
+
+  return null;
+};
+
+// Helper function để safely extract address data
+const getAddressDisplay = (address) => {
+  if (!address) return '';
+
+  if (typeof address === 'string') {
+    return address;
+  }
+
+  if (typeof address === 'object') {
+    return address.formattedAddress || address.address || '';
+  }
+
+  return '';
+};
+
 const Calendar = () => {
   const {
     accessToken,
@@ -69,8 +122,8 @@ const Calendar = () => {
     type: 'offline',
     locationName: '',
     address: '',
-    onlineUrl: '',
-    meetingCode: '',
+    // onlineUrl: '',
+    // meetingCode: '',
     status: 'scheduled',
     participants: [], // [{ userId, status }]
     allDay: false,
@@ -160,19 +213,22 @@ const Calendar = () => {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
         );
-
-        if (response.data.status === 200 && response.data.data) {
+        console.log('Fetch events response:', response.data);
+        if (response.data.status === 200) {
+          console.log('Fetched events oke:', response.data.data);
           const formattedEvents = response.data.data.map((event) => ({
             id: event.id,
             title: event.title,
-            start: new Date(event.start).toLocaleString('en-US', {
-              timeZone: 'Asia/Ho_Chi_Minh',
-            }),
-            end: event.end
-              ? new Date(event.end).toLocaleString('en-US', {
-                  timeZone: 'Asia/Ho_Chi_Minh',
-                })
-              : null,
+            // start: new Date(event.start).toLocaleString('en-US', {
+            //   timeZone: 'Asia/Ho_Chi_Minh',
+            // }),
+            // end: event.end
+            //   ? new Date(event.end).toLocaleString('en-US', {
+            //       timeZone: 'Asia/Ho_Chi_Minh',
+            //     })
+            //   : null,
+            start: new Date(event.start),
+            end: event.end ? new Date(event.end) : null,
             allDay: event.allDay || false,
             backgroundColor:
               eventTypes[event.extendedProps.type]?.color || '#4CAF50',
@@ -194,11 +250,12 @@ const Calendar = () => {
           }));
           console.log('formattedEvents', formattedEvents);
           setEvents(formattedEvents);
-        } else {
-          setEvents([]);
-          setFilteredEvents([]);
-          toast.error('Không thể tải danh sách sự kiện');
         }
+        // else {
+        //   setEvents([]);
+        //   setFilteredEvents([]);
+        //   toast.error('Không thể tải danh sách sự kiện');
+        // }
       } catch (error) {
         console.error(
           'Lỗi lấy sự kiện:',
@@ -216,6 +273,11 @@ const Calendar = () => {
 
   useEffect(() => {
     console.log('Events fetched:', events);
+  }, [events]);
+
+  // Đồng bộ filteredEvents với events
+  useEffect(() => {
+    setFilteredEvents(events);
   }, [events]);
 
   // Khởi tạo lấy sự kiện
@@ -250,10 +312,15 @@ const Calendar = () => {
   const handleDatesSet = useCallback(
     (arg) => {
       setDateRange({ start: arg.start, end: arg.end });
-      setSelectedDate(new Date(arg.start));
+
+      // Chỉ cập nhật selectedDate nếu nó nằm ngoài view hiện tại
+      if (selectedDate < arg.start || selectedDate >= arg.end) {
+        setSelectedDate(new Date(arg.start));
+      }
+
       debouncedFetchEvents(arg.start, arg.end, searchTerm);
     },
-    [debouncedFetchEvents, searchTerm]
+    [debouncedFetchEvents, searchTerm, selectedDate]
   );
 
   // Xử lý tìm kiếm
@@ -269,11 +336,36 @@ const Calendar = () => {
   );
 
   // Xử lý click ngày
-  const handleDateClick = useCallback((arg) => {
-    const dateStr = new Date(arg.dateStr).toISOString().slice(0, 16);
-    setSelectedDate(new Date(arg.dateStr));
-    setFormData((prev) => ({ ...prev, startDate: dateStr, endDate: dateStr }));
-  }, []);
+  const handleDateClick = useCallback(
+    (arg) => {
+      const clickedDate = new Date(arg.dateStr);
+      const dateStr = clickedDate.toISOString().slice(0, 16);
+
+      // Cập nhật ngày được chọn
+      setSelectedDate(clickedDate);
+
+      // Cập nhật form data cho việc tạo sự kiện mới
+      setFormData((prev) => ({
+        ...prev,
+        startDate: dateStr,
+        endDate: dateStr,
+      }));
+
+      console.log('Date clicked:', clickedDate.toDateString());
+      console.log(
+        'Events for this date:',
+        events.filter(
+          (event) =>
+            new Date(event.start).toDateString() === clickedDate.toDateString()
+        )
+      );
+    },
+    [events]
+  );
+
+  useEffect(() => {
+    console.log('Selected event changed:', selectedEvent);
+  }, [selectedEvent]);
 
   // Xử lý click sự kiện
   const handleEventClick = useCallback((eventInfo) => {
@@ -340,12 +432,18 @@ const Calendar = () => {
       const currentHour = now.getHours().toString().padStart(2, '0') + ':00';
       calendarApi.scrollToTime(currentHour); // Focus vào giờ hiện tại
     }
+
+    // Cập nhật ngày được chọn là hôm nay
     setSelectedDate(now);
+
+    // Fetch events nếu cần
     debouncedFetchEvents(
       now,
       new Date(now.getFullYear(), now.getMonth() + 1, 0),
       searchTerm
     );
+
+    console.log('Today clicked, selected date:', now.toDateString());
   }, [calendarView, debouncedFetchEvents, searchTerm]);
 
   // Cập nhật view khi thay đổi
@@ -364,8 +462,8 @@ const Calendar = () => {
       type: 'offline',
       locationName: '',
       address: '',
-      onlineUrl: '',
-      meetingCode: '',
+      // onlineUrl: '',
+      // meetingCode: '',
       status: 'scheduled',
       participants: [],
       allDay: false,
@@ -386,9 +484,12 @@ const Calendar = () => {
         : selectedEvent.start.toISOString().slice(0, 16),
       type: selectedEvent.type || 'offline',
       locationName: selectedEvent.locationName || '',
-      address: selectedEvent.address || '',
-      onlineUrl: selectedEvent.onlineUrl || '',
-      meetingCode: selectedEvent.meetingCode || '',
+      address:
+        typeof selectedEvent.address === 'string'
+          ? selectedEvent.address
+          : selectedEvent.address?.formattedAddress || '',
+      // onlineUrl: selectedEvent.onlineUrl || '',
+      // meetingCode: selectedEvent.meetingCode || '',
       status: selectedEvent.status || 'scheduled',
       participants: selectedEvent.participants || [],
       allDay: selectedEvent.allDay || false,
@@ -406,7 +507,12 @@ const Calendar = () => {
         toast.error('Vui lòng nhập tiêu đề sự kiện');
         return;
       }
-      if (new Date(formData.startDate) > new Date(formData.endDate)) {
+
+      // Chỉ validate date khi không phải sự kiện cả ngày
+      if (
+        !formData.allDay &&
+        new Date(formData.startDate) > new Date(formData.endDate)
+      ) {
         toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
         return;
       }
@@ -422,9 +528,9 @@ const Calendar = () => {
           organizer: userDataLocal._id,
           locationName: formData.locationName || undefined,
           address: formData.address || undefined,
-          onlineUrl: formData.onlineUrl || undefined,
-          meetingCode: formData.meetingCode || undefined,
-          status: formData.status,
+          // onlineUrl: formData.onlineUrl || undefined,
+          // meetingCode: formData.meetingCode || undefined,
+          status: 'scheduled' /* formData.status */,
           participants: formData.participants.length
             ? formData.participants
             : undefined,
@@ -440,6 +546,8 @@ const Calendar = () => {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
 
+        console.log('Create event response:', response.data);
+
         if (response.data.status === 201) {
           toast.success('Thêm sự kiện thành công');
           setShowCreateModal(false);
@@ -452,8 +560,8 @@ const Calendar = () => {
             type: 'offline',
             locationName: '',
             address: '',
-            onlineUrl: '',
-            meetingCode: '',
+            // onlineUrl: '',
+            // meetingCode: '',
             status: 'scheduled',
             participants: [],
             allDay: false,
@@ -489,7 +597,12 @@ const Calendar = () => {
         toast.error('Vui lòng nhập tiêu đề sự kiện');
         return;
       }
-      if (new Date(editFormData.startDate) > new Date(editFormData.endDate)) {
+
+      // Chỉ validate date khi không phải sự kiện cả ngày
+      if (
+        !editFormData.allDay &&
+        new Date(editFormData.startDate) > new Date(editFormData.endDate)
+      ) {
         toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
         return;
       }
@@ -503,9 +616,9 @@ const Calendar = () => {
           type: editFormData.type,
           locationName: editFormData.locationName || undefined,
           address: editFormData.address || undefined,
-          onlineUrl: editFormData.onlineUrl || undefined,
-          meetingCode: editFormData.meetingCode || undefined,
-          status: editFormData.status,
+          // onlineUrl: editFormData.onlineUrl || undefined,
+          // meetingCode: editFormData.meetingCode || undefined,
+          status: 'scheduled' /* editFormData.status */,
           participants: editFormData.participants.length
             ? editFormData.participants
             : undefined,
@@ -521,7 +634,7 @@ const Calendar = () => {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
 
-        if (response.data.status === 'success') {
+        if (response.data.status === 200) {
           toast.success('Cập nhật sự kiện thành công');
           setShowEditModal(false);
           debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
@@ -578,11 +691,17 @@ const Calendar = () => {
 
   // Lọc sự kiện theo ngày được chọn
   const selectedDateEvents = useMemo(() => {
-    return filteredEvents.filter((event) => {
+    return events.filter((event) => {
       const eventDate = new Date(event.start);
       return eventDate.toDateString() === selectedDate.toDateString();
     });
-  }, [filteredEvents, selectedDate]);
+  }, [events, selectedDate]);
+
+  // Debug selectedDateEvents
+  useEffect(() => {
+    console.log('Selected date:', selectedDate.toDateString());
+    console.log('Selected date events:', selectedDateEvents);
+  }, [selectedDate, selectedDateEvents]);
 
   // Render nội dung sự kiện
   const renderEventContent = useCallback(
@@ -672,6 +791,49 @@ const Calendar = () => {
     },
   };
 
+  // Component nút xem vị trí trên bản đồ
+  const MapLocationButton = ({
+    address,
+    locationName,
+    className = '',
+    size = 'sm',
+  }) => {
+    const mapsUrl = generateMapsUrl(address, locationName);
+
+    if (!mapsUrl) return null;
+
+    const handleOpenMaps = (e) => {
+      e.stopPropagation(); // Ngăn click event bubble lên parent (event card)
+      window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+    };
+
+    // Cho event card, sử dụng style nhỏ gọn hơn
+    if (size === 'xs') {
+      return (
+        <button
+          onClick={handleOpenMaps}
+          className={`map-location-btn-xs ${className}`}
+          title='Xem trên bản đồ'
+        >
+          🗺️
+        </button>
+      );
+    }
+
+    return (
+      <Button
+        variant='outline-primary'
+        size={size}
+        onClick={handleOpenMaps}
+        className={`d-inline-flex align-items-center ${className}`}
+        style={{ marginLeft: '8px' }}
+      >
+        <span style={{ marginRight: '4px' }}>🗺️</span>
+        Xem trên bản đồ
+      </Button>
+    );
+  };
+
   return (
     <div className='calendar-page'>
       <div className='calendar-overlay' />
@@ -749,15 +911,25 @@ const Calendar = () => {
                               <div className='event-meta-item'>
                                 <span>📍</span>
                                 <span>{event.extendedProps.locationName}</span>
+                                {event.extendedProps.type === 'offline' && (
+                                  <MapLocationButton
+                                    address={event.extendedProps.address}
+                                    locationName={
+                                      event.extendedProps.locationName
+                                    }
+                                    size='xs'
+                                    className='ms-1'
+                                  />
+                                )}
                               </div>
                             )}
                             {event.extendedProps.type === 'online' &&
-                              event.extendedProps.onlineUrl && (
+                              event.extendedProps?.onlineUrl && (
                                 <div className='event-meta-item'>
                                   <span>🌐</span>
                                   <span>
                                     <a
-                                      href={event.extendedProps.onlineUrl}
+                                      href={event.extendedProps?.onlineUrl}
                                       target='_blank'
                                       rel='noopener noreferrer'
                                     >
@@ -766,13 +938,13 @@ const Calendar = () => {
                                   </span>
                                 </div>
                               )}
-                            <div className='event-meta-item'>
+                            {/* <div className='event-meta-item'>
                               <FaUser />
                               <span>
-                                {event.extendedProps.organizer?.name ||
+                                {event.extendedProps.organizer?.username ||
                                   'Không xác định'}
                               </span>
-                            </div>
+                            </div> */}
                           </div>
                         </motion.div>
                       ))
@@ -866,18 +1038,27 @@ const Calendar = () => {
                       </p>
                     )}
                     {selectedEvent.address && (
-                      <p>
-                        <span className='ms-1 me-2'>🏠</span>
-                        Địa chỉ: {selectedEvent.address}
-                      </p>
+                      <div>
+                        <p className='mb-1'>
+                          <span className='ms-1 me-2'>🏠</span>
+                          Địa chỉ: {getAddressDisplay(selectedEvent.address)}
+                        </p>
+                        {selectedEvent.type === 'offline' && (
+                          <MapLocationButton
+                            address={selectedEvent.address}
+                            locationName={selectedEvent.locationName}
+                            className='mb-2'
+                          />
+                        )}
+                      </div>
                     )}
                     {selectedEvent.type === 'online' &&
-                      selectedEvent.onlineUrl && (
+                      selectedEvent?.onlineUrl && (
                         <p>
                           <span className='ms-1 me-2'>🌐</span>
                           Link sự kiện:{' '}
                           <a
-                            href={selectedEvent.onlineUrl}
+                            href={selectedEvent?.onlineUrl}
                             target='_blank'
                             rel='noopener noreferrer'
                           >
@@ -900,7 +1081,7 @@ const Calendar = () => {
                     <p>
                       <FaUser className='ms-1 me-2' />
                       Người tạo:{' '}
-                      {selectedEvent.organizer?.name || 'Không xác định'}
+                      {selectedEvent?.organizer.username || 'Không xác định'}
                     </p>
                     {selectedEvent.participants?.length > 0 && (
                       <p>
@@ -955,7 +1136,7 @@ const Calendar = () => {
           <Modal.Body>
             <Form onSubmit={handleCreateSubmit}>
               <Row>
-                <Col md={8}>
+                <Col>
                   <Form.Group className='mb-3'>
                     <Form.Label>Tiêu đề *</Form.Label>
                     <Form.Control
@@ -969,7 +1150,7 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                {/* <Col md={4}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Trạng thái</Form.Label>
                     <Form.Select
@@ -985,19 +1166,29 @@ const Calendar = () => {
                       ))}
                     </Form.Select>
                   </Form.Group>
-                </Col>
+                </Col> */}
               </Row>
               <Row>
                 <Col md={6}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Thời gian bắt đầu *</Form.Label>
                     <Form.Control
-                      type='datetime-local'
-                      value={formData.startDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, startDate: e.target.value })
+                      type={formData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        formData.allDay
+                          ? formData.startDate.split('T')[0]
+                          : formData.startDate
                       }
-                      required
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          startDate: formData.allDay
+                            ? e.target.value + 'T00:00'
+                            : e.target.value,
+                        })
+                      }
+                      required={!formData.allDay}
+                      disabled={formData.allDay}
                     />
                   </Form.Group>
                 </Col>
@@ -1005,12 +1196,22 @@ const Calendar = () => {
                   <Form.Group className='mb-3'>
                     <Form.Label>Thời gian kết thúc *</Form.Label>
                     <Form.Control
-                      type='datetime-local'
-                      value={formData.endDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, endDate: e.target.value })
+                      type={formData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        formData.allDay
+                          ? formData.endDate.split('T')[0]
+                          : formData.endDate
                       }
-                      required
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          endDate: formData.allDay
+                            ? e.target.value + 'T23:59'
+                            : e.target.value,
+                        })
+                      }
+                      required={!formData.allDay}
+                      disabled={formData.allDay}
                     />
                   </Form.Group>
                 </Col>
@@ -1052,10 +1253,10 @@ const Calendar = () => {
                   ))}
                 </Form.Select>
               </Form.Group>
-              {formData.type === 'online' && (
+              {/* {formData.type === 'online' && (
                 <>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Mã cuộc họp</Form.Label>
+                    <Form.Label>Mật khẩu cuộc họp</Form.Label>
                     <Form.Control
                       type='text'
                       value={formData.meetingCode}
@@ -1069,11 +1270,11 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </>
-              )}
+              )} */}
               {formData.type === 'offline' && (
                 <>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Địa điểm</Form.Label>
+                    <Form.Label>Tên địa điểm</Form.Label>
                     <Form.Control
                       type='text'
                       value={formData.locationName}
@@ -1083,7 +1284,7 @@ const Calendar = () => {
                           locationName: e.target.value,
                         })
                       }
-                      placeholder='Nhập tên địa điểm...'
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
                     />
                   </Form.Group>
                   <Form.Group className='mb-3'>
@@ -1094,12 +1295,16 @@ const Calendar = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, address: e.target.value })
                       }
-                      placeholder='Nhập địa chỉ chi tiết...'
+                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
                     />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
                   </Form.Group>
                 </>
               )}
-              <Form.Group className='mb-3'>
+              {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>
                 <Form.Select
                   value={formData.recurrence}
@@ -1113,7 +1318,7 @@ const Calendar = () => {
                     </option>
                   ))}
                 </Form.Select>
-              </Form.Group>
+              </Form.Group> */}
               <Form.Group className='mb-3'>
                 <Form.Label>Người tham gia (email người dùng)</Form.Label>
                 <Form.Control
@@ -1170,7 +1375,7 @@ const Calendar = () => {
           <Modal.Body>
             <Form onSubmit={handleEditSubmit}>
               <Row>
-                <Col md={8}>
+                <Col>
                   <Form.Group className='mb-3'>
                     <Form.Label>Tiêu đề *</Form.Label>
                     <Form.Control
@@ -1187,7 +1392,7 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                {/* <Col md={4}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Trạng thái</Form.Label>
                     <Form.Select
@@ -1206,22 +1411,29 @@ const Calendar = () => {
                       ))}
                     </Form.Select>
                   </Form.Group>
-                </Col>
+                </Col> */}
               </Row>
               <Row>
                 <Col md={6}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Thời gian bắt đầu *</Form.Label>
                     <Form.Control
-                      type='datetime-local'
-                      value={editFormData.startDate || ''}
+                      type={editFormData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        editFormData.allDay
+                          ? (editFormData.startDate || '').split('T')[0]
+                          : editFormData.startDate || ''
+                      }
                       onChange={(e) =>
                         setEditFormData({
                           ...editFormData,
-                          startDate: e.target.value,
+                          startDate: editFormData.allDay
+                            ? e.target.value + 'T00:00'
+                            : e.target.value,
                         })
                       }
-                      required
+                      required={!editFormData.allDay}
+                      disabled={editFormData.allDay}
                     />
                   </Form.Group>
                 </Col>
@@ -1229,15 +1441,22 @@ const Calendar = () => {
                   <Form.Group className='mb-3'>
                     <Form.Label>Thời gian kết thúc *</Form.Label>
                     <Form.Control
-                      type='datetime-local'
-                      value={editFormData.endDate || ''}
+                      type={editFormData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        editFormData.allDay
+                          ? (editFormData.endDate || '').split('T')[0]
+                          : editFormData.endDate || ''
+                      }
                       onChange={(e) =>
                         setEditFormData({
                           ...editFormData,
-                          endDate: e.target.value,
+                          endDate: editFormData.allDay
+                            ? e.target.value + 'T23:59'
+                            : e.target.value,
                         })
                       }
-                      required
+                      required={!editFormData.allDay}
+                      disabled={editFormData.allDay}
                     />
                   </Form.Group>
                 </Col>
@@ -1285,7 +1504,7 @@ const Calendar = () => {
                   ))}
                 </Form.Select>
               </Form.Group>
-              {editFormData.type === 'online' && (
+              {/* {editFormData.type === 'online' && (
                 <>
                   <Form.Group className='mb-3'>
                     <Form.Label>Link sự kiện</Form.Label>
@@ -1316,11 +1535,11 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </>
-              )}
+              )} */}
               {editFormData.type === 'offline' && (
                 <>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Địa điểm</Form.Label>
+                    <Form.Label>Tên địa điểm</Form.Label>
                     <Form.Control
                       type='text'
                       value={editFormData.locationName || ''}
@@ -1330,7 +1549,7 @@ const Calendar = () => {
                           locationName: e.target.value,
                         })
                       }
-                      placeholder='Nhập tên địa điểm...'
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
                     />
                   </Form.Group>
                   <Form.Group className='mb-3'>
@@ -1344,12 +1563,16 @@ const Calendar = () => {
                           address: e.target.value,
                         })
                       }
-                      placeholder='Nhập địa chỉ chi tiết...'
+                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
                     />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
                   </Form.Group>
                 </>
               )}
-              <Form.Group className='mb-3'>
+              {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>
                 <Form.Select
                   value={editFormData.recurrence || ''}
@@ -1366,7 +1589,7 @@ const Calendar = () => {
                     </option>
                   ))}
                 </Form.Select>
-              </Form.Group>
+              </Form.Group> */}
               <Form.Group className='mb-3'>
                 <Form.Label>Người tham gia (ID người dùng)</Form.Label>
                 <Form.Control
