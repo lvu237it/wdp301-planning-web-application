@@ -44,15 +44,26 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
+
+  //workspace
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
+  // state workspace
+  const [workspaces, setWorkspaces] = useState([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
+  const [workspacesError, setWorkspacesError] = useState(null);
+
+  // state boards
+  const [boards, setBoards] = useState([]);
+  const [loadingBoards, setLoading] = useState(false);
+  const [boardsError, setError] = useState(null);
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
 
-  const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
     !!localStorage.getItem('accessToken') && !!localStorage.getItem('userData')
   );
@@ -358,6 +369,57 @@ export const Common = ({ children }) => {
     }
   };
 
+  // 1. Effect để fetch workspaces
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      if (!accessToken) {
+        setLoadingWorkspaces(false);
+        return;
+      }
+      try {
+        const res = await axios.get(`${apiBaseUrl}/workspace`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        // Giả sử API trả { workspaces: [...] }
+        setWorkspaces(res.data.data || []);
+      } catch (err) {
+        setWorkspacesError(err.response?.data?.message || err.message);
+      } finally {
+        setLoadingWorkspaces(false);
+      }
+    };
+
+    fetchWorkspaces();
+  }, [apiBaseUrl, accessToken]);
+
+  // 2. Hàm hỗ trợ navigate tới form tạo workspace
+  const navigateToCreateWorkspace = () => {
+    navigate('/workspace/create');
+  };
+
+  const fetchBoards = async (workspaceId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get(
+        `${apiBaseUrl}/workspace/${workspaceId}/board`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      // unwrap đúng field và ép mọi mảng về [] nếu missing
+      const raw = res.data.boards || [];
+      const norm = raw.map((board) => ({
+        ...board,
+        members: board.members || [], // luôn có mảng
+        tasks: board.tasks || [], // luôn có mảng
+      }));
+      setBoards(norm);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Socket.IO listeners
   useEffect(() => {
     if (isAuthenticated && userDataLocal?._id && socketInitialized.current) {
@@ -458,11 +520,20 @@ export const Common = ({ children }) => {
         isGoogleAuthenticated,
         isCheckingGoogleAuth,
         isAuthenticated,
-        loading,
         notifications,
         fetchNotifications,
         markNotificationAsRead,
         formatDateAMPMForVN,
+        workspaces,
+        loadingWorkspaces,
+        workspacesError,
+        currentWorkspaceId,
+        setCurrentWorkspaceId,
+        navigateToCreateWorkspace,
+        boards,
+        fetchBoards,
+        loadingBoards,
+        boardsError,
       }}
     >
       <Toaster
