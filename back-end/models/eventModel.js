@@ -129,6 +129,10 @@ const eventSchema = new mongoose.Schema(
       type: String,
       default: '#378006',
     },
+    googleEventId: {
+      type: String,
+      default: null,
+    }, // ID của sự kiện trên Google Calendar (nếu có)
     isDeleted: {
       type: Boolean,
       default: false,

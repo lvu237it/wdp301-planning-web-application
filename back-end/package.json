@@ -12,6 +12,7 @@
   "dependencies": {
     "@google-apps/meet": "^0.6.0",
     "@google-cloud/local-auth": "^2.1.0",
+    "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.5.1",

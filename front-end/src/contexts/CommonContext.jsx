@@ -43,7 +43,7 @@ export const Common = ({ children }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      // console.log('checkgoogleAuth response:', response);
+      console.log('checkgoogleAuth response:', response);
 
       if (response.data.status === 'success') {
         setIsGoogleAuthenticated(true);
@@ -185,7 +185,7 @@ export const Common = ({ children }) => {
       const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      // console.log('get google auth url response:', response);
+      console.log('get google auth url response:', response);
 
       if (response.data.status === 'success') {
         window.location.href = response.data.data.authUrl; // Redirect đến Google

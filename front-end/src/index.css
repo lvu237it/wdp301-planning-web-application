@@ -706,7 +706,12 @@ body {
 .event-meta-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.event-meta-item:has(.map-location-btn-xs) {
+  justify-content: space-between;
 }
 
 .event-meta-item .fs-6 {
@@ -792,7 +797,6 @@ body {
   bottom: 0;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
-  z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1417,4 +1421,25 @@ body {
     bottom: 0.7rem;
     right: 0.7rem;
   }
+}
+
+/* Map location button styles */
+.map-location-btn-xs {
+  display: inline-block;
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1;
+  background: rgba(0, 123, 255, 0.1);
+  border: 1px solid rgba(0, 123, 255, 0.3);
+  border-radius: 4px;
+  color: #007bff;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.map-location-btn-xs:hover {
+  background: rgba(0, 123, 255, 0.2);
+  border-color: #007bff;
+  transform: scale(1.05);
 }

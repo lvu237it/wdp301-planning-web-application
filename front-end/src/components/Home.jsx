@@ -34,7 +34,7 @@ const Home = () => {
   };
 
   const handleCancelGoogleAuth = () => {
-    setShowGoogleAuthModal(false); // Ẩn modal nếu chọn "Không"
+    setShowGoogleAuthModal(false);
   };
 
   return (

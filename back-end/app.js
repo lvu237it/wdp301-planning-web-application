@@ -56,7 +56,7 @@ app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
 app.use('/files', fileRouter);
-app.use('/auth/google/callback', fileController.handleGoogleAuthCallback);
+app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
