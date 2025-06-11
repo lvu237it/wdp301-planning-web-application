@@ -12,8 +12,6 @@ exports.getAllBoards = async (req, res) => {
     const userId = req.user._id;
 
     // 1. Lấy list workspaceId mà user thuộc về (membership của workspace)
-    // Membership ở đây là model workspaceMembership (không phải boardMembership)
-
     const userWorkspaceDocs = await WorkspaceMembership.find({
       userId,
       invitationStatus: 'accepted',
@@ -31,11 +29,7 @@ exports.getAllBoards = async (req, res) => {
 
     const boardIds = userBoardDocs.map((doc) => doc.boardId);
 
-    // 3. Query trả ra:
-    //    - Các board có workspaceId ∈ workspaceIds và visibility = 'public'
-    //    - Hoặc board._id ∈ boardIds (bất kể visibility ra sao)
-    //    - Và tất cả đều phải isDeleted = false
-
+    // 3. Lấy danh sách board theo điều kiện
     const boards = await Board.find({
       isDeleted: false,
       $or: [
@@ -48,11 +42,43 @@ exports.getAllBoards = async (req, res) => {
         },
       ],
     })
-      .populate('creator', 'username email') // (tuỳ chọn) fetch luôn người tạo
-      .populate('workspaceId', 'name') // (tuỳ chọn) fetch tên workspace
+      .populate('creator', 'username email')
+      .populate('workspaceId', 'name')
+      .lean(); // Trả về plain JS object để dễ xử lý members
+
+    const boardIdsFetched = boards.map((b) => b._id);
+
+    // 4. Lấy tất cả các membership thuộc các board này
+    const boardMemberships = await BoardMembership.find({
+      boardId: { $in: boardIdsFetched },
+      isDeleted: false,
+    })
+      .populate('userId', 'username email avatar') // Lấy thông tin người dùng
       .lean();
 
-    return res.status(200).json({ boards });
+    // 5. Gộp dữ liệu membership vào từng board
+    const membersByBoardId = {};
+    for (const member of boardMemberships) {
+      const boardIdStr = member.boardId.toString();
+      if (!membersByBoardId[boardIdStr]) {
+        membersByBoardId[boardIdStr] = [];
+      }
+      membersByBoardId[boardIdStr].push({
+        _id: member.userId._id,
+        username: member.userId.username,
+        email: member.userId.email,
+        avatar: member.userId.avatar || null,
+        role: member.role,
+        applicationStatus: member.applicationStatus,
+      });
+    }
+
+    const boardsWithMembers = boards.map((board) => ({
+      ...board,
+      members: membersByBoardId[board._id.toString()] || [],
+    }));
+
+    return res.status(200).json({ boards: boardsWithMembers });
   } catch (err) {
     console.error('Lỗi getAllBoards:', err);
     return res.status(500).json({

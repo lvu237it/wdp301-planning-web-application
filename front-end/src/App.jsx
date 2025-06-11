@@ -28,7 +28,7 @@ function App() {
         <Route index element={<Dashboard />} />
         <Route path='dashboard' element={<Dashboard />} />
         <Route path='workspaces' element={<Workspaces />} />
-        <Route path='boards' element={<Boards />} />
+        <Route path='/workspace/:workspaceId/boards' element={<Boards />} />
         <Route path='calendar' element={<Calendar />} />
         <Route path='profile' element={<Profile />} />
       </Route>
