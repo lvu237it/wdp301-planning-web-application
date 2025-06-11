@@ -1,8 +1,14 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useMediaQuery } from 'react-responsive';
 import { Toaster, toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  initSocketClient,
+  getSocket,
+  disconnectSocket,
+} from '../utils/socketClient';
+import { formatDateAMPMForVN } from '../utils/dateUtils';
 
 const CommonContext = createContext();
 
@@ -11,11 +17,22 @@ export const useCommon = () => useContext(CommonContext);
 export const Common = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const socketInitialized = useRef(false);
+
   const [accessToken, setAccessToken] = useState(
     () => localStorage.getItem('accessToken') || null
   );
   const [userDataLocal, setUserDataLocal] = useState(() => {
     return JSON.parse(localStorage.getItem('userData')) || null;
+  });
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const storedNotifications = localStorage.getItem('notifications');
+      return storedNotifications ? JSON.parse(storedNotifications) : [];
+    } catch (error) {
+      console.error('Error parsing notifications from localStorage:', error);
+      return [];
+    }
   });
 
   // Enhanced responsive breakpoints
@@ -27,41 +44,61 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
+  const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    !!localStorage.getItem('accessToken') && !!localStorage.getItem('userData')
+  );
 
   //Kiểm tra xem người dùng đã xác thực Google chưa
   const checkGoogleAuth = async () => {
+    if (!accessToken || isCheckingGoogleAuth) return;
+
+    setIsCheckingGoogleAuth(true);
     try {
       const response = await axios.get(
         `${apiBaseUrl}/files/check-google-auth`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
         }
       );
       console.log('checkgoogleAuth response:', response);
 
       if (response.data.status === 'success') {
         setIsGoogleAuthenticated(true);
+        setShowGoogleAuthModal(false); // Đảm bảo modal không hiển thị
       } else {
+        setIsGoogleAuthenticated(false);
         setShowGoogleAuthModal(true); // Hiển thị modal nếu chưa xác thực
       }
     } catch (error) {
+      console.error('Error checking Google auth:', error);
+      setIsGoogleAuthenticated(false);
       setShowGoogleAuthModal(true); // Hiển thị modal nếu có lỗi hoặc chưa xác thực
+    } finally {
+      setIsCheckingGoogleAuth(false);
     }
   };
 
   // Authentication functions
   const login = async (email, password) => {
     try {
-      const response = await axios.post(`${apiBaseUrl}/login`, {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        `${apiBaseUrl}/login`,
+        {
+          email,
+          password,
+        },
+        { timeout: 15000 }
+      );
 
       if (response.data.success) {
         const { accessToken, user } = response.data;
@@ -73,6 +110,18 @@ export const Common = ({ children }) => {
         // Update state
         setAccessToken(accessToken);
         setUserDataLocal(user);
+        setIsAuthenticated(true);
+
+        // Initialize socket connection
+        if (user._id) {
+          initSocketClient(user._id, apiBaseUrl);
+          socketInitialized.current = true;
+        }
+
+        //Check auth - Fetch data
+        await checkGoogleAuth();
+        await fetchNotifications();
+        await getCalendarUser();
 
         toast.success('Login successful!');
         navigate('/'); // or wherever your home page is
@@ -87,12 +136,16 @@ export const Common = ({ children }) => {
 
   const register = async (username, email, password, passwordConfirm) => {
     try {
-      const response = await axios.post(`${apiBaseUrl}/signup`, {
-        username,
-        email,
-        password,
-        passwordConfirm,
-      });
+      const response = await axios.post(
+        `${apiBaseUrl}/signup`,
+        {
+          username,
+          email,
+          password,
+          passwordConfirm,
+        },
+        { timeout: 15000 }
+      );
 
       if (response.data.status === 'success') {
         const { token, data } = response.data;
@@ -104,6 +157,18 @@ export const Common = ({ children }) => {
         // Update state
         setAccessToken(token);
         setUserDataLocal(data.user);
+        setIsAuthenticated(true);
+
+        // Initialize socket connection
+        if (data.user._id) {
+          initSocketClient(data.user._id, apiBaseUrl);
+          socketInitialized.current = true;
+        }
+
+        // Check auth - Fetch data
+        await checkGoogleAuth();
+        await fetchNotifications();
+        await getCalendarUser();
 
         toast.success('Registration successful!');
         navigate('/');
@@ -120,13 +185,80 @@ export const Common = ({ children }) => {
     // Clear localStorage
     localStorage.removeItem('accessToken');
     localStorage.removeItem('userData');
+    localStorage.removeItem('notifications');
 
     // Clear state
     setAccessToken(null);
     setUserDataLocal(null);
+    setIsAuthenticated(false);
+    setNotifications([]);
+    setCalendarUser(null);
+    setIsGoogleAuthenticated(false);
+    setShowGoogleAuthModal(false);
+    setIsCheckingGoogleAuth(false);
+
+    // Disconnect socket if initialized
+    disconnectSocket();
+    socketInitialized.current = false;
 
     // Navigate to login
     navigate('/login');
+  };
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    if (!accessToken || !userDataLocal?._id) return;
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/notification`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        const notifs = response.data.data?.notifications || [];
+        setNotifications(notifs);
+        localStorage.setItem('notifications', JSON.stringify(notifs));
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      localStorage.removeItem('notifications');
+      // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId) => {
+    if (!accessToken || !notificationId) return;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/notification/${notificationId}/read`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.notificationId === notificationId
+              ? { ...n, isRead: true, readAt: formatDateAMPMForVN(new Date()) }
+              : n
+          )
+        );
+        localStorage.setItem('notifications', JSON.stringify(notifications));
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      // toast.error(
+      //   error.response?.data?.message ||
+      //     'Không thể đánh dấu thông báo là đã đọc'
+      // );
+    }
   };
 
   //Create a personal calendar for user (if needed)
@@ -142,6 +274,7 @@ export const Common = ({ children }) => {
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
+            timeout: 10000,
           },
         }
       );
@@ -156,6 +289,7 @@ export const Common = ({ children }) => {
       const response = await axios.get(`${apiBaseUrl}/calendar/get-by-user`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          timeout: 10000,
         },
       });
       console.log('Lấy lịch user:', response.data);
@@ -169,12 +303,10 @@ export const Common = ({ children }) => {
       );
       if (error.response?.status === 404) {
         // Không tìm thấy lịch, thử tạo mới
-        const created = await createUserCalendarInitialCalendar();
+        const created = await createInitialCalendar();
         if (!created) {
           toast.error('Không thể tạo lịch cá nhân');
         }
-      } else {
-        toast.error('Lỗi khi tải lịch');
       }
     }
   };
@@ -184,6 +316,7 @@ export const Common = ({ children }) => {
     try {
       const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
       });
       console.log('get google auth url response:', response);
 
@@ -194,27 +327,6 @@ export const Common = ({ children }) => {
       toast.error('Lỗi khi khởi tạo xác thực Google');
     }
   };
-
-  // Set up axios interceptor for handling 401 responses
-  useEffect(() => {
-    // const interceptor = axios.interceptors.response.use(
-    //   (response) => response,
-    //   (error) => {
-    //     if (error.response?.status === 401) {
-    //       logout();
-    //     }
-    //     return Promise.reject(error);
-    //   }
-    // );
-
-    if (accessToken && userDataLocal) {
-      checkGoogleAuth(); // Kiểm tra xác thực Google khi có token
-      createInitialCalendar();
-      getCalendarUser();
-    }
-
-    // return () => axios.interceptors.response.eject(interceptor);
-  }, [accessToken, userDataLocal]);
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
@@ -229,7 +341,8 @@ export const Common = ({ children }) => {
         `https://api.cloudinary.com/v1_1/${
           import.meta.env.VITE_CLOUDINARY_NAME
         }/image/upload`,
-        formData
+        formData,
+        { timeout: 10000 }
       );
       console.log('VITE_CLOUDINARY_NAME', import.meta.env.VITE_CLOUDINARY_NAME);
       console.log('response', response);
@@ -244,6 +357,80 @@ export const Common = ({ children }) => {
       throw new Error('Upload to Cloudinary failed');
     }
   };
+
+  // Socket.IO listeners
+  useEffect(() => {
+    if (isAuthenticated && userDataLocal?._id && socketInitialized.current) {
+      try {
+        const socket = getSocket();
+
+        // Xử lý thông báo mới
+        const handleNewNotification = (notification) => {
+          setNotifications((prev) => [
+            { ...notification, isRead: false, readAt: null },
+            ...prev,
+          ]);
+          localStorage.setItem(
+            'notifications',
+            JSON.stringify([
+              { ...notification, isRead: false, readAt: null },
+              ...notifications,
+            ])
+          );
+          toast.success(notification.title, {
+            description: notification.content,
+            duration: 3000,
+          });
+        };
+
+        // Xử lý cập nhật thông báo
+        const handleNotificationUpdate = ({ notificationId, isRead }) => {
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.notificationId === notificationId
+                ? {
+                    ...n,
+                    isRead,
+                    readAt: isRead ? formatDateAMPMForVN(new Date()) : null,
+                  }
+                : n
+            )
+          );
+          localStorage.setItem('notifications', JSON.stringify(notifications));
+        };
+
+        // Đăng ký listeners
+        socket.on('new_notification', handleNewNotification);
+        socket.on('notification_updated', handleNotificationUpdate);
+
+        // Cleanup
+        return () => {
+          socket.off('new_notification', handleNewNotification);
+          socket.off('notification_updated', handleNotificationUpdate);
+        };
+      } catch (error) {
+        console.error('Error initializing socket listeners:', error);
+      }
+    }
+  }, [isAuthenticated, userDataLocal?._id, notifications]);
+
+  // Lưu thông báo vào localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('notifications', JSON.stringify(notifications));
+    } catch (error) {
+      console.error('Error saving notifications to localStorage:', error);
+    }
+  }, [notifications]);
+
+  // Tải dữ liệu ban đầu sau khi có userDataLocal
+  useEffect(() => {
+    if (accessToken && userDataLocal?._id && !isCheckingGoogleAuth) {
+      fetchNotifications();
+      checkGoogleAuth();
+      getCalendarUser();
+    }
+  }, [accessToken, userDataLocal]);
 
   return (
     <CommonContext.Provider
@@ -269,6 +456,13 @@ export const Common = ({ children }) => {
         setShowGoogleAuthModal,
         handleGoogleAuth,
         isGoogleAuthenticated,
+        isCheckingGoogleAuth,
+        isAuthenticated,
+        loading,
+        notifications,
+        fetchNotifications,
+        markNotificationAsRead,
+        formatDateAMPMForVN,
       }}
     >
       <Toaster

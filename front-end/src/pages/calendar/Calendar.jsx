@@ -125,7 +125,7 @@ const Calendar = () => {
     // onlineUrl: '',
     // meetingCode: '',
     status: 'scheduled',
-    participants: [], // [{ userId, status }]
+    participantEmails: '', // Email string separated by commas
     allDay: false,
     recurrence: '',
   });
@@ -465,7 +465,7 @@ const Calendar = () => {
       // onlineUrl: '',
       // meetingCode: '',
       status: 'scheduled',
-      participants: [],
+      participantEmails: '',
       allDay: false,
       recurrence: '',
     });
@@ -491,7 +491,12 @@ const Calendar = () => {
       // onlineUrl: selectedEvent.onlineUrl || '',
       // meetingCode: selectedEvent.meetingCode || '',
       status: selectedEvent.status || 'scheduled',
-      participants: selectedEvent.participants || [],
+      participantEmails: selectedEvent.participants
+        ? selectedEvent.participants
+            .map((p) => p.email || '')
+            .filter((email) => email)
+            .join(', ')
+        : '',
       allDay: selectedEvent.allDay || false,
       recurrence: selectedEvent.recurrence || '',
     });
@@ -531,8 +536,11 @@ const Calendar = () => {
           // onlineUrl: formData.onlineUrl || undefined,
           // meetingCode: formData.meetingCode || undefined,
           status: 'scheduled' /* formData.status */,
-          participants: formData.participants.length
-            ? formData.participants
+          participantEmails: formData.participantEmails
+            ? formData.participantEmails
+                .split(',')
+                .map((email) => email.trim())
+                .filter((email) => email.length > 0)
             : undefined,
           allDay: formData.allDay,
           recurrence: formData.recurrence
@@ -563,7 +571,7 @@ const Calendar = () => {
             // onlineUrl: '',
             // meetingCode: '',
             status: 'scheduled',
-            participants: [],
+            participantEmails: '',
             allDay: false,
             recurrence: '',
           });
@@ -619,8 +627,11 @@ const Calendar = () => {
           // onlineUrl: editFormData.onlineUrl || undefined,
           // meetingCode: editFormData.meetingCode || undefined,
           status: 'scheduled' /* editFormData.status */,
-          participants: editFormData.participants.length
-            ? editFormData.participants
+          participantEmails: editFormData.participantEmails
+            ? editFormData.participantEmails
+                .split(',')
+                .map((email) => email.trim())
+                .filter((email) => email.length > 0)
             : undefined,
           allDay: editFormData.allDay,
           recurrence: editFormData.recurrence
@@ -1088,7 +1099,15 @@ const Calendar = () => {
                         <span className='ms-1 me-2'>👥</span>
                         Người tham gia:{' '}
                         {selectedEvent.participants
-                          .map((p) => p.name || p.userId)
+                          .map((p) => {
+                            return `${p.email} (${
+                              p.status === 'pending'
+                                ? 'Chờ phản hồi'
+                                : p.status === 'accepted'
+                                ? 'Đã xác nhận'
+                                : 'Từ chối'
+                            })`;
+                          })
                           .join(', ')}
                       </p>
                     )}
@@ -1320,24 +1339,21 @@ const Calendar = () => {
                 </Form.Select>
               </Form.Group> */}
               <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (email người dùng)</Form.Label>
+                <Form.Label>Người tham gia (email)</Form.Label>
                 <Form.Control
                   type='text'
-                  value={formData.participants.map((p) => p.userId).join(',')}
+                  value={formData.participantEmails}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      participants: e.target.value
-                        .split(',')
-                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
-                        .filter((p) => p.userId),
+                      participantEmails: e.target.value,
                     })
                   }
                   placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
                 />
                 <Form.Text className='text-muted'>
-                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
-                  sau.
+                  Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự động
+                  tìm kiếm và gửi lời mời cho những người dùng có email hợp lệ.
                 </Form.Text>
               </Form.Group>
               <div className='d-flex justify-content-end gap-2'>
@@ -1591,27 +1607,21 @@ const Calendar = () => {
                 </Form.Select>
               </Form.Group> */}
               <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (ID người dùng)</Form.Label>
+                <Form.Label>Người tham gia (email)</Form.Label>
                 <Form.Control
                   type='text'
-                  value={
-                    editFormData.participants?.map((p) => p.userId).join(',') ||
-                    ''
-                  }
+                  value={editFormData.participantEmails || ''}
                   onChange={(e) =>
                     setEditFormData({
                       ...editFormData,
-                      participants: e.target.value
-                        .split(',')
-                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
-                        .filter((p) => p.userId),
+                      participantEmails: e.target.value,
                     })
                   }
-                  placeholder='Nhập ID người tham gia, cách nhau bằng dấu phẩy...'
+                  placeholder='Nhập email người tham gia, cách nhau bằng dấu phẩy...'
                 />
                 <Form.Text className='text-muted'>
-                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
-                  sau.
+                  Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự động
+                  tìm kiếm và gửi lời mời cho những người dùng có email hợp lệ.
                 </Form.Text>
               </Form.Group>
               <div className='d-flex justify-content-end gap-2'>

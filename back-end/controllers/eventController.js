@@ -16,6 +16,7 @@ const AppError = require('../utils/appError');
 const { authorize } = require('../utils/googleAuthUtils');
 const { google } = require('googleapis');
 const { geocodeAddress, validateCoordinates } = require('../utils/geocoding');
+const NotificationService = require('../services/NotificationService');
 
 const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
 const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
@@ -246,11 +247,75 @@ exports.createEventForCalendar = async (req, res) => {
       category,
       color,
       allDay,
+      participantEmails, // New field for emails
     } = req.body;
     const { calendarId } = req.params;
     const organizer = req.user._id;
-    let participants = req.body.participants || [];
-    participants.push({ userId: organizer, status: 'accepted' });
+    let participants = [{ userId: organizer, status: 'accepted' }];
+
+    // Process participant emails if provided
+    if (
+      participantEmails &&
+      Array.isArray(participantEmails) &&
+      participantEmails.length > 0
+    ) {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = participantEmails.filter(
+        (email) => !emailRegex.test(email.trim())
+      );
+
+      if (invalidEmails.length > 0) {
+        return res.status(400).json({
+          message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
+          status: 400,
+        });
+      }
+
+      // Check if user is trying to invite themselves
+      const currentUserEmail = req.user.email;
+      const selfInvite = participantEmails.some(
+        (email) => email.trim().toLowerCase() === currentUserEmail.toLowerCase()
+      );
+
+      if (selfInvite) {
+        return res.status(400).json({
+          message: 'Bạn không thể mời chính mình tham gia sự kiện',
+          status: 400,
+        });
+      }
+
+      // Find users by emails
+      const cleanEmails = participantEmails.map((email) =>
+        email.trim().toLowerCase()
+      );
+      const users = await User.find({
+        email: { $in: cleanEmails },
+        isDeleted: false,
+      }).select('_id email');
+
+      const foundEmails = users.map((user) => user.email.toLowerCase());
+      const notFoundEmails = cleanEmails.filter(
+        (email) => !foundEmails.includes(email)
+      );
+
+      if (notFoundEmails.length > 0) {
+        return res.status(400).json({
+          message: `Không tìm thấy người dùng với email: ${notFoundEmails.join(
+            ', '
+          )}`,
+          status: 400,
+        });
+      }
+
+      // Add found users to participants
+      const participantUsers = users.map((user) => ({
+        userId: user._id,
+        status: 'pending',
+      }));
+
+      participants = [...participants, ...participantUsers];
+    }
 
     if (
       !title ||
@@ -354,7 +419,7 @@ exports.createEventForCalendar = async (req, res) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    if (start >= end) {
+    if (!allDay && start >= end) {
       return res.status(400).json({
         message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
         status: 400,
@@ -474,6 +539,46 @@ exports.createEventForCalendar = async (req, res) => {
         status: p.status,
       })),
     });
+
+    // Gửi thông báo cho những người được mời tham gia sự kiện (ngoại trừ organizer)
+    const participantsToNotify = savedEvent.participants.filter(
+      (p) => p.userId.toString() !== organizer.toString()
+    );
+
+    if (participantsToNotify.length > 0) {
+      try {
+        const organizerUser = await User.findById(organizer, 'username email');
+        const formattedEventStartDate = formatDateToTimeZone(
+          savedEvent.startDate,
+          savedEvent.timeZone
+        );
+
+        // Gửi thông báo cho từng participant
+        for (const participant of participantsToNotify) {
+          await NotificationService.createPersonalNotification({
+            title: 'Lời mời tham gia sự kiện',
+            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${
+              organizerUser.username || organizerUser.email
+            }. Thời gian: ${formattedEventStartDate}`,
+            type: 'event_invitation',
+            targetUserId: participant.userId,
+            createdBy: organizer,
+            relatedUserId: organizer,
+            eventId: savedEvent._id,
+          });
+        }
+
+        console.log(
+          `Đã gửi thông báo mời tham gia sự kiện cho ${participantsToNotify.length} người`
+        );
+      } catch (notificationError) {
+        console.error(
+          'Lỗi khi gửi thông báo mời tham gia sự kiện:',
+          notificationError
+        );
+        // Không làm gián đoạn quá trình tạo event
+      }
+    }
 
     const formattedStartDate = formatDateToTimeZone(
       savedEvent.startDate,
@@ -697,6 +802,7 @@ exports.updateEvent = async (req, res) => {
       status,
       category,
       color,
+      participantEmails,
     } = req.body;
 
     //Cho phép cập nhật 1 số trường có thể thay đổi nhiều, không bao gồm participants, organizer, calendarId, workspaceId, boardId
@@ -792,6 +898,131 @@ exports.updateEvent = async (req, res) => {
     event.category = category || event.category;
     event.color = color || event.color;
     event.timeZone = req.body.timeZone || event.timeZone || 'Asia/Ho_Chi_Minh';
+
+    // Process participant emails if provided
+    if (
+      participantEmails &&
+      Array.isArray(participantEmails) &&
+      participantEmails.length > 0
+    ) {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = participantEmails.filter(
+        (email) => !emailRegex.test(email.trim())
+      );
+
+      if (invalidEmails.length > 0) {
+        return res.status(400).json({
+          message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
+          status: 400,
+        });
+      }
+
+      // Check if user is trying to invite themselves
+      const currentUserEmail = req.user.email;
+      const selfInvite = participantEmails.some(
+        (email) => email.trim().toLowerCase() === currentUserEmail.toLowerCase()
+      );
+
+      if (selfInvite) {
+        return res.status(400).json({
+          message: 'Bạn không thể mời chính mình tham gia sự kiện',
+          status: 400,
+        });
+      }
+
+      // Find users by emails
+      const cleanEmails = participantEmails.map((email) =>
+        email.trim().toLowerCase()
+      );
+      const users = await User.find({
+        email: { $in: cleanEmails },
+        isDeleted: false,
+      }).select('_id email');
+
+      const foundEmails = users.map((user) => user.email.toLowerCase());
+      const notFoundEmails = cleanEmails.filter(
+        (email) => !foundEmails.includes(email)
+      );
+
+      if (notFoundEmails.length > 0) {
+        return res.status(400).json({
+          message: `Không tìm thấy người dùng với email: ${notFoundEmails.join(
+            ', '
+          )}`,
+          status: 400,
+        });
+      }
+
+      // Update participants - keep organizer, update others
+      const organizerParticipant = event.participants.find(
+        (p) => p.userId.toString() === req.user._id.toString()
+      );
+      const newParticipants = users.map((user) => ({
+        userId: user._id,
+        status: 'pending',
+      }));
+
+      // Lưu trữ participants cũ để so sánh
+      const oldParticipantIds = event.participants.map((p) =>
+        p.userId.toString()
+      );
+
+      event.participants = [organizerParticipant, ...newParticipants].filter(
+        Boolean
+      );
+
+      // Tìm những participant mới được thêm vào
+      const newParticipantIds = newParticipants.map((p) => p.userId.toString());
+      const addedParticipantIds = newParticipantIds.filter(
+        (id) => !oldParticipantIds.includes(id)
+      );
+
+      // Gửi thông báo cho những người mới được mời
+      if (addedParticipantIds.length > 0) {
+        const updatedEvent = await event.save();
+
+        try {
+          const organizerUser = await User.findById(
+            req.user._id,
+            'username email'
+          );
+          const formattedEventStartDate = formatDateToTimeZone(
+            updatedEvent.startDate,
+            updatedEvent.timeZone
+          );
+
+          // Gửi thông báo cho từng participant mới
+          for (const participantId of addedParticipantIds) {
+            await NotificationService.createPersonalNotification({
+              title: 'Lời mời tham gia sự kiện',
+              content: `Bạn được mời tham gia sự kiện "${
+                updatedEvent.title
+              }" bởi ${
+                organizerUser.username || organizerUser.email
+              }. Thời gian: ${formattedEventStartDate}`,
+              type: 'event_invitation',
+              targetUserId: participantId,
+              createdBy: req.user._id,
+              relatedUserId: req.user._id,
+              eventId: updatedEvent._id,
+            });
+          }
+
+          console.log(
+            `Đã gửi thông báo mời tham gia sự kiện (cập nhật) cho ${addedParticipantIds.length} người`
+          );
+        } catch (notificationError) {
+          console.error(
+            'Lỗi khi gửi thông báo mời tham gia sự kiện (cập nhật):',
+            notificationError
+          );
+          // Không làm gián đoạn quá trình cập nhật event
+        }
+
+        return updatedEvent;
+      }
+    }
 
     const updatedEvent = await event.save();
 
@@ -1014,7 +1245,39 @@ exports.inviteToBecomeParticipant = async (req, res) => {
         participants: [{ userId: invitedUser._id, status: 'pending' }],
       });
 
-      //Gửi thông báo cho người được mời tham gia sự kiện
+      // Gửi thông báo cho người được mời tham gia sự kiện
+      try {
+        const organizerUser = await User.findById(
+          req.user._id,
+          'username email'
+        );
+        const formattedEventStartDate = formatDateToTimeZone(
+          event.startDate,
+          event.timeZone || 'Asia/Ho_Chi_Minh'
+        );
+
+        await NotificationService.createPersonalNotification({
+          title: 'Lời mời tham gia sự kiện',
+          content: `Bạn được mời tham gia sự kiện "${event.title}" bởi ${
+            organizerUser.username || organizerUser.email
+          }. Thời gian: ${formattedEventStartDate}`,
+          type: 'event_invitation',
+          targetUserId: invitedUser._id,
+          createdBy: req.user._id,
+          relatedUserId: req.user._id,
+          eventId: event._id,
+        });
+
+        console.log(
+          `Đã gửi thông báo mời tham gia sự kiện cho user ${invitedUser._id}`
+        );
+      } catch (notificationError) {
+        console.error(
+          'Lỗi khi gửi thông báo mời tham gia sự kiện:',
+          notificationError
+        );
+        // Không làm gián đoạn quá trình mời người tham gia
+      }
 
       return res.status(200).json({
         message: 'Mời người tham gia thành công',
@@ -1099,7 +1362,56 @@ exports.updateParticipantStatus = async (req, res) => {
       ],
     });
 
-    //Người dùng - người được mời tham gia sự kiện - thông báo chấp nhận/từ chối tham gia sự kiện tới người tạo lời mời
+    // Gửi thông báo cho organizer về việc participant đã cập nhật trạng thái
+    try {
+      const participantUser = await User.findById(
+        req.user._id,
+        'username email'
+      );
+      const formattedEventStartDate = formatDateToTimeZone(
+        event.startDate,
+        event.timeZone || 'Asia/Ho_Chi_Minh'
+      );
+
+      let statusText = '';
+      switch (status) {
+        case 'accepted':
+          statusText = 'đã chấp nhận';
+          break;
+        case 'declined':
+          statusText = 'đã từ chối';
+          break;
+        case 'pending':
+          statusText = 'đang chờ xem xét';
+          break;
+        default:
+          statusText = 'đã cập nhật trạng thái';
+      }
+
+      await NotificationService.createPersonalNotification({
+        title: 'Cập nhật trạng thái tham gia sự kiện',
+        content: `${
+          participantUser.username || participantUser.email
+        } ${statusText} tham gia sự kiện "${
+          event.title
+        }". Thời gian: ${formattedEventStartDate}`,
+        type: 'event_status_update',
+        targetUserId: event.organizer,
+        createdBy: req.user._id,
+        relatedUserId: req.user._id,
+        eventId: event._id,
+      });
+
+      console.log(
+        `Đã gửi thông báo cập nhật trạng thái sự kiện cho organizer ${event.organizer}`
+      );
+    } catch (notificationError) {
+      console.error(
+        'Lỗi khi gửi thông báo cập nhật trạng thái sự kiện:',
+        notificationError
+      );
+      // Không làm gián đoạn quá trình cập nhật trạng thái
+    }
 
     res.status(200).json({
       message: 'Cập nhật trạng thái người tham gia thành công',

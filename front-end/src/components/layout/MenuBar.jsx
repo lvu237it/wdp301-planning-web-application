@@ -6,7 +6,7 @@ import {
   FaCalendarAlt,
   FaUser,
 } from 'react-icons/fa';
-import logo from '../../../public/images/PlanPro-removebg-preview.png';
+import logo from '/images/PlanPro-removebg-preview.png';
 
 const MenuBar = () => {
   const location = useLocation();

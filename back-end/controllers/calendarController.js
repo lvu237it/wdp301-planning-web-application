@@ -140,7 +140,10 @@ exports.getCalendarByUserId = async (req, res) => {
       .select('-isDeleted -deletedAt');
 
     if (!calendars.length) {
-      return res.status('Không tìm thấy lịch của người dùng:', error);
+      return res.status(404).json({
+        message: 'Không tìm thấy lịch cho người dùng này',
+        status: 404,
+      });
     }
 
     return res.status(200).json({

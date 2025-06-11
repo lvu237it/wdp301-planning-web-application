@@ -9,6 +9,8 @@ const {
   saveCredentials,
   getCombinedAuthUrl,
 } = require('../utils/googleAuthUtils');
+const NotificationService = require('../services/NotificationService');
+const { getAdminId } = require('../utils/admin');
 
 const SERVICE_SCOPES = {
   drive: [
@@ -132,6 +134,21 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
         console.log(`Đã lưu token cho dịch vụ: ${service}`);
       }
     }
+
+    //Gửi thông báo cho user sau khi xác thực thành công
+    await NotificationService.createPersonalNotification({
+      title: 'Xác thực Google thành công',
+      content:
+        'Bạn đã xác thực thành công tài khoản Google. Giờ đây bạn có thể tiếp tục sử dụng dịch vụ của chúng tôi.',
+      type: 'google_auth',
+      targetUserId: userId,
+      targetWorkspaceId: null,
+      createdBy: getAdminId(),
+      relatedUserId: null,
+      eventId: null,
+      taskId: null,
+      messageId: null,
+    });
 
     res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
   } catch (error) {

@@ -20,6 +20,7 @@ const calendarRouter = require('./routes/calendarRoutes');
 const eventRouter = require('./routes/eventRoutes');
 const boardRouter = require('./routes/boardRoutes');
 const fileRouter = require('./routes/fileRoutes');
+const notificationRouter = require('./routes/notificationRoutes');
 
 const fileController = require('./controllers/fileController');
 
@@ -29,10 +30,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(
   cors({
-    origin: frontendURL,
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://web-pro-plan.vercel.app',
+      'https://planning-project-web-application.onrender.com',
+    ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'timeout'],
   })
 );
 
@@ -46,6 +52,17 @@ const swaggerDocument = require('./swagger.json');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 console.log(`Swagger UI is available at ${process.env.BACKEND_URL}/api-docs`);
 
+//Initialize admin user ID for sending global (system) notifications
+const { initializeAdminId } = require('./utils/admin');
+initializeAdminId()
+  .then(() => {
+    console.log('Admin ID initialized');
+  })
+  .catch((err) => {
+    console.error('Failed to initialize admin ID:', err);
+    process.exit(1);
+  });
+
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
@@ -56,6 +73,7 @@ app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
 app.use('/files', fileRouter);
+app.use('/notification', notificationRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
 
 app.all('*', (req, res, next) => {
