@@ -44,8 +44,8 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
