@@ -11,6 +11,14 @@ const Board = require('../models/boardModel');
 const BoardMembership = require('../models/boardMembershipModel');
 const User = require('../models/userModel');
 const { formatDateToTimeZone } = require('../utils/dateUtils');
+const { createMeetSpace } = require('./meetController');
+const AppError = require('../utils/appError');
+
+const ALL_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
+];
 
 exports.createEventForCalendar = async (req, res) => {
   try {
@@ -143,11 +151,6 @@ exports.createEventForCalendar = async (req, res) => {
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
         status: 400,
       });
-    } else if (type === 'online' && !onlineUrl) {
-      return res.status(400).json({
-        message: 'Thiếu onlineUrl cho sự kiện trực tuyến',
-        status: 400,
-      });
     } else if (type === 'offline' && !address) {
       return res.status(400).json({
         message: 'Thiếu địa chỉ cho sự kiện offline',
@@ -238,6 +241,14 @@ exports.createEventForCalendar = async (req, res) => {
       color: color || '#378006',
       allDay: allDay || false,
     });
+
+    if (type === 'online') {
+      const meetUrl = await createMeetSpace(req, ALL_SCOPES); // Truyền scope Meet
+      console.log('meetUrl', meetUrl);
+      if (!meetUrl) throw new AppError('Không thể tạo link Meet', 500);
+      newEvent.onlineUrl = meetUrl;
+      console.log('Meeting created', meetUrl);
+    }
 
     // Lưu sự kiện vào cơ sở dữ liệu
     const savedEvent = await newEvent.save();

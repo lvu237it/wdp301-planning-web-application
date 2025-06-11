@@ -12,8 +12,8 @@ exports.protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // Giải mã và lấy thông tin liên quan tới người dùng trong token
-    console.log('decoded', decoded);
-    req.user = await User.findById(decoded._id).select('role email createdAt'); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
+    const id = decoded?._id || decoded?.id;
+    req.user = await User.findById(id).select('role email createdAt'); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
     next();
   } catch (error) {
     res.status(401).json({ status: 'error', message: error.message });

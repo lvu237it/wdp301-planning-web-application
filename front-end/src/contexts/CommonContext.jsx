@@ -28,6 +28,32 @@ export const Common = ({ children }) => {
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+
+  const [calendarUser, setCalendarUser] = useState(null);
+  const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
+  const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
+
+  //Kiểm tra xem người dùng đã xác thực Google chưa
+  const checkGoogleAuth = async () => {
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/files/check-google-auth`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      // console.log('checkgoogleAuth response:', response);
+
+      if (response.data.status === 'success') {
+        setIsGoogleAuthenticated(true);
+      } else {
+        setShowGoogleAuthModal(true); // Hiển thị modal nếu chưa xác thực
+      }
+    } catch (error) {
+      setShowGoogleAuthModal(true); // Hiển thị modal nếu có lỗi hoặc chưa xác thực
+    }
+  };
 
   // Authentication functions
   const login = async (email, password) => {
@@ -107,7 +133,7 @@ export const Common = ({ children }) => {
   const createInitialCalendar = async () => {
     try {
       const response = await axios.post(
-        `${apiBaseUrl}/calendar/create-new-calendar`,
+        `${apiBaseUrl}/calendar`,
         {
           name: 'Personal Working Calendar',
           description: 'A calendar for each user in system',
@@ -124,20 +150,71 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Get user calendar
+  const getCalendarUser = async () => {
+    try {
+      const response = await axios.get(`${apiBaseUrl}/calendar/get-by-user`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      console.log('Lấy lịch user:', response.data);
+      if (response.data.status === 200 && response.data.data?.length > 0) {
+        setCalendarUser(response.data.data[0]); // Lấy lịch đầu tiên
+      }
+    } catch (error) {
+      console.error(
+        'Lỗi khi lấy lịch user:',
+        error.response?.data?.message || error.message
+      );
+      if (error.response?.status === 404) {
+        // Không tìm thấy lịch, thử tạo mới
+        const created = await createUserCalendarInitialCalendar();
+        if (!created) {
+          toast.error('Không thể tạo lịch cá nhân');
+        }
+      } else {
+        toast.error('Lỗi khi tải lịch');
+      }
+    }
+  };
+
+  // Xử lý xác thực Google
+  const handleGoogleAuth = async () => {
+    try {
+      const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      // console.log('get google auth url response:', response);
+
+      if (response.data.status === 'success') {
+        window.location.href = response.data.data.authUrl; // Redirect đến Google
+      }
+    } catch (error) {
+      toast.error('Lỗi khi khởi tạo xác thực Google');
+    }
+  };
+
   // Set up axios interceptor for handling 401 responses
   useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          logout();
-        }
-        return Promise.reject(error);
-      }
-    );
+    // const interceptor = axios.interceptors.response.use(
+    //   (response) => response,
+    //   (error) => {
+    //     if (error.response?.status === 401) {
+    //       logout();
+    //     }
+    //     return Promise.reject(error);
+    //   }
+    // );
 
-    return () => axios.interceptors.response.eject(interceptor);
-  }, []);
+    if (accessToken && userDataLocal) {
+      checkGoogleAuth(); // Kiểm tra xác thực Google khi có token
+      createInitialCalendar();
+      getCalendarUser();
+    }
+
+    // return () => axios.interceptors.response.eject(interceptor);
+  }, [accessToken, userDataLocal]);
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
@@ -185,6 +262,13 @@ export const Common = ({ children }) => {
         register,
         logout,
         createInitialCalendar,
+        getCalendarUser,
+        calendarUser,
+        setCalendarUser,
+        showGoogleAuthModal,
+        setShowGoogleAuthModal,
+        handleGoogleAuth,
+        isGoogleAuthenticated,
       }}
     >
       <Toaster

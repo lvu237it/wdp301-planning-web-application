@@ -4,94 +4,14 @@ const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const GoogleToken = require('../models/googleTokenModel');
 const AppError = require('../utils/appError');
+const { authorize, saveCredentials } = require('../utils/googleAuthUtils');
 
-// Định nghĩa scope cho Google Drive API
-const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-
-/**
- * Load token từ MongoDB nếu đã tồn tại
- * @param {String} userId - ID của người dùng
- * @return {Promise<OAuth2Client|null>}
- */
-async function loadSavedCredentialsIfExist(userId) {
-  try {
-    const tokenDoc = await GoogleToken.findOne({ userId });
-    if (tokenDoc) {
-      const client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
-      );
-      client.setCredentials({
-        access_token: tokenDoc.accessToken,
-        refresh_token: tokenDoc.refreshToken,
-        expiry_date: tokenDoc.expiryDate,
-      });
-      return client;
-    }
-    return null;
-  } catch (err) {
-    console.error('Lỗi khi load token:', err.message);
-    return null;
-  }
-}
-
-/**
- * Lưu token vào MongoDB
- * @param {OAuth2Client} client - Đối tượng OAuth2
- * @param {String} userId - ID của người dùng
- * @return {Promise<void>}
- */
-async function saveCredentials(client, userId) {
-  try {
-    if (!userId) {
-      throw new AppError('Không tìm thấy userId để lưu token', 400);
-    }
-    await GoogleToken.findOneAndUpdate(
-      { userId },
-      {
-        userId,
-        accessToken: client.credentials.access_token,
-        refreshToken: client.credentials.refresh_token,
-        expiryDate: client.credentials.expiry_date,
-        updatedAt: Date.now(),
-      },
-      { upsert: true, new: true }
-    );
-    console.log('Đã lưu token vào MongoDB cho người dùng:', userId);
-  } catch (err) {
-    console.error('Lỗi khi lưu token:', err.message);
-    throw err;
-  }
-}
-
-/**
- * Xác thực với Google OAuth 2.0
- * @param {String} userId - ID của người dùng
- * @return {Promise<OAuth2Client>}
- */
-async function authorize(userId) {
-  let client = await loadSavedCredentialsIfExist(userId);
-  if (client) {
-    console.log('Sử dụng token đã lưu từ MongoDB');
-    return client;
-  }
-
-  client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-
-  const authUrl = client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-    prompt: 'consent',
-  });
-
-  throw new AppError('Cần xác thực. Vui lòng truy cập: ' + authUrl, 401);
-}
-
+// Định nghĩa scope chung cho cả Drive và Meet
+const ALL_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/meetings.space.created',
+];
 /**
  * Lấy URL xác thực Google cho frontend
  */
@@ -117,7 +37,7 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
 
     const authUrl = client.generateAuthUrl({
       access_type: 'offline',
-      scope: SCOPES,
+      scope: ALL_SCOPES, // Sử dụng scope Drive
       prompt: 'consent',
       state,
     });
@@ -133,6 +53,31 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
 };
 
 /**
+ * Kiểm tra xem người dùng đã xác thực Google hay chưa
+ */
+exports.checkGoogleAuth = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const tokenDoc = await GoogleToken.findOne({
+      userId,
+      scopes: { $all: ALL_SCOPES },
+    });
+    if (tokenDoc) {
+      res
+        .status(200)
+        .json({ status: 'success', message: 'Đã xác thực Google' });
+    } else {
+      res
+        .status(401)
+        .json({ status: 'error', message: 'Chưa xác thực Google' });
+    }
+  } catch (error) {
+    console.error('Lỗi khi kiểm tra xác thực:', error.message);
+    next(new AppError('Lỗi khi kiểm tra xác thực: ' + error.message, 500));
+  }
+};
+
+/**
  * Xử lý callback từ Google OAuth
  */
 exports.handleGoogleAuthCallback = async (req, res, next) => {
@@ -140,7 +85,6 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
     const { code, state } = req.query;
     console.log('handleGoogleAuthCallback - code:', code); // Debug
     console.log('handleGoogleAuthCallback - state:', state); // Debug
-    console.log('handleGoogleAuthCallback - req.user:', req.user); // Debug
 
     if (!code) {
       return next(new AppError('Không nhận được mã xác thực', 400));
@@ -171,13 +115,15 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
 
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
-    await saveCredentials(client, userId);
+    await saveCredentials(client, userId, ALL_SCOPES); // Lưu token với scope Drive
 
-    res.status(200).json({
-      status: 'success',
-      message:
-        'Xác thực Google Drive thành công. Bạn có thể sử dụng các tính năng Google Drive.',
-    });
+    // res.status(200).json({
+    //   status: 'success',
+    //   message:
+    //     'Xác thực Google thành công. Bạn có thể tiếp tục sử dụng các tính năng.',
+    // });
+    // Redirect về frontend sau khi thành công
+    res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
   } catch (error) {
     console.error('Lỗi trong handleGoogleAuthCallback:', error.message);
     const errorMessage = req.query.error
@@ -201,7 +147,7 @@ exports.uploadFile = async (req, res, next) => {
       return next(new AppError('Chưa chọn file để tải lên', 400));
     }
 
-    const auth = await authorize(userId);
+    const auth = await authorize(userId, ALL_SCOPES); //Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     const fileMetadata = {
@@ -241,7 +187,7 @@ exports.uploadFile = async (req, res, next) => {
 exports.listFiles = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const auth = await authorize(userId);
+    const auth = await authorize(userId, ALL_SCOPES); // Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     const { data } = await drive.files.list({
@@ -266,7 +212,7 @@ exports.deleteFile = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { fileId } = req.params;
-    const auth = await authorize(userId);
+    const auth = await authorize(userId, ALL_SCOPES); // Sử dụng scope Drive
     const drive = google.drive({ version: 'v3', auth });
 
     await drive.files.delete({ fileId });
