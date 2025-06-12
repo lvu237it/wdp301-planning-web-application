@@ -272,6 +272,41 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Respond to event invitation
+  const respondToEventInvitation = async (eventId, status, notificationId) => {
+    if (!accessToken || !eventId || !userDataLocal?._id) return false;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/${eventId}/participants/${userDataLocal._id}/update-status`,
+        { status },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        // Mark notification as read
+        await markNotificationAsRead(notificationId);
+
+        toast.success(
+          status === 'accepted'
+            ? 'Đã chấp nhận lời mời tham gia sự kiện'
+            : 'Đã từ chối lời mời tham gia sự kiện'
+        );
+        return true;
+      }
+    } catch (error) {
+      console.error('Error responding to event invitation:', error);
+      toast.error(
+        error.response?.data?.message ||
+          'Không thể phản hồi lời mời tham gia sự kiện'
+      );
+      return false;
+    }
+  };
+
   //Create a personal calendar for user (if needed)
   const createInitialCalendar = async () => {
     try {
@@ -443,6 +478,16 @@ export const Common = ({ children }) => {
             description: notification.content,
             duration: 3000,
           });
+
+          // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
+          if (notification.type === 'event_update') {
+            // Emit custom event để Calendar component có thể lắng nghe
+            window.dispatchEvent(
+              new CustomEvent('eventUpdated', {
+                detail: { eventId: notification.eventId },
+              })
+            );
+          }
         };
 
         // Xử lý cập nhật thông báo
@@ -523,6 +568,7 @@ export const Common = ({ children }) => {
         notifications,
         fetchNotifications,
         markNotificationAsRead,
+        respondToEventInvitation,
         formatDateAMPMForVN,
         workspaces,
         loadingWorkspaces,

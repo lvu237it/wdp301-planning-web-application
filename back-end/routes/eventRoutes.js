@@ -9,6 +9,11 @@ router.post(
   eventController.createEventForCalendar //ok
 );
 router.get('/', auth.protect, eventController.getAllEvents); //ok
+router.get(
+  '/participated',
+  auth.protect,
+  eventController.getParticipatedEvents
+); // Lấy sự kiện đã tham gia
 
 router.post(
   '/:id/invite',

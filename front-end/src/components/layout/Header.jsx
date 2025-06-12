@@ -10,6 +10,8 @@ const Header = () => {
     logout,
     notifications,
     markNotificationAsRead,
+    respondToEventInvitation,
+    fetchNotifications,
     isAuthenticated,
     userDataLocal,
     formatDateAMPMForVN,
@@ -17,11 +19,12 @@ const Header = () => {
   const [showPopover, setShowPopover] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [loadingNotifications, setLoadingNotifications] = useState(new Map());
 
   const unreadCount = notifications?.filter((n) => !n.isRead)?.length || 0;
 
   useEffect(() => {
-    console.log('notifications', notifications);
+    // console.log('notifications', notifications);
   }, []);
 
   const handleAvatarClick = () => {
@@ -34,6 +37,40 @@ const Header = () => {
     await markNotificationAsRead(notificationId);
   };
 
+  const handleEventInvitationResponse = async (
+    eventId,
+    status,
+    notificationId,
+    event
+  ) => {
+    event.stopPropagation(); // Ngăn việc click vào notification
+
+    // Thêm notification vào loading map với status
+    setLoadingNotifications((prev) =>
+      new Map(prev).set(notificationId, status)
+    );
+
+    try {
+      const success = await respondToEventInvitation(
+        eventId,
+        status,
+        notificationId
+      );
+
+      if (success) {
+        // Fetch lại notifications mới nhất sau khi respond thành công
+        await fetchNotifications();
+      }
+    } finally {
+      // Remove notification khỏi loading map
+      setLoadingNotifications((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(notificationId);
+        return newMap;
+      });
+    }
+  };
+
   const handleProfileClick = () => {
     navigate('/profile');
     setShowPopover(false);
@@ -42,6 +79,23 @@ const Header = () => {
   const handleLogoutClick = () => {
     logout();
     setShowPopover(false);
+  };
+
+  const renderButtonContent = (status, isLoading) => {
+    if (isLoading) {
+      return (
+        <span className='d-flex align-items-center justify-content-center'>
+          <span
+            className='spinner-border spinner-border-sm me-1'
+            role='status'
+            aria-hidden='true'
+            style={{ width: '12px', height: '12px' }}
+          ></span>
+          Đang xử lý...
+        </span>
+      );
+    }
+    return status === 'accepted' ? 'Chấp nhận' : 'Từ chối';
   };
 
   const toggleNotifDropdown = () => {
@@ -87,6 +141,98 @@ const Header = () => {
               <small className='text-muted mt-1'>
                 {formatDateAMPMForVN(notif.createdAt)}
               </small>
+
+              {/* Hiển thị buttons cho event invitation nếu chưa respond */}
+              {notif.type === 'event_invitation' &&
+                (!notif.responseStatus || notif.responseStatus === 'pending') &&
+                !notif.isRead && (
+                  <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                    <button
+                      className='btn btn-success btn-sm'
+                      onClick={(e) =>
+                        handleEventInvitationResponse(
+                          notif.eventId,
+                          'accepted',
+                          notif.notificationId,
+                          e
+                        )
+                      }
+                      disabled={loadingNotifications.has(notif.notificationId)}
+                      style={{
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        minWidth: '85px',
+                        opacity: loadingNotifications.has(notif.notificationId)
+                          ? 0.7
+                          : 1,
+                        cursor: loadingNotifications.has(notif.notificationId)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      }}
+                    >
+                      {renderButtonContent(
+                        'accepted',
+                        loadingNotifications.get(notif.notificationId) ===
+                          'accepted'
+                      )}
+                    </button>
+                    <button
+                      className='btn btn-outline-danger btn-sm'
+                      onClick={(e) =>
+                        handleEventInvitationResponse(
+                          notif.eventId,
+                          'declined',
+                          notif.notificationId,
+                          e
+                        )
+                      }
+                      disabled={loadingNotifications.has(notif.notificationId)}
+                      style={{
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        minWidth: '80px',
+                        opacity: loadingNotifications.has(notif.notificationId)
+                          ? 0.7
+                          : 1,
+                        cursor: loadingNotifications.has(notif.notificationId)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      }}
+                    >
+                      {renderButtonContent(
+                        'declined',
+                        loadingNotifications.get(notif.notificationId) ===
+                          'declined'
+                      )}
+                    </button>
+                  </div>
+                )}
+
+              {/* Hiển thị trạng thái sau khi đã respond */}
+              {notif.type === 'event_invitation' &&
+                notif.responseStatus &&
+                notif.responseStatus !== 'pending' && (
+                  <div className='mt-2'>
+                    <small
+                      className={`badge ${
+                        notif.responseStatus === 'accepted'
+                          ? 'bg-success'
+                          : notif.responseStatus === 'declined'
+                          ? 'bg-danger'
+                          : 'bg-secondary'
+                      }`}
+                      style={{ fontSize: '10px' }}
+                    >
+                      {notif.responseStatus === 'accepted'
+                        ? '✓ Đã chấp nhận'
+                        : notif.responseStatus === 'declined'
+                        ? '✗ Đã từ chối'
+                        : ''}
+                    </small>
+                  </div>
+                )}
             </div>
           </Dropdown.Item>
         ))}
@@ -108,14 +254,32 @@ const Header = () => {
             <div className='notification-container d-none d-md-block'>
               <Dropdown show={showNotifDropdown} onToggle={toggleNotifDropdown}>
                 <button
-                  className='notification-btn'
+                  className='notification-btn d-flex align-items-center justify-content-center'
                   onClick={toggleNotifDropdown}
+                  style={{ position: 'relative' }}
                 >
                   <FaBell />
                   {unreadCount > 0 && (
-                    <span className='notification-badge'>
+                    <Badge
+                      bg='danger'
+                      className='notification-badge'
+                      style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '1px',
+                        fontSize: '10px',
+                        minWidth: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0',
+                        transform: 'none',
+                      }}
+                    >
                       {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
+                    </Badge>
                   )}
                 </button>
                 <Dropdown.Menu className='p-0 notification-dropdown-menu'>
@@ -124,14 +288,38 @@ const Header = () => {
               </Dropdown>
             </div>
             <div className='notification-container d-md-none'>
-              <button className='notification-btn' onClick={toggleNotifModal}>
+              <button
+                className='notification-btn d-flex align-items-center justify-content-center'
+                onClick={toggleNotifModal}
+                style={{ position: 'relative' }}
+              >
                 <FaBell />
                 {unreadCount > 0 && (
-                  <span className='notification-badge'>
+                  <Badge
+                    bg='danger'
+                    className='notification-badge'
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      right: '1px',
+                      fontSize: '10px',
+                      minWidth: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0',
+                      transform: 'none',
+                    }}
+                  >
                     {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
+                  </Badge>
                 )}
               </button>
+            </div>
+            <div className='user-info d-none d-sm-flex align-items-center'>
+              <span className='user-name'>{userDataLocal.username}</span>
             </div>
           </>
         )}
@@ -200,6 +388,111 @@ const Header = () => {
                   <small className='text-muted mt-1'>
                     {formatDateAMPMForVN(notif.createdAt)}
                   </small>
+
+                  {/* Hiển thị buttons cho event invitation nếu chưa respond */}
+                  {notif.type === 'event_invitation' &&
+                    (!notif.responseStatus ||
+                      notif.responseStatus === 'pending') &&
+                    !notif.isRead && (
+                      <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                        <button
+                          className='btn btn-success btn-sm'
+                          onClick={(e) =>
+                            handleEventInvitationResponse(
+                              notif.eventId,
+                              'accepted',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={loadingNotifications.has(
+                            notif.notificationId
+                          )}
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '85px',
+                            opacity: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 0.7
+                              : 1,
+                            cursor: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 'not-allowed'
+                              : 'pointer',
+                          }}
+                        >
+                          {renderButtonContent(
+                            'accepted',
+                            loadingNotifications.get(notif.notificationId) ===
+                              'accepted'
+                          )}
+                        </button>
+                        <button
+                          className='btn btn-outline-danger btn-sm'
+                          onClick={(e) =>
+                            handleEventInvitationResponse(
+                              notif.eventId,
+                              'declined',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={loadingNotifications.has(
+                            notif.notificationId
+                          )}
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '80px',
+                            opacity: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 0.7
+                              : 1,
+                            cursor: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 'not-allowed'
+                              : 'pointer',
+                          }}
+                        >
+                          {renderButtonContent(
+                            'declined',
+                            loadingNotifications.get(notif.notificationId) ===
+                              'declined'
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                  {/* Hiển thị trạng thái sau khi đã respond */}
+                  {notif.type === 'event_invitation' &&
+                    notif.responseStatus &&
+                    notif.responseStatus !== 'pending' && (
+                      <div className='mt-2'>
+                        <small
+                          className={`badge ${
+                            notif.responseStatus === 'accepted'
+                              ? 'bg-success'
+                              : notif.responseStatus === 'declined'
+                              ? 'bg-danger'
+                              : 'bg-secondary'
+                          }`}
+                          style={{ fontSize: '10px' }}
+                        >
+                          {notif.responseStatus === 'accepted'
+                            ? '✓ Đã chấp nhận'
+                            : notif.responseStatus === 'declined'
+                            ? '✗ Đã từ chối'
+                            : ''}
+                        </small>
+                      </div>
+                    )}
                 </div>
               </div>
             ))

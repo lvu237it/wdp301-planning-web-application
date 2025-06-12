@@ -387,6 +387,7 @@ exports.getCalendarEvents = async (req, res) => {
           ? { id: event.boardId._id, name: event.boardId.name }
           : null,
         status: event.status,
+        isOwn: true,
         rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
       },
     }));
