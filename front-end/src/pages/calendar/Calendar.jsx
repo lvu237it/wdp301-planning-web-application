@@ -7,6 +7,7 @@ import {
   Button,
   Badge,
   Form,
+  Spinner,
 } from 'react-bootstrap';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -147,6 +148,8 @@ const Calendar = () => {
   const [editFormData, setEditFormData] = useState({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   // Định nghĩa eventTypes
   const eventTypes = useMemo(
@@ -542,7 +545,7 @@ const Calendar = () => {
           ? selectedEvent.address
           : selectedEvent.address?.formattedAddress || '',
       status: selectedEvent.status || 'scheduled',
-      participantEmails: '', // Clear field khi edit để tránh việc tự động mời lại organizer
+      participantEmails: '', // Luôn để trống để chỉ thêm participants mới
       allDay: selectedEvent.allDay || false,
       recurrence: selectedEvent.recurrence || '',
     });
@@ -569,6 +572,7 @@ const Calendar = () => {
       }
 
       try {
+        setIsCreatingEvent(true);
         const payload = {
           calendarId: calendarUser._id,
           title: formData.title,
@@ -624,6 +628,8 @@ const Calendar = () => {
           error.response?.data || error.message
         );
         toast.error(error.response?.data?.message || 'Không thể thêm sự kiện');
+      } finally {
+        setIsCreatingEvent(false);
       }
     },
     [
@@ -658,6 +664,7 @@ const Calendar = () => {
       }
 
       try {
+        setIsUpdatingEvent(true);
         // Chỉ gửi những field đã được thay đổi
         const payload = {
           title: editFormData.title,
@@ -711,6 +718,8 @@ const Calendar = () => {
         toast.error(
           error.response?.data?.message || 'Không thể cập nhật sự kiện'
         );
+      } finally {
+        setIsUpdatingEvent(false);
       }
     },
     [
@@ -1099,7 +1108,7 @@ const Calendar = () => {
                   </div>
                   <div className='event-info'>
                     <p>
-                      <FaCalendarAlt className='ms-1 me-2' />
+                      <FaCalendarAlt className='ms-1 me-3' />
                       Thời gian:{' '}
                       {selectedEvent.allDay ? (
                         <>
@@ -1122,15 +1131,16 @@ const Calendar = () => {
                     </p>
                     {selectedEvent.locationName && (
                       <p>
-                        <span className='ms-1 me-2'>📍</span>
+                        <span className='me-2'>📍</span>
                         Địa điểm: {selectedEvent.locationName}
                       </p>
                     )}
                     {selectedEvent.address && (
                       <div>
                         <p className='mb-1'>
-                          <span className='ms-1 me-2'>🏠</span>
-                          Địa chỉ: {getAddressDisplay(selectedEvent.address)}
+                          <span className='me-2'>🏠</span>
+                          Địa chỉ chi tiết:{' '}
+                          {getAddressDisplay(selectedEvent.address)}
                         </p>
                         {selectedEvent.type === 'offline' && (
                           <MapLocationButton
@@ -1144,7 +1154,7 @@ const Calendar = () => {
                     {selectedEvent.type === 'online' &&
                       selectedEvent?.onlineUrl && (
                         <p>
-                          <span className='ms-1 me-2'>🌐</span>
+                          <span className='me-2'>🌐</span>
                           Link sự kiện:{' '}
                           <a
                             href={selectedEvent?.onlineUrl}
@@ -1165,20 +1175,19 @@ const Calendar = () => {
                     )}
                     {selectedEvent.description && (
                       <p>
-                        <span className='ms-1 me-2'>📝</span>
+                        <span className='me-2'>📝</span>
                         Mô tả: {selectedEvent.description}
                       </p>
                     )}
                     <p>
                       <FaUser className='ms-1 me-2' />
-                      Người tạo:{' '}
-                      {selectedEvent?.organizer.username || 'Không xác định'}
+                      Người tạo: {selectedEvent?.organizer.username}
                     </p>
                     {selectedEvent.participants?.filter(
                       (p) => p.status === 'accepted'
                     ).length > 0 && (
                       <p>
-                        <span className='ms-1 me-2'>👥</span>
+                        <span className='me-2'>👥</span>
                         Người tham gia:{' '}
                         {selectedEvent.participants
                           .filter((p) => p.status === 'accepted')
@@ -1187,7 +1196,7 @@ const Calendar = () => {
                       </p>
                     )}
                     <p>
-                      <span className='ms-1 me-2'>📊</span>
+                      <span className='me-2'>📊</span>
                       Trạng thái:{' '}
                       {statusOptions.find(
                         (s) => s.value === selectedEvent.status
@@ -1197,13 +1206,18 @@ const Calendar = () => {
                 </div>
                 {canModifyEvent(selectedEvent) && (
                   <div className='event-modal-actions'>
-                    <Button variant='outline-light' onClick={handleEditClick}>
+                    <Button
+                      variant='outline-light'
+                      onClick={handleEditClick}
+                      disabled={isUpdatingEvent}
+                    >
                       <FaEdit className='me-2' />
                       Chỉnh sửa
                     </Button>
                     <Button
                       variant='outline-danger'
                       onClick={() => setShowDeleteModal(true)}
+                      disabled={isUpdatingEvent}
                     >
                       <FaTrash className='me-2' />
                       Xóa
@@ -1414,7 +1428,9 @@ const Calendar = () => {
                 </Form.Select>
               </Form.Group> */}
               <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (email)</Form.Label>
+                <Form.Label>
+                  Mời người tham gia (email ngăn cách bởi dấu phẩy)
+                </Form.Label>
                 <Form.Control
                   type='text'
                   value={formData.participantEmails}
@@ -1436,12 +1452,33 @@ const Calendar = () => {
                   variant='outline-light'
                   onClick={() => setShowCreateModal(false)}
                   type='button'
+                  disabled={isCreatingEvent}
                 >
                   Hủy
                 </Button>
-                <Button variant='primary' type='submit'>
-                  <FaPlus className='me-2' />
-                  Tạo sự kiện
+                <Button
+                  variant='primary'
+                  type='submit'
+                  disabled={isCreatingEvent}
+                >
+                  {isCreatingEvent ? (
+                    <>
+                      <Spinner
+                        as='span'
+                        animation='border'
+                        size='sm'
+                        role='status'
+                        aria-hidden='true'
+                        className='me-2'
+                      />
+                      Đang tạo...
+                    </>
+                  ) : (
+                    <>
+                      <FaPlus className='me-2' />
+                      Tạo sự kiện
+                    </>
+                  )}
                 </Button>
               </div>
             </Form>
@@ -1682,7 +1719,9 @@ const Calendar = () => {
                 </Form.Select>
               </Form.Group> */}
               <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (email)</Form.Label>
+                <Form.Label>
+                  Thêm người tham gia mới (email ngăn cách bởi dấu phẩy)
+                </Form.Label>
                 <Form.Control
                   type='text'
                   value={editFormData.participantEmails || ''}
@@ -1692,25 +1731,41 @@ const Calendar = () => {
                       participantEmails: e.target.value,
                     })
                   }
-                  placeholder='Nhập email người tham gia, cách nhau bằng dấu phẩy...'
+                  placeholder='Nhập email người tham gia mới để mời thêm...'
                 />
-                <Form.Text className='text-muted'>
-                  Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự động
-                  tìm kiếm và gửi lời mời cho những người dùng có email hợp lệ.
-                  Bạn có thể mời lại những người đã từ chối trước đó.
-                </Form.Text>
               </Form.Group>
               <div className='d-flex justify-content-end gap-2'>
                 <Button
                   variant='outline-light'
                   onClick={() => setShowEditModal(false)}
                   type='button'
+                  disabled={isUpdatingEvent}
                 >
                   Hủy
                 </Button>
-                <Button variant='success' type='submit'>
-                  <FaEdit className='me-2' />
-                  Cập nhật
+                <Button
+                  variant='success'
+                  type='submit'
+                  disabled={isUpdatingEvent}
+                >
+                  {isUpdatingEvent ? (
+                    <>
+                      <Spinner
+                        as='span'
+                        animation='border'
+                        size='sm'
+                        role='status'
+                        aria-hidden='true'
+                        className='me-2'
+                      />
+                      Đang cập nhật...
+                    </>
+                  ) : (
+                    <>
+                      <FaEdit className='me-2' />
+                      Cập nhật
+                    </>
+                  )}
                 </Button>
               </div>
             </Form>

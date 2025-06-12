@@ -1136,19 +1136,15 @@ exports.updateEvent = async (req, res) => {
         });
       }
 
-      // Lưu trữ participants cũ để so sánh và theo dõi thay đổi
-      const oldParticipants = [...event.participants];
-      const organizerParticipant = event.participants.find(
-        (p) => p.userId.toString() === req.user._id.toString()
-      );
-
-      // Xử lý participants mới: cho phép mời lại những người đã từ chối
-      const processedParticipants = [organizerParticipant].filter(Boolean);
+      // LOGIC CỘNG DỒN - Chỉ thêm participants mới, không ghi đè
+      // Giữ nguyên tất cả participants hiện tại
+      const existingParticipants = [...event.participants];
       const newlyInvitedIds = [];
       const reinvitedIds = [];
 
+      // Chỉ xử lý những email mới được nhập vào
       for (const user of users) {
-        const existingParticipant = event.participants.find(
+        const existingParticipant = existingParticipants.find(
           (p) => p.userId.toString() === user._id.toString()
         );
 
@@ -1172,21 +1168,21 @@ exports.updateEvent = async (req, res) => {
               `Người dùng ${user.email} đang pending, giữ nguyên status`
             );
           }
-          processedParticipants.push(existingParticipant);
+          // Không cần push vì đã có trong existingParticipants
         } else {
-          // Người dùng mới, thêm với status pending
+          // Người dùng mới, thêm vào danh sách participants
           const newParticipant = {
             userId: user._id,
             status: 'pending',
           };
-          processedParticipants.push(newParticipant);
+          existingParticipants.push(newParticipant);
           newlyInvitedIds.push(user._id.toString());
           console.log(`Mời mới người dùng ${user.email}`);
         }
       }
 
-      // Cập nhật danh sách participants
-      event.participants = processedParticipants;
+      // Cập nhật danh sách participants (giữ nguyên + thêm mới)
+      event.participants = existingParticipants;
 
       // Gửi thông báo cho những người mới được mời và những người được mời lại (nhưng không return sớm)
       const notificationTargetIds = [...newlyInvitedIds, ...reinvitedIds];
@@ -1229,7 +1225,7 @@ exports.updateEvent = async (req, res) => {
                 type: 'event_invitation',
                 targetUserId: participantId,
                 createdBy: req.user._id,
-                relatedUserId: req.user._id,
+                relatedUserId: null,
                 eventId: event._id,
               });
             }
@@ -1294,7 +1290,7 @@ exports.updateEvent = async (req, res) => {
             type: 'event_update',
             targetUserId: participant.userId,
             createdBy: req.user._id,
-            relatedUserId: req.user._id,
+            relatedUserId: null,
             eventId: updatedEvent._id,
           });
         }

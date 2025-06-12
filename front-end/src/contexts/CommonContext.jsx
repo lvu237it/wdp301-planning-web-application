@@ -18,6 +18,7 @@ export const Common = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const socketInitialized = useRef(false);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   const [accessToken, setAccessToken] = useState(
     () => localStorage.getItem('accessToken') || null
@@ -125,8 +126,18 @@ export const Common = ({ children }) => {
 
         // Initialize socket connection
         if (user._id) {
-          initSocketClient(user._id, apiBaseUrl);
-          socketInitialized.current = true;
+          console.log('🔌 Initializing socket for user:', user._id);
+          try {
+            await initSocketClient(user._id, apiBaseUrl, () => {
+              console.log('🎯 Socket connected callback triggered');
+              socketInitialized.current = true;
+              setupSocketListeners();
+            });
+            console.log('✅ Socket initialization completed');
+          } catch (error) {
+            console.error('❌ Socket initialization failed:', error);
+            // Continue anyway, socket is not critical for basic functionality
+          }
         }
 
         //Check auth - Fetch data
@@ -172,8 +183,18 @@ export const Common = ({ children }) => {
 
         // Initialize socket connection
         if (data.user._id) {
-          initSocketClient(data.user._id, apiBaseUrl);
-          socketInitialized.current = true;
+          console.log('🔌 Initializing socket for user:', data.user._id);
+          try {
+            await initSocketClient(data.user._id, apiBaseUrl, () => {
+              console.log('🎯 Socket connected callback triggered');
+              socketInitialized.current = true;
+              setupSocketListeners();
+            });
+            console.log('✅ Socket initialization completed');
+          } catch (error) {
+            console.error('❌ Socket initialization failed:', error);
+            // Continue anyway, socket is not critical for basic functionality
+          }
         }
 
         // Check auth - Fetch data
@@ -211,6 +232,7 @@ export const Common = ({ children }) => {
     // Disconnect socket if initialized
     disconnectSocket();
     socketInitialized.current = false;
+    setSocketConnected(false);
 
     // Navigate to login
     navigate('/login');
@@ -307,6 +329,134 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Setup socket listeners
+  const setupSocketListeners = () => {
+    if (!userDataLocal?._id) {
+      console.log('⚠️ No user ID available for socket listeners');
+      return;
+    }
+
+    try {
+      const socket = getSocket();
+      console.log(
+        '🔧 Setting up socket listeners for user:',
+        userDataLocal._id
+      );
+
+      // Remove existing listeners first to avoid duplicates
+      socket.off('new_notification');
+      socket.off('notification_updated');
+
+      // Xử lý thông báo mới
+      const handleNewNotification = (notification) => {
+        console.log('🔔 Received new notification:', notification);
+
+        setNotifications((prev) => {
+          const newNotifications = [
+            { ...notification, isRead: false, readAt: null },
+            ...prev,
+          ];
+          localStorage.setItem(
+            'notifications',
+            JSON.stringify(newNotifications)
+          );
+          return newNotifications;
+        });
+
+        if (
+          notification.type === 'event_invitation' ||
+          notification.type === 'event_update' ||
+          notification.type === 'event_status_update'
+        ) {
+          {
+            toast.info(notification.title, {
+              description: notification.content,
+              duration: 3000,
+            });
+          }
+        } else {
+          toast.success(notification.title, {
+            description: notification.content,
+            duration: 3000,
+          });
+        }
+
+        console.log(
+          '✅ Toast shown for:',
+          notification.title,
+          notification.content
+        );
+
+        // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
+        if (notification.type === 'event_update') {
+          console.log(
+            '📅 Received event update notification, triggering refresh...'
+          );
+          window.dispatchEvent(
+            new CustomEvent('eventUpdated', {
+              detail: { eventId: notification.eventId },
+            })
+          );
+        }
+      };
+
+      // Xử lý cập nhật thông báo
+      const handleNotificationUpdate = ({ notificationId, isRead }) => {
+        console.log(
+          '🔄 Updating notification:',
+          notificationId,
+          'isRead:',
+          isRead
+        );
+
+        setNotifications((prev) => {
+          const updated = prev.map((n) =>
+            n.notificationId === notificationId
+              ? {
+                  ...n,
+                  isRead,
+                  readAt: isRead ? formatDateAMPMForVN(new Date()) : null,
+                }
+              : n
+          );
+          localStorage.setItem('notifications', JSON.stringify(updated));
+          return updated;
+        });
+      };
+
+      // Test listener để verify socket hoạt động
+      socket.on('connect', () => {
+        console.log('🔗 Socket connected in listeners setup');
+      });
+
+      socket.on('disconnect', () => {
+        console.log('❌ Socket disconnected');
+        setSocketConnected(false);
+      });
+
+      // Test pong listener để verify connection
+      socket.on('test_pong', (data) => {
+        console.log('🏓 Received test pong from backend:', data);
+      });
+
+      // Đăng ký listeners
+      socket.on('new_notification', handleNewNotification);
+      socket.on('notification_updated', handleNotificationUpdate);
+
+      // Test ping để verify connection
+      socket.emit('test_ping', {
+        message: 'Hello from frontend',
+        userId: userDataLocal._id,
+      });
+
+      console.log('✅ Socket listeners registered successfully');
+      setSocketConnected(true);
+    } catch (error) {
+      console.error('❌ Error setting up socket listeners:', error);
+      setSocketConnected(false);
+    }
+  };
+
   //Create a personal calendar for user (if needed)
   const createInitialCalendar = async () => {
     try {
@@ -351,7 +501,8 @@ export const Common = ({ children }) => {
         // Không tìm thấy lịch, thử tạo mới
         const created = await createInitialCalendar();
         if (!created) {
-          toast.error('Không thể tạo lịch cá nhân');
+          // toast.error('Không thể tạo lịch cá nhân');
+          console.error('Không thể tạo lịch cá nhân');
         }
       }
     }
@@ -455,71 +606,18 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Socket.IO listeners
+  // Check if need to setup socket listeners when user changes
   useEffect(() => {
-    if (isAuthenticated && userDataLocal?._id && socketInitialized.current) {
-      try {
-        const socket = getSocket();
-
-        // Xử lý thông báo mới
-        const handleNewNotification = (notification) => {
-          setNotifications((prev) => [
-            { ...notification, isRead: false, readAt: null },
-            ...prev,
-          ]);
-          localStorage.setItem(
-            'notifications',
-            JSON.stringify([
-              { ...notification, isRead: false, readAt: null },
-              ...notifications,
-            ])
-          );
-          toast.success(notification.title, {
-            description: notification.content,
-            duration: 3000,
-          });
-
-          // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
-          if (notification.type === 'event_update') {
-            // Emit custom event để Calendar component có thể lắng nghe
-            window.dispatchEvent(
-              new CustomEvent('eventUpdated', {
-                detail: { eventId: notification.eventId },
-              })
-            );
-          }
-        };
-
-        // Xử lý cập nhật thông báo
-        const handleNotificationUpdate = ({ notificationId, isRead }) => {
-          setNotifications((prev) =>
-            prev.map((n) =>
-              n.notificationId === notificationId
-                ? {
-                    ...n,
-                    isRead,
-                    readAt: isRead ? formatDateAMPMForVN(new Date()) : null,
-                  }
-                : n
-            )
-          );
-          localStorage.setItem('notifications', JSON.stringify(notifications));
-        };
-
-        // Đăng ký listeners
-        socket.on('new_notification', handleNewNotification);
-        socket.on('notification_updated', handleNotificationUpdate);
-
-        // Cleanup
-        return () => {
-          socket.off('new_notification', handleNewNotification);
-          socket.off('notification_updated', handleNotificationUpdate);
-        };
-      } catch (error) {
-        console.error('Error initializing socket listeners:', error);
-      }
+    if (
+      isAuthenticated &&
+      userDataLocal?._id &&
+      socketInitialized.current &&
+      !socketConnected
+    ) {
+      console.log('🔄 Setting up socket listeners for existing connection');
+      setupSocketListeners();
     }
-  }, [isAuthenticated, userDataLocal?._id, notifications]);
+  }, [isAuthenticated, userDataLocal?._id, socketConnected]);
 
   // Lưu thông báo vào localStorage
   useEffect(() => {
@@ -529,6 +627,26 @@ export const Common = ({ children }) => {
       console.error('Error saving notifications to localStorage:', error);
     }
   }, [notifications]);
+
+  // Initialize socket khi user đã login (for page reload)
+  useEffect(() => {
+    if (accessToken && userDataLocal?._id && !socketInitialized.current) {
+      console.log('🔄 Reinitializing socket after page reload');
+      const initSocket = async () => {
+        try {
+          await initSocketClient(userDataLocal._id, apiBaseUrl, () => {
+            console.log('🎯 Socket reconnected callback triggered');
+            socketInitialized.current = true;
+            setupSocketListeners();
+          });
+          console.log('✅ Socket reinitialization completed');
+        } catch (error) {
+          console.error('❌ Socket reinitialization failed:', error);
+        }
+      };
+      initSocket();
+    }
+  }, [accessToken, userDataLocal]);
 
   // Tải dữ liệu ban đầu sau khi có userDataLocal
   useEffect(() => {
@@ -580,6 +698,8 @@ export const Common = ({ children }) => {
         fetchBoards,
         loadingBoards,
         boardsError,
+        socketConnected,
+        setupSocketListeners,
       }}
     >
       <Toaster

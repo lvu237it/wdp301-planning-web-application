@@ -71,7 +71,7 @@ class NotificationService {
 
       // Gửi thông báo real-time qua Socket.IO
       const io = getIO();
-      io.to(targetUserId.toString()).emit('new_notification', {
+      const notificationData = {
         notificationId: notification._id,
         title,
         content,
@@ -85,10 +85,17 @@ class NotificationService {
         messageId,
         audienceType: 'personal',
         createdAt: notification.createdAt,
-      });
+      };
 
       console.log(
-        `NotificationService: Đã tạo thông báo ${type} cho user ${targetUserId}`
+        `📡 NotificationService: Emitting notification to user ${targetUserId}:`,
+        JSON.stringify(notificationData, null, 2)
+      );
+
+      io.to(targetUserId.toString()).emit('new_notification', notificationData);
+
+      console.log(
+        `✅ NotificationService: Đã tạo thông báo ${type} cho user ${targetUserId}`
       );
       await session.commitTransaction();
       return notification;

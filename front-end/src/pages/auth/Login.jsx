@@ -10,6 +10,7 @@ function Login() {
     password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   // If already logged in, redirect to home
   useEffect(() => {
@@ -55,10 +56,16 @@ function Login() {
     e.preventDefault();
     if (validateForm()) {
       setIsLoading(true);
+      setLoadingMessage('Đang đăng nhập...');
       try {
-        await login(formData.email, formData.password);
+        const success = await login(formData.email, formData.password);
+        if (success) {
+          setLoadingMessage('Đang kết nối socket...');
+          // Login function will handle socket initialization and navigation
+        }
       } finally {
         setIsLoading(false);
+        setLoadingMessage('');
       }
     }
   };
@@ -156,13 +163,17 @@ function Login() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <Spinner
-                  as='span'
-                  animation='border'
-                  size='sm'
-                  role='status'
-                  aria-hidden='true'
-                />
+                <div className='d-flex align-items-center'>
+                  <Spinner
+                    as='span'
+                    animation='border'
+                    size='sm'
+                    role='status'
+                    aria-hidden='true'
+                    className='me-2'
+                  />
+                  {loadingMessage || 'Đang xử lý...'}
+                </div>
               ) : (
                 'Login'
               )}

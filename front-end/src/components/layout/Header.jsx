@@ -15,6 +15,7 @@ const Header = () => {
     isAuthenticated,
     userDataLocal,
     formatDateAMPMForVN,
+    socketConnected,
   } = useCommon();
   const [showPopover, setShowPopover] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -243,14 +244,41 @@ const Header = () => {
   return (
     <header className='header'>
       <div className='header-left'>
-        <div className='search-bar'>
+        {/* <div className='search-bar'>
           <FaSearch className='search-icon' />
           <input type='text' placeholder='Search...' />
-        </div>
+        </div> */}
       </div>
       <div className='header-right'>
         {isAuthenticated && userDataLocal && (
           <>
+            {/* Socket status indicator */}
+            <div className='d-flex align-items-center me-2'>
+              <div
+                className={`socket-status ${
+                  socketConnected ? 'connected' : 'disconnected'
+                }`}
+                title={
+                  socketConnected ? 'Socket connected' : 'Socket disconnected'
+                }
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: socketConnected ? '#28a745' : '#dc3545',
+                  marginRight: '4px',
+                  animation: socketConnected ? 'none' : 'blink 1s infinite',
+                }}
+              ></div>
+              <small
+                style={{
+                  color: socketConnected ? '#28a745' : '#dc3545',
+                  fontSize: '10px',
+                }}
+              >
+                {socketConnected ? 'Online' : 'Offline'}
+              </small>
+            </div>
             <div className='notification-container d-none d-md-block'>
               <Dropdown show={showNotifDropdown} onToggle={toggleNotifDropdown}>
                 <button

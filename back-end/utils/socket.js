@@ -36,11 +36,11 @@ function initSocket(server) {
 
     socket.on('register_user', async ({ userId }) => {
       if (!userId) {
-        console.warn('Invalid userId during registration');
+        console.warn('⚠️ Invalid userId during registration');
         return;
       }
       socket.join(userId);
-      console.log(`User ${userId} joined personal room ${userId}`);
+      console.log(`✅ User ${userId} joined personal room ${userId}`);
 
       try {
         // Join user vào các workspace rooms mà họ đã tham gia
@@ -139,6 +139,16 @@ function initSocket(server) {
       console.log(`User ${userId} left board room board_${boardId}`);
     });
 
+    // Test ping handler để verify connection
+    socket.on('test_ping', (data) => {
+      console.log('🏓 Received test ping from frontend:', data);
+      socket.emit('test_pong', {
+        message: 'Hello from backend',
+        receivedData: data,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
     socket.on('disconnect', () => {
       console.log('A user disconnected:', socket.id);
     });
@@ -157,11 +167,14 @@ function getIO() {
 // Utility functions để emit events tới các room khác nhau
 function emitToUser(userId, event, data) {
   if (!io) {
-    console.warn('Socket.io not initialized, cannot emit to user');
+    console.warn('⚠️ Socket.io not initialized, cannot emit to user');
     return;
   }
   io.to(userId).emit(event, data);
-  console.log(`Emitted ${event} to user ${userId}`);
+  console.log(
+    `📡 Emitted ${event} to user ${userId}:`,
+    JSON.stringify(data, null, 2)
+  );
 }
 
 function emitToWorkspace(workspaceId, event, data) {
