@@ -33,6 +33,23 @@ const toISODateTime = (dateTime) => {
   return new Date(dateTime).toISOString();
 };
 
+// Hàm chuyển đổi từ UTC sang local datetime cho input
+const toLocalDateTime = (dateTime) => {
+  if (!dateTime) return '';
+  const date = new Date(dateTime);
+  // Chuyển sang múi giờ địa phương và format cho datetime-local input
+  const offset = date.getTimezoneOffset() * 60000; // offset tính bằng milliseconds
+  const localTime = new Date(date.getTime() - offset);
+  return localTime.toISOString().slice(0, 16); // Cắt để lấy format YYYY-MM-DDTHH:mm
+};
+
+// Hàm chuyển đổi từ local datetime input sang UTC
+const fromLocalDateTime = (localDateTime) => {
+  if (!localDateTime) return new Date().toISOString();
+  // Input datetime-local đã ở múi giờ địa phương, chỉ cần convert sang ISO
+  return new Date(localDateTime).toISOString();
+};
+
 // Helper function để tạo Google Maps URL
 const generateMapsUrl = (address, locationName) => {
   if (!address && !locationName) return null;
@@ -117,13 +134,11 @@ const Calendar = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    startDate: new Date().toISOString().slice(0, 16), // datetime-local
-    endDate: new Date().toISOString().slice(0, 16),
+    startDate: toLocalDateTime(new Date()), // Use local datetime
+    endDate: toLocalDateTime(new Date()),
     type: 'offline',
     locationName: '',
     address: '',
-    // onlineUrl: '',
-    // meetingCode: '',
     status: 'scheduled',
     participantEmails: '', // Email string separated by commas
     allDay: false,
@@ -205,7 +220,9 @@ const Calendar = () => {
 
       try {
         setIsLoading(true);
-        const response = await axios.get(
+
+        // Fetch events từ lịch của mình
+        const ownEventsResponse = await axios.get(
           `${apiBaseUrl}/calendar/${
             calendarUser._id
           }/events?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
@@ -213,49 +230,71 @@ const Calendar = () => {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
         );
-        console.log('Fetch events response:', response.data);
-        if (response.data.status === 200) {
-          console.log('Fetched events oke:', response.data.data);
-          const formattedEvents = response.data.data.map((event) => ({
-            id: event.id,
-            title: event.title,
-            // start: new Date(event.start).toLocaleString('en-US', {
-            //   timeZone: 'Asia/Ho_Chi_Minh',
-            // }),
-            // end: event.end
-            //   ? new Date(event.end).toLocaleString('en-US', {
-            //       timeZone: 'Asia/Ho_Chi_Minh',
-            //     })
-            //   : null,
-            start: new Date(event.start),
-            end: event.end ? new Date(event.end) : null,
-            allDay: event.allDay || false,
-            backgroundColor:
-              eventTypes[event.extendedProps.type]?.color || '#4CAF50',
-            borderColor:
-              eventTypes[event.extendedProps.type]?.color || '#4CAF50',
-            textColor: '#ffffff',
-            extendedProps: {
-              description: event.extendedProps.description,
-              locationName: event.extendedProps.locationName,
-              address: event.extendedProps.address,
-              type: event.extendedProps.type,
-              onlineUrl: event.extendedProps.onlineUrl,
-              meetingCode: event.extendedProps.meetingCode,
-              organizer: event.extendedProps.organizer,
-              participants: event.extendedProps.participants,
-              status: event.extendedProps.status,
-              rrule: event.extendedProps.rrule,
-            },
-          }));
-          console.log('formattedEvents', formattedEvents);
-          setEvents(formattedEvents);
-        }
-        // else {
-        //   setEvents([]);
-        //   setFilteredEvents([]);
-        //   toast.error('Không thể tải danh sách sự kiện');
-        // }
+
+        // Fetch events mà mình đã tham gia từ lịch của người khác
+        const participatedEventsResponse = await axios.get(
+          `${apiBaseUrl}/event/participated?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        console.log('Own events response:', ownEventsResponse.data);
+        console.log(
+          'Participated events response:',
+          participatedEventsResponse.data
+        );
+
+        const ownEvents =
+          ownEventsResponse.data.status === 200
+            ? ownEventsResponse.data.data
+            : [];
+        const participatedEvents =
+          participatedEventsResponse.data.status === 200
+            ? participatedEventsResponse.data.data
+            : [];
+
+        // Format own events
+        const formattedOwnEvents = ownEvents.map((event) => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: event.end ? new Date(event.end) : null,
+          allDay: event.allDay || false,
+          backgroundColor:
+            eventTypes[event.extendedProps.type]?.color || '#4CAF50',
+          borderColor: eventTypes[event.extendedProps.type]?.color || '#4CAF50',
+          textColor: '#ffffff',
+          extendedProps: {
+            ...event.extendedProps,
+            isOwn: true, // Đánh dấu là sự kiện của mình
+          },
+        }));
+
+        // Format participated events
+        const formattedParticipatedEvents = participatedEvents.map((event) => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: event.end ? new Date(event.end) : null,
+          allDay: event.allDay || false,
+          backgroundColor: event.backgroundColor || '#6c757d',
+          borderColor: event.borderColor || '#6c757d',
+          textColor: '#ffffff',
+          extendedProps: {
+            ...event.extendedProps,
+            isOwn: false, // Đánh dấu là sự kiện tham gia
+          },
+        }));
+
+        // Merge cả 2 loại events
+        const allEvents = [
+          ...formattedOwnEvents,
+          ...formattedParticipatedEvents,
+        ];
+
+        console.log('All merged events:', allEvents);
+        setEvents(allEvents);
       } catch (error) {
         console.error(
           'Lỗi lấy sự kiện:',
@@ -274,6 +313,22 @@ const Calendar = () => {
   useEffect(() => {
     console.log('Events fetched:', events);
   }, [events]);
+
+  // Lắng nghe event update từ notifications
+  useEffect(() => {
+    const handleEventUpdated = (e) => {
+      console.log('Event updated, refreshing calendar:', e.detail.eventId);
+      // Refresh events khi có sự kiện được cập nhật
+      if (dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+      }
+    };
+
+    window.addEventListener('eventUpdated', handleEventUpdated);
+    return () => {
+      window.removeEventListener('eventUpdated', handleEventUpdated);
+    };
+  }, [debouncedFetchEvents, dateRange, searchTerm]);
 
   // Đồng bộ filteredEvents với events
   useEffect(() => {
@@ -339,7 +394,7 @@ const Calendar = () => {
   const handleDateClick = useCallback(
     (arg) => {
       const clickedDate = new Date(arg.dateStr);
-      const dateStr = clickedDate.toISOString().slice(0, 16);
+      const localDateStr = toLocalDateTime(clickedDate);
 
       // Cập nhật ngày được chọn
       setSelectedDate(clickedDate);
@@ -347,8 +402,8 @@ const Calendar = () => {
       // Cập nhật form data cho việc tạo sự kiện mới
       setFormData((prev) => ({
         ...prev,
-        startDate: dateStr,
-        endDate: dateStr,
+        startDate: localDateStr,
+        endDate: localDateStr,
       }));
 
       console.log('Date clicked:', clickedDate.toDateString());
@@ -453,17 +508,15 @@ const Calendar = () => {
 
   // Xử lý mở form tạo sự kiện
   const handleCreateClick = useCallback(() => {
-    const dateStr = selectedDate.toISOString().slice(0, 16);
+    const localDateStr = toLocalDateTime(selectedDate);
     setFormData({
       title: '',
       description: '',
-      startDate: dateStr,
-      endDate: dateStr,
+      startDate: localDateStr,
+      endDate: localDateStr,
       type: 'offline',
       locationName: '',
       address: '',
-      // onlineUrl: '',
-      // meetingCode: '',
       status: 'scheduled',
       participantEmails: '',
       allDay: false,
@@ -478,25 +531,18 @@ const Calendar = () => {
     setEditFormData({
       title: selectedEvent.title,
       description: selectedEvent.description || '',
-      startDate: selectedEvent.start.toISOString().slice(0, 16),
+      startDate: toLocalDateTime(selectedEvent.start),
       endDate: selectedEvent.end
-        ? selectedEvent.end.toISOString().slice(0, 16)
-        : selectedEvent.start.toISOString().slice(0, 16),
+        ? toLocalDateTime(selectedEvent.end)
+        : toLocalDateTime(selectedEvent.start),
       type: selectedEvent.type || 'offline',
       locationName: selectedEvent.locationName || '',
       address:
         typeof selectedEvent.address === 'string'
           ? selectedEvent.address
           : selectedEvent.address?.formattedAddress || '',
-      // onlineUrl: selectedEvent.onlineUrl || '',
-      // meetingCode: selectedEvent.meetingCode || '',
       status: selectedEvent.status || 'scheduled',
-      participantEmails: selectedEvent.participants
-        ? selectedEvent.participants
-            .map((p) => p.email || '')
-            .filter((email) => email)
-            .join(', ')
-        : '',
+      participantEmails: '', // Clear field khi edit để tránh việc tự động mời lại organizer
       allDay: selectedEvent.allDay || false,
       recurrence: selectedEvent.recurrence || '',
     });
@@ -527,15 +573,13 @@ const Calendar = () => {
           calendarId: calendarUser._id,
           title: formData.title,
           description: formData.description || undefined,
-          startDate: toISODateTime(formData.startDate),
-          endDate: toISODateTime(formData.endDate),
+          startDate: fromLocalDateTime(formData.startDate),
+          endDate: fromLocalDateTime(formData.endDate),
           type: formData.type,
           organizer: userDataLocal._id,
           locationName: formData.locationName || undefined,
           address: formData.address || undefined,
-          // onlineUrl: formData.onlineUrl || undefined,
-          // meetingCode: formData.meetingCode || undefined,
-          status: 'scheduled' /* formData.status */,
+          status: 'scheduled',
           participantEmails: formData.participantEmails
             ? formData.participantEmails
                 .split(',')
@@ -563,13 +607,11 @@ const Calendar = () => {
           setFormData({
             title: '',
             description: '',
-            startDate: new Date().toISOString().slice(0, 16),
-            endDate: new Date().toISOString().slice(0, 16),
+            startDate: toLocalDateTime(new Date()),
+            endDate: toLocalDateTime(new Date()),
             type: 'offline',
             locationName: '',
             address: '',
-            // onlineUrl: '',
-            // meetingCode: '',
             status: 'scheduled',
             participantEmails: '',
             allDay: false,
@@ -616,17 +658,14 @@ const Calendar = () => {
       }
 
       try {
+        // Chỉ gửi những field đã được thay đổi
         const payload = {
           title: editFormData.title,
           description: editFormData.description || undefined,
-          startDate: toISODateTime(editFormData.startDate),
-          endDate: toISODateTime(editFormData.endDate),
           type: editFormData.type,
           locationName: editFormData.locationName || undefined,
           address: editFormData.address || undefined,
-          // onlineUrl: editFormData.onlineUrl || undefined,
-          // meetingCode: editFormData.meetingCode || undefined,
-          status: 'scheduled' /* editFormData.status */,
+          status: 'scheduled',
           participantEmails: editFormData.participantEmails
             ? editFormData.participantEmails
                 .split(',')
@@ -638,6 +677,20 @@ const Calendar = () => {
             ? { type: editFormData.recurrence, interval: 1 }
             : undefined,
         };
+
+        // Chỉ thêm startDate và endDate nếu chúng đã được thay đổi
+        const originalStartDate = toLocalDateTime(selectedEvent.start);
+        const originalEndDate = selectedEvent.end
+          ? toLocalDateTime(selectedEvent.end)
+          : toLocalDateTime(selectedEvent.start);
+
+        if (editFormData.startDate !== originalStartDate) {
+          payload.startDate = fromLocalDateTime(editFormData.startDate);
+        }
+
+        if (editFormData.endDate !== originalEndDate) {
+          payload.endDate = fromLocalDateTime(editFormData.endDate);
+        }
 
         const response = await axios.patch(
           `${apiBaseUrl}/event/${selectedEvent.id}`,
@@ -731,7 +784,11 @@ const Calendar = () => {
 
   // Kiểm tra quyền chỉnh sửa sự kiện
   const canModifyEvent = useCallback(
-    (event) => event?.organizer?.userId === userDataLocal?._id,
+    (event) => {
+      console.log('event edit?', event);
+      // Chỉ có thể chỉnh sửa nếu là organizer của sự kiện
+      return event?.organizer?.userId === userDataLocal?._id;
+    },
     [userDataLocal]
   );
 
@@ -904,6 +961,11 @@ const Calendar = () => {
                                 {eventTypes[event.extendedProps.type]?.icon}{' '}
                                 {eventTypes[event.extendedProps.type]?.label}
                               </div>
+                              {!event.extendedProps.isOwn && (
+                                <div className='event-participated-badge'>
+                                  👥 Tham gia
+                                </div>
+                              )}
                             </div>
                           </div>
                           {event.extendedProps.description && (
@@ -1038,9 +1100,25 @@ const Calendar = () => {
                   <div className='event-info'>
                     <p>
                       <FaCalendarAlt className='ms-1 me-2' />
-                      Thời gian: {formatEventDate(selectedEvent.start)}
-                      {selectedEvent.end &&
-                        ` đến ${formatEventDate(selectedEvent.end)}`}
+                      Thời gian:{' '}
+                      {selectedEvent.allDay ? (
+                        <>
+                          {new Intl.DateTimeFormat('vi-VN', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            timeZone: 'Asia/Ho_Chi_Minh',
+                          }).format(selectedEvent.start)}{' '}
+                          <span className=''>(cả ngày)</span>
+                        </>
+                      ) : (
+                        <>
+                          {formatEventDate(selectedEvent.start)}
+                          {selectedEvent.end &&
+                            ` đến ${formatEventDate(selectedEvent.end)}`}
+                        </>
+                      )}
                     </p>
                     {selectedEvent.locationName && (
                       <p>
@@ -1072,6 +1150,8 @@ const Calendar = () => {
                             href={selectedEvent?.onlineUrl}
                             target='_blank'
                             rel='noopener noreferrer'
+                            className='event-open-meeting-button'
+                            title='Mở link sự kiện'
                           >
                             Tham gia
                           </a>
@@ -1094,20 +1174,15 @@ const Calendar = () => {
                       Người tạo:{' '}
                       {selectedEvent?.organizer.username || 'Không xác định'}
                     </p>
-                    {selectedEvent.participants?.length > 0 && (
+                    {selectedEvent.participants?.filter(
+                      (p) => p.status === 'accepted'
+                    ).length > 0 && (
                       <p>
                         <span className='ms-1 me-2'>👥</span>
                         Người tham gia:{' '}
                         {selectedEvent.participants
-                          .map((p) => {
-                            return `${p.email} (${
-                              p.status === 'pending'
-                                ? 'Chờ phản hồi'
-                                : p.status === 'accepted'
-                                ? 'Đã xác nhận'
-                                : 'Từ chối'
-                            })`;
-                          })
+                          .filter((p) => p.status === 'accepted')
+                          .map((p) => p.email || p.name || 'Người dùng')
                           .join(', ')}
                       </p>
                     )}
@@ -1622,6 +1697,7 @@ const Calendar = () => {
                 <Form.Text className='text-muted'>
                   Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự động
                   tìm kiếm và gửi lời mời cho những người dùng có email hợp lệ.
+                  Bạn có thể mời lại những người đã từ chối trước đó.
                 </Form.Text>
               </Form.Group>
               <div className='d-flex justify-content-end gap-2'>

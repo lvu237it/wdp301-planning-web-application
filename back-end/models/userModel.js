@@ -5,6 +5,9 @@ const bcrypt = require('bcryptjs');
 // Quản lý thông tin người dùng
 const userSchema = new mongoose.Schema(
   {
+    fullname: {
+      type: String,
+    },
     username: {
       type: String,
       required: true,

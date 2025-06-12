@@ -1,4 +1,6 @@
 const { Server } = require('socket.io');
+const Membership = require('../models/memberShipModel');
+const BoardMembership = require('../models/boardMembershipModel');
 
 let io;
 
@@ -38,25 +40,103 @@ function initSocket(server) {
         return;
       }
       socket.join(userId);
-      console.log(`User ${userId} joined room ${userId}`);
+      console.log(`User ${userId} joined personal room ${userId}`);
 
       try {
-        const groups = await poolQuery(
-          `SELECT "groupId" FROM "users_groups" WHERE "userId" = $1`,
-          [userId]
-        );
-        const groupIds = groups.map((g) => g.groupId);
-        // join user vào các room của các group thuộc về user đó
-        groupIds.forEach((groupId) => {
-          socket.join(`group_${groupId}`);
-          console.log(`User ${userId} joined room group_${groupId}`);
+        // Join user vào các workspace rooms mà họ đã tham gia
+        const workspaceMemberships = await Membership.find({
+          userId: userId,
+          isDeleted: false,
+          invitationStatus: 'accepted', // Chỉ những workspace đã chấp nhận
+        }).populate('workspaceId', '_id name');
+
+        const workspaceIds = workspaceMemberships
+          .filter(
+            (membership) =>
+              membership.workspaceId && !membership.workspaceId.isDeleted
+          )
+          .map((membership) => membership.workspaceId._id.toString());
+
+        // Join user vào các workspace rooms
+        workspaceIds.forEach((workspaceId) => {
+          socket.join(`workspace_${workspaceId}`);
+          console.log(
+            `User ${userId} joined workspace room workspace_${workspaceId}`
+          );
         });
+
+        // Join user vào các board rooms mà họ đã tham gia
+        const boardMemberships = await BoardMembership.find({
+          userId: userId,
+          isDeleted: false,
+          applicationStatus: 'accepted', // Chỉ những board đã được chấp nhận
+        }).populate('boardId', '_id name workspaceId');
+
+        const boardIds = boardMemberships
+          .filter(
+            (membership) => membership.boardId && !membership.boardId.isDeleted
+          )
+          .map((membership) => membership.boardId._id.toString());
+
+        // Join user vào các board rooms
+        boardIds.forEach((boardId) => {
+          socket.join(`board_${boardId}`);
+          console.log(`User ${userId} joined board room board_${boardId}`);
+        });
+
+        console.log(
+          `User ${userId} successfully joined ${workspaceIds.length} workspace rooms and ${boardIds.length} board rooms`
+        );
       } catch (error) {
         console.error(
-          `Error joining group rooms for user ${userId}:`,
+          `Error joining workspace/board rooms for user ${userId}:`,
           error.message
         );
       }
+    });
+
+    // Event handler cho việc join workspace mới
+    socket.on('join_workspace', ({ userId, workspaceId }) => {
+      if (!userId || !workspaceId) {
+        console.warn('Invalid userId or workspaceId for join_workspace');
+        return;
+      }
+      socket.join(`workspace_${workspaceId}`);
+      console.log(
+        `User ${userId} joined new workspace room workspace_${workspaceId}`
+      );
+    });
+
+    // Event handler cho việc leave workspace
+    socket.on('leave_workspace', ({ userId, workspaceId }) => {
+      if (!userId || !workspaceId) {
+        console.warn('Invalid userId or workspaceId for leave_workspace');
+        return;
+      }
+      socket.leave(`workspace_${workspaceId}`);
+      console.log(
+        `User ${userId} left workspace room workspace_${workspaceId}`
+      );
+    });
+
+    // Event handler cho việc join board mới
+    socket.on('join_board', ({ userId, boardId }) => {
+      if (!userId || !boardId) {
+        console.warn('Invalid userId or boardId for join_board');
+        return;
+      }
+      socket.join(`board_${boardId}`);
+      console.log(`User ${userId} joined new board room board_${boardId}`);
+    });
+
+    // Event handler cho việc leave board
+    socket.on('leave_board', ({ userId, boardId }) => {
+      if (!userId || !boardId) {
+        console.warn('Invalid userId or boardId for leave_board');
+        return;
+      }
+      socket.leave(`board_${boardId}`);
+      console.log(`User ${userId} left board room board_${boardId}`);
     });
 
     socket.on('disconnect', () => {
@@ -74,4 +154,38 @@ function getIO() {
   return io;
 }
 
-module.exports = { initSocket, getIO };
+// Utility functions để emit events tới các room khác nhau
+function emitToUser(userId, event, data) {
+  if (!io) {
+    console.warn('Socket.io not initialized, cannot emit to user');
+    return;
+  }
+  io.to(userId).emit(event, data);
+  console.log(`Emitted ${event} to user ${userId}`);
+}
+
+function emitToWorkspace(workspaceId, event, data) {
+  if (!io) {
+    console.warn('Socket.io not initialized, cannot emit to workspace');
+    return;
+  }
+  io.to(`workspace_${workspaceId}`).emit(event, data);
+  console.log(`Emitted ${event} to workspace workspace_${workspaceId}`);
+}
+
+function emitToBoard(boardId, event, data) {
+  if (!io) {
+    console.warn('Socket.io not initialized, cannot emit to board');
+    return;
+  }
+  io.to(`board_${boardId}`).emit(event, data);
+  console.log(`Emitted ${event} to board board_${boardId}`);
+}
+
+module.exports = {
+  initSocket,
+  getIO,
+  emitToUser,
+  emitToWorkspace,
+  emitToBoard,
+};

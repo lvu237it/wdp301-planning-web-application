@@ -32,7 +32,18 @@ const processAddressData = async (locationName, addressInput, type) => {
   }
 
   // Kết hợp locationName và address thành full address string
-  const fullAddress = [locationName, addressInput].filter(Boolean).join(', ');
+  // Tránh duplicate nếu addressInput đã chứa locationName
+  let fullAddress = '';
+  if (locationName && addressInput) {
+    // Kiểm tra xem addressInput đã chứa locationName chưa
+    if (addressInput.toLowerCase().includes(locationName.toLowerCase())) {
+      fullAddress = addressInput; // Chỉ dùng addressInput nếu đã chứa locationName
+    } else {
+      fullAddress = [locationName, addressInput].join(', '); // Gộp bình thường
+    }
+  } else {
+    fullAddress = [locationName, addressInput].filter(Boolean).join(', ');
+  }
 
   console.log('Processing address:', fullAddress);
 
@@ -559,7 +570,7 @@ exports.createEventForCalendar = async (req, res) => {
             title: 'Lời mời tham gia sự kiện',
             content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${
               organizerUser.username || organizerUser.email
-            }. Thời gian: ${formattedEventStartDate}`,
+            }.`,
             type: 'event_invitation',
             targetUserId: participant.userId,
             createdBy: organizer,
@@ -783,6 +794,114 @@ exports.getAllEvents = async (req, res) => {
   }
 };
 
+// Lấy tất cả sự kiện mà user đã chấp nhận tham gia từ lịch của người khác
+exports.getParticipatedEvents = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { startDate, endDate } = req.query;
+
+    // Build query để tìm events mà user tham gia với status 'accepted'
+    const query = {
+      participants: {
+        $elemMatch: {
+          userId: userId,
+          status: 'accepted',
+        },
+      },
+      isDeleted: false,
+    };
+
+    // Lọc theo khoảng thời gian nếu có
+    if (startDate && endDate) {
+      query.startDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    const events = await Event.find(query)
+      .populate('participants.userId', 'name email username')
+      .populate('organizer', 'name email username')
+      .populate('calendarId', 'name color ownerId')
+      .populate('workspaceId', 'name')
+      .populate('boardId', 'name')
+      .select('-isDeleted -deletedAt');
+
+    // Lọc ra những sự kiện không thuộc về lịch của chính user này
+    const participatedEvents = events.filter(
+      (event) => event.calendarId?.ownerId.toString() !== userId.toString()
+    );
+
+    // Format cho FullCalendar
+    const fullCalendarEvents = participatedEvents.map((event) => {
+      // Tìm organizer info
+      const organizerParticipant = event.participants.find(
+        (p) => p.userId._id.toString() === event.organizer._id.toString()
+      );
+
+      return {
+        id: event._id.toString(),
+        title: `[Tham gia] ${event.title}`, // Thêm prefix để phân biệt
+        start: event.startDate,
+        end: event.endDate,
+        allDay: event.allDay || false,
+        backgroundColor: event.color || event.calendarId.color || '#6c757d',
+        borderColor: event.color || event.calendarId.color || '#6c757d',
+        textColor: '#ffffff',
+        extendedProps: {
+          description: event.description,
+          locationName: event.locationName,
+          address: event.address,
+          type: event.type,
+          onlineUrl: event.onlineUrl,
+          meetingCode: event.meetingCode,
+          timeZone: event.timeZone,
+          organizer: {
+            userId: event.organizer._id,
+            username: event.organizer.username || event.organizer.name,
+            email: event.organizer.email,
+          },
+          participants: event.participants.map((p) => ({
+            userId: p.userId._id,
+            name: p.userId.name || p.userId.username,
+            email: p.userId.email,
+            status: p.status,
+          })),
+          calendar: {
+            id: event.calendarId._id,
+            name: event.calendarId.name,
+            color: event.calendarId.color,
+            isOwn: false, // Đánh dấu đây không phải lịch của mình
+          },
+          workspace: event.workspaceId
+            ? { id: event.workspaceId._id, name: event.workspaceId.name }
+            : null,
+          board: event.boardId
+            ? { id: event.boardId._id, name: event.boardId.name }
+            : null,
+          status: event.status,
+          rrule: event.recurrence
+            ? convertToRRule(event.recurrence)
+            : undefined,
+        },
+      };
+    });
+
+    res.status(200).json({
+      message: 'Lấy danh sách sự kiện tham gia thành công',
+      status: 200,
+      data: fullCalendarEvents,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách sự kiện tham gia:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -792,8 +911,6 @@ exports.updateEvent = async (req, res) => {
       locationName,
       address,
       type,
-      onlineUrl,
-      meetingCode,
       startDate,
       endDate,
       allDay,
@@ -831,21 +948,47 @@ exports.updateEvent = async (req, res) => {
     console.log('type onlineofline', type);
     //Nếu sự kiện online thì có thể cập nhật onlineUrl hoặc meetingCode
     if (type === 'online') {
-      if (!onlineUrl && !meetingCode) {
-        return res.status(400).json({
-          message: 'Thiếu onlineUrl hoặc meetingCode cho sự kiện trực tuyến',
-          status: 400,
-        });
-      }
+      // if (!onlineUrl && !meetingCode) {
+      //   return res.status(400).json({
+      //     message: 'Thiếu onlineUrl hoặc meetingCode cho sự kiện trực tuyến',
+      //     status: 400,
+      //   });
+      // }
       event.type = 'online'; // Đặt type là online
-      if (onlineUrl) {
-        event.onlineUrl = onlineUrl;
-      }
-      if (meetingCode) {
-        event.meetingCode = meetingCode;
-      }
+      // if (onlineUrl) {
+      //   event.onlineUrl = onlineUrl;
+      // }
+      // if (meetingCode) {
+      //   event.meetingCode = meetingCode;
+      // }
       event.address = null; // Đặt address là null nếu là sự kiện online
       event.locationName = null; // Đặt locationName là null nếu là sự kiện online
+
+      //Nếu sự kiện online nhưng chưa có onlineUrl thì cần tạo một Meet link mới
+      if (!event.onlineUrl) {
+        try {
+          const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
+          if (!meetUrl) {
+            console.warn(
+              'Không thể tạo Meet link, tiếp tục cập nhật event mà không có link'
+            );
+          } else {
+            event.onlineUrl = meetUrl;
+            console.log('Meeting updated:', meetUrl);
+          }
+        } catch (meetError) {
+          console.error('Lỗi khi tạo Meet space:', meetError.message);
+          // Nếu là lỗi authentication, ném lỗi để user phải auth lại
+          if (meetError.statusCode === 401) {
+            throw meetError;
+          }
+          // Với các lỗi khác, vẫn cập nhật event nhưng thông báo warning
+          console.warn(
+            'Cập nhật event mà không có Meet link do lỗi:',
+            meetError.message
+          );
+        }
+      }
     } else if (type === 'offline') {
       //Nếu sự kiện offline thì có thể cập nhật address, locationName
       if (!address && !locationName) {
@@ -857,16 +1000,28 @@ exports.updateEvent = async (req, res) => {
 
       event.type = 'offline';
 
-      // Xử lý địa chỉ và geocoding
-      const processedAddress = await processAddressData(
-        locationName,
-        address,
-        'offline'
-      );
+      // Chỉ xử lý address mới nếu thực sự có thay đổi
+      // So sánh với dữ liệu hiện tại để tránh duplicate
+      const currentLocationName = event.locationName || '';
+      const currentFormattedAddress = event.address?.formattedAddress || '';
 
-      event.address = processedAddress;
+      const hasLocationNameChanged = locationName !== currentLocationName;
+      const hasAddressChanged = address !== currentFormattedAddress;
+
+      if (hasLocationNameChanged || hasAddressChanged) {
+        // Chỉ khi có thay đổi thực sự mới gọi processAddressData
+        const processedAddress = await processAddressData(
+          locationName,
+          address,
+          'offline'
+        );
+        event.address = processedAddress;
+      }
+
+      // Cập nhật locationName
       event.locationName = locationName || event.locationName;
       event.onlineUrl = null; // Đặt onlineUrl là null nếu là sự kiện offline
+      event.meetingCode = null; // Đặt meetingCode là null nếu là sự kiện offline
     } else {
       return res.status(400).json({
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
@@ -874,25 +1029,52 @@ exports.updateEvent = async (req, res) => {
       });
     }
 
-    if (allDay === false && startDate && endDate) {
-      // Kiểm tra thời gian bắt đầu và kết thúc
+    // Chỉ cập nhật startDate và endDate nếu chúng được gửi trong request
+    if (startDate !== undefined) {
       const start = new Date(startDate);
+
+      // Kiểm tra thời gian bắt đầu và kết thúc nếu không phải sự kiện cả ngày
+      if (allDay === false && endDate !== undefined) {
+        const end = new Date(endDate);
+        if (start >= end) {
+          return res.status(400).json({
+            message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+            status: 400,
+          });
+        }
+        event.endDate = end;
+      } else if (allDay === false && endDate === undefined) {
+        // Nếu chỉ có startDate mà không có endDate, kiểm tra với endDate hiện tại
+        if (start >= event.endDate) {
+          return res.status(400).json({
+            message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+            status: 400,
+          });
+        }
+      }
+
+      event.startDate = start;
+    }
+
+    if (endDate !== undefined && startDate === undefined) {
       const end = new Date(endDate);
-      if (start >= end) {
+
+      // Nếu chỉ có endDate mà không có startDate, kiểm tra với startDate hiện tại
+      if (allDay === false && event.startDate >= end) {
         return res.status(400).json({
           message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
           status: 400,
         });
       }
 
-      event.startDate = start || event.startDate;
-      event.endDate = end || event.endDate;
+      event.endDate = end;
     }
     // Cập nhật các trường khác
     event.title = title || event.title;
-    event.description = description || event.description;
-    event.allDay = allDay || event.allDay;
-    event.recurrence = recurrence || event.recurrence;
+    event.description =
+      description !== undefined ? description : event.description;
+    event.allDay = allDay !== undefined ? allDay : event.allDay;
+    event.recurrence = recurrence !== undefined ? recurrence : event.recurrence;
     event.reminderSettings = reminderSettings || event.reminderSettings;
     event.status = status || event.status;
     event.category = category || event.category;
@@ -954,73 +1136,114 @@ exports.updateEvent = async (req, res) => {
         });
       }
 
-      // Update participants - keep organizer, update others
+      // Lưu trữ participants cũ để so sánh và theo dõi thay đổi
+      const oldParticipants = [...event.participants];
       const organizerParticipant = event.participants.find(
         (p) => p.userId.toString() === req.user._id.toString()
       );
-      const newParticipants = users.map((user) => ({
-        userId: user._id,
-        status: 'pending',
-      }));
 
-      // Lưu trữ participants cũ để so sánh
-      const oldParticipantIds = event.participants.map((p) =>
-        p.userId.toString()
-      );
+      // Xử lý participants mới: cho phép mời lại những người đã từ chối
+      const processedParticipants = [organizerParticipant].filter(Boolean);
+      const newlyInvitedIds = [];
+      const reinvitedIds = [];
 
-      event.participants = [organizerParticipant, ...newParticipants].filter(
-        Boolean
-      );
+      for (const user of users) {
+        const existingParticipant = event.participants.find(
+          (p) => p.userId.toString() === user._id.toString()
+        );
 
-      // Tìm những participant mới được thêm vào
-      const newParticipantIds = newParticipants.map((p) => p.userId.toString());
-      const addedParticipantIds = newParticipantIds.filter(
-        (id) => !oldParticipantIds.includes(id)
-      );
-
-      // Gửi thông báo cho những người mới được mời
-      if (addedParticipantIds.length > 0) {
-        const updatedEvent = await event.save();
-
-        try {
-          const organizerUser = await User.findById(
-            req.user._id,
-            'username email'
-          );
-          const formattedEventStartDate = formatDateToTimeZone(
-            updatedEvent.startDate,
-            updatedEvent.timeZone
-          );
-
-          // Gửi thông báo cho từng participant mới
-          for (const participantId of addedParticipantIds) {
-            await NotificationService.createPersonalNotification({
-              title: 'Lời mời tham gia sự kiện',
-              content: `Bạn được mời tham gia sự kiện "${
-                updatedEvent.title
-              }" bởi ${
-                organizerUser.username || organizerUser.email
-              }. Thời gian: ${formattedEventStartDate}`,
-              type: 'event_invitation',
-              targetUserId: participantId,
-              createdBy: req.user._id,
-              relatedUserId: req.user._id,
-              eventId: updatedEvent._id,
-            });
+        if (existingParticipant) {
+          // Người dùng đã tồn tại trong danh sách participants
+          if (existingParticipant.status === 'declined') {
+            // Nếu đã từ chối trước đó, cập nhật thành pending để mời lại
+            existingParticipant.status = 'pending';
+            reinvitedIds.push(user._id.toString());
+            console.log(
+              `Mời lại người dùng ${user.email} (từ declined -> pending)`
+            );
+          } else if (existingParticipant.status === 'accepted') {
+            // Nếu đã chấp nhận, giữ nguyên status
+            console.log(
+              `Người dùng ${user.email} đã chấp nhận, giữ nguyên status`
+            );
+          } else if (existingParticipant.status === 'pending') {
+            // Nếu đang pending, giữ nguyên
+            console.log(
+              `Người dùng ${user.email} đang pending, giữ nguyên status`
+            );
           }
+          processedParticipants.push(existingParticipant);
+        } else {
+          // Người dùng mới, thêm với status pending
+          const newParticipant = {
+            userId: user._id,
+            status: 'pending',
+          };
+          processedParticipants.push(newParticipant);
+          newlyInvitedIds.push(user._id.toString());
+          console.log(`Mời mới người dùng ${user.email}`);
+        }
+      }
 
-          console.log(
-            `Đã gửi thông báo mời tham gia sự kiện (cập nhật) cho ${addedParticipantIds.length} người`
-          );
-        } catch (notificationError) {
+      // Cập nhật danh sách participants
+      event.participants = processedParticipants;
+
+      // Gửi thông báo cho những người mới được mời và những người được mời lại (nhưng không return sớm)
+      const notificationTargetIds = [...newlyInvitedIds, ...reinvitedIds];
+
+      if (notificationTargetIds.length > 0) {
+        // Ghi lịch sử sự kiện khi có thay đổi participants
+        try {
+          await EventHistory.create({
+            eventId: event._id,
+            action: 'update_participants',
+            participants: event.participants.map((p) => ({
+              userId: p.userId,
+              status: p.status,
+            })),
+          });
+        } catch (historyError) {
           console.error(
-            'Lỗi khi gửi thông báo mời tham gia sự kiện (cập nhật):',
-            notificationError
+            'Lỗi khi ghi lịch sử cập nhật participants:',
+            historyError
           );
-          // Không làm gián đoạn quá trình cập nhật event
         }
 
-        return updatedEvent;
+        // Gửi thông báo async sau khi save event (không chặn flow chính)
+        setImmediate(async () => {
+          try {
+            const organizerUser = await User.findById(
+              req.user._id,
+              'username email'
+            );
+
+            // Gửi thông báo cho từng participant
+            for (const participantId of notificationTargetIds) {
+              const notificationContent = `Bạn được mời tham gia sự kiện "${
+                event.title
+              }" bởi ${organizerUser.username || organizerUser.email}.`;
+
+              await NotificationService.createPersonalNotification({
+                title: 'Lời mời tham gia sự kiện',
+                content: notificationContent,
+                type: 'event_invitation',
+                targetUserId: participantId,
+                createdBy: req.user._id,
+                relatedUserId: req.user._id,
+                eventId: event._id,
+              });
+            }
+
+            console.log(
+              `Đã gửi thông báo mời tham gia sự kiện cho ${newlyInvitedIds.length} người mới và ${reinvitedIds.length} người được mời lại`
+            );
+          } catch (notificationError) {
+            console.error(
+              'Lỗi khi gửi thông báo mời tham gia sự kiện (cập nhật):',
+              notificationError
+            );
+          }
+        });
       }
     }
 
@@ -1043,6 +1266,7 @@ exports.updateEvent = async (req, res) => {
             address: updatedEvent.address,
             onlineUrl: updatedEvent.onlineUrl,
             timeZone: updatedEvent.timeZone,
+            participants: updatedEvent.participants,
           }
         );
         console.log('Event updated on Google Calendar successfully');
@@ -1051,7 +1275,40 @@ exports.updateEvent = async (req, res) => {
       }
     }
 
-    // Gửi thông báo cho những người đã tham gia trong sự kiện (chỉ những người là participants - đã accepted)
+    // Gửi thông báo real-time cho tất cả participants (trừ organizer)
+    try {
+      const organizerUser = await User.findById(req.user._id, 'username email');
+      const participantsToNotify = updatedEvent.participants.filter(
+        (p) =>
+          p.userId.toString() !== req.user._id.toString() &&
+          p.status === 'accepted'
+      );
+
+      if (participantsToNotify.length > 0) {
+        for (const participant of participantsToNotify) {
+          await NotificationService.createPersonalNotification({
+            title: 'Sự kiện đã được cập nhật',
+            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${
+              organizerUser.username || organizerUser.email
+            }.`,
+            type: 'event_update',
+            targetUserId: participant.userId,
+            createdBy: req.user._id,
+            relatedUserId: req.user._id,
+            eventId: updatedEvent._id,
+          });
+        }
+        console.log(
+          `Đã gửi thông báo cập nhật sự kiện cho ${participantsToNotify.length} người tham gia`
+        );
+      }
+    } catch (notificationError) {
+      console.error(
+        'Lỗi khi gửi thông báo cập nhật sự kiện:',
+        notificationError
+      );
+      // Không làm gián đoạn quá trình cập nhật event
+    }
 
     res.status(200).json({
       message: updatedEvent.googleEventId
@@ -1260,7 +1517,7 @@ exports.inviteToBecomeParticipant = async (req, res) => {
           title: 'Lời mời tham gia sự kiện',
           content: `Bạn được mời tham gia sự kiện "${event.title}" bởi ${
             organizerUser.username || organizerUser.email
-          }. Thời gian: ${formattedEventStartDate}`,
+          }.`,
           type: 'event_invitation',
           targetUserId: invitedUser._id,
           createdBy: req.user._id,
@@ -1389,12 +1646,10 @@ exports.updateParticipantStatus = async (req, res) => {
       }
 
       await NotificationService.createPersonalNotification({
-        title: 'Cập nhật trạng thái tham gia sự kiện',
+        title: 'Phản hồi lời mời tham gia sự kiện',
         content: `${
           participantUser.username || participantUser.email
-        } ${statusText} tham gia sự kiện "${
-          event.title
-        }". Thời gian: ${formattedEventStartDate}`,
+        } ${statusText} tham gia sự kiện "${event.title}".`,
         type: 'event_status_update',
         targetUserId: event.organizer,
         createdBy: req.user._id,

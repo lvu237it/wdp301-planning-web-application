@@ -9,13 +9,13 @@ const eventHistorySchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: [
-        'create_event',
-        'add_participant',
-        'remove_participant',
-        'update_participant_status',
-        'delete_event',
-      ],
+      // enum: [
+      //   'create_event',
+      //   'add_participant',
+      //   'remove_participant',
+      //   'update_participant_status',
+      //   'delete_event',
+      // ],
       required: true,
     },
     participants: [

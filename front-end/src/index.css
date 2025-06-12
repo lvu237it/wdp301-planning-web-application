@@ -201,18 +201,6 @@ body {
   z-index: 1050;
 }
 
-.notification-dropdown-menu::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  right: 70px;
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid white;
-}
-
 .notification-container {
   position: relative;
 }
@@ -690,7 +678,6 @@ body {
 .event-list {
   max-height: 500px;
   overflow-y: auto;
-  /* padding-right: 10px; */
 }
 
 .event-list::-webkit-scrollbar {
@@ -800,6 +787,63 @@ body {
   color: rgba(255, 255, 255, 0.7);
   font-style: italic;
   padding: 3rem;
+}
+
+/* Event participated badge */
+.event-participated-badge {
+  background: linear-gradient(135deg, #6c757d, #495057);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.event-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.event-type-badge {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.event-type-badge.event-type-online {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+}
+
+.event-type-badge.event-type-offline {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+}
+
+/* Button to open meeting */
+
+.event-open-meeting-button {
+  /* border px-2 py-1 rounded-2 border-light-subtle text-decoration-none text-white */
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s ease-in-out;
+}
+
+.event-open-meeting-button:hover {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease-in-out;
 }
 
 /* Event Type Colors */

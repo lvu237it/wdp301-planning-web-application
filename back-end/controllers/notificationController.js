@@ -3,6 +3,7 @@ const AppError = require('../utils/appError');
 const { formatDateToTimeZone } = require('../utils/dateUtils');
 const User = require('../models/userModel');
 const NotificationUser = require('../models/notificationUserModel');
+const Event = require('../models/eventModel');
 
 exports.getUserNotifications = async (req, res, next) => {
   try {
@@ -31,26 +32,54 @@ exports.getUserNotifications = async (req, res, next) => {
       .limit(parseInt(limit))
       .lean();
 
-    // Lọc và định dạng kết quả
-    const formattedNotifications = notifications
-      .filter((n) => n.notificationId) // Loại bỏ nếu notificationId không tồn tại
-      .map((n) => ({
-        notificationId: n.notificationId._id,
-        title: n.notificationId.title,
-        content: n.notificationId.content,
-        type: n.notificationId.type,
-        targetUserId: n.notificationId.targetUserId,
-        targetWorkspaceId: n.notificationId.targetWorkspaceId,
-        createdBy: n.notificationId.createdBy,
-        audienceType: n.notificationId.audienceType,
-        createdAt: n.notificationId.createdAt,
-        eventId: n.notificationId.eventId,
-        taskId: n.notificationId.taskId,
-        messageId: n.notificationId.messageId,
-        isRead: n.isRead,
-        readAt: n.readAt ? n.readAt : null,
-        relatedUserId: n.relatedUserId,
-      }));
+    // Lọc và định dạng kết quả, bao gồm cả participant status cho event invitations
+    const formattedNotifications = await Promise.all(
+      notifications
+        .filter((n) => n.notificationId) // Loại bỏ nếu notificationId không tồn tại
+        .map(async (n) => {
+          const baseNotification = {
+            notificationId: n.notificationId._id,
+            title: n.notificationId.title,
+            content: n.notificationId.content,
+            type: n.notificationId.type,
+            targetUserId: n.notificationId.targetUserId,
+            targetWorkspaceId: n.notificationId.targetWorkspaceId,
+            createdBy: n.notificationId.createdBy,
+            audienceType: n.notificationId.audienceType,
+            createdAt: n.notificationId.createdAt,
+            eventId: n.notificationId.eventId,
+            taskId: n.notificationId.taskId,
+            messageId: n.notificationId.messageId,
+            isRead: n.isRead,
+            readAt: n.readAt ? n.readAt : null,
+            relatedUserId: n.relatedUserId,
+          };
+
+          // Nếu là event invitation, lấy participant status từ Event
+          if (
+            n.notificationId.type === 'event_invitation' &&
+            n.notificationId.eventId
+          ) {
+            try {
+              const event = await Event.findById(n.notificationId.eventId);
+              if (event) {
+                const participant = event.participants.find(
+                  (p) => p.userId.toString() === userId.toString()
+                );
+                if (participant) {
+                  baseNotification.responseStatus = participant.status;
+                  baseNotification.responded = participant.status !== 'pending';
+                }
+              }
+            } catch (error) {
+              console.warn('Error fetching event participant status:', error);
+              // Tiếp tục mà không có responseStatus nếu có lỗi
+            }
+          }
+
+          return baseNotification;
+        })
+    );
 
     res.status(200).json({
       status: 'success',
