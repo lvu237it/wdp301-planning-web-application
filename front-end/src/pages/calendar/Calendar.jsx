@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Container,
   Row,
@@ -7,7 +7,6 @@ import {
   Button,
   Badge,
   Form,
-  ButtonGroup,
 } from 'react-bootstrap';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -17,43 +16,94 @@ import {
   FaArrowLeft,
   FaCalendarAlt,
   FaUser,
-  FaUsers,
-  FaCalendarCheck,
-  FaTimes,
-  FaPlus,
   FaEdit,
   FaTrash,
-  FaClock,
-  FaFilter,
-  FaSearch,
-  FaBell,
-  FaList,
-  FaCalendarWeek,
+  FaTimes,
+  FaPlus,
+  FaCalendarCheck,
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCommon } from '../../contexts/CommonContext';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
-// import { toZonedTime } from 'date-fns-tz';
+
+// Hàm chuyển đổi ngày giờ sang định dạng ISO cho backend
+const toISODateTime = (dateTime) => {
+  if (!dateTime) return new Date().toISOString();
+  return new Date(dateTime).toISOString();
+};
+
+// Helper function để tạo Google Maps URL
+const generateMapsUrl = (address, locationName) => {
+  if (!address && !locationName) return null;
+
+  // Nếu address là object với coordinates (từ geocoding)
+  if (
+    typeof address === 'object' &&
+    address?.coordinates &&
+    Array.isArray(address.coordinates)
+  ) {
+    const [lng, lat] = address.coordinates;
+    if (lat && lng) {
+      // Sử dụng place ID nếu có (chính xác nhất)
+      if (address.placeId) {
+        return `https://www.google.com/maps/place/?q=place_id:${address.placeId}`;
+      }
+      // Fallback về coordinates
+      return `https://www.google.com/maps?q=${lat},${lng}`;
+    }
+  }
+
+  // Fallback: search bằng địa chỉ text
+  const searchQuery = [
+    locationName,
+    typeof address === 'string' ? address : address?.formattedAddress,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  if (searchQuery) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      searchQuery
+    )}`;
+  }
+
+  return null;
+};
+
+// Helper function để safely extract address data
+const getAddressDisplay = (address) => {
+  if (!address) return '';
+
+  if (typeof address === 'string') {
+    return address;
+  }
+
+  if (typeof address === 'object') {
+    return address.formattedAddress || address.address || '';
+  }
+
+  return '';
+};
 
 const Calendar = () => {
   const {
     accessToken,
     apiBaseUrl,
     toast,
-    // subscriptionStatus,
-    // showFeatures,
-    // user,
-    // userGroups: contextUserGroups,
-    // fetchUserGroups,
     isMobile,
     isTablet,
     isDesktop,
     navigate,
     userDataLocal,
+    calendarUser,
+    getCalendarUser,
   } = useCommon();
 
-  // Enhanced state management
+  // Thêm ref cho FullCalendar
+  const calendarRef = useRef(null);
+
+  // State quản lý
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -62,565 +112,623 @@ const Calendar = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [calendarView, setCalendarView] = useState('timeGridDay');
+  const [calendarView, setCalendarView] = useState('dayGridMonth');
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
-    type: 'other',
-    groupId: null,
-    isLunar: false,
+    startDate: new Date().toISOString().slice(0, 16), // datetime-local
+    endDate: new Date().toISOString().slice(0, 16),
+    type: 'offline',
+    locationName: '',
+    address: '',
+    // onlineUrl: '',
+    // meetingCode: '',
+    status: 'scheduled',
+    participants: [], // [{ userId, status }]
+    allDay: false,
+    recurrence: '',
   });
   const [editFormData, setEditFormData] = useState({});
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
 
-  // Enhanced event types configuration
+  // Định nghĩa eventTypes
   const eventTypes = useMemo(
     () => ({
-      birthday: {
-        label: 'Sinh nhật',
-        color: '#FF6B9D',
-        gradientColor: 'linear-gradient(135deg, #FF6B9D, #C44569)',
-        icon: '🎂',
-        description: 'Ngày sinh nhật của thành viên gia đình',
+      online: {
+        label: 'Trực tuyến',
+        color: '#2196F3',
+        icon: '🌐',
+        description: 'Sự kiện diễn ra trực tuyến',
       },
-      death_anniversary: {
-        label: 'Ngày giỗ',
-        color: '#4ECDC4',
-        gradientColor: 'linear-gradient(135deg, #4ECDC4, #26A69A)',
-        icon: '🕯️',
-        description: 'Ngày tưởng niệm người thân',
-      },
-      meeting: {
-        label: 'Họp mặt',
-        color: '#45B7D1',
-        gradientColor: 'linear-gradient(135deg, #45B7D1, #2980B9)',
-        icon: '👥',
-        description: 'Cuộc họp gia đình hoặc gặp gỡ',
-      },
-      celebration: {
-        label: 'Lễ kỷ niệm',
-        color: '#F39C12',
-        gradientColor: 'linear-gradient(135deg, #F39C12, #E67E22)',
-        icon: '🎉',
-        description: 'Các dịp lễ và kỷ niệm đặc biệt',
-      },
-      other: {
-        label: 'Khác',
-        color: '#95A5A6',
-        gradientColor: 'linear-gradient(135deg, #95A5A6, #7F8C8D)',
-        icon: '📋',
-        description: 'Các sự kiện khác',
+      offline: {
+        label: 'Trực tiếp',
+        color: '#4CAF50',
+        icon: '📍',
+        description: 'Sự kiện tại địa điểm cụ thể',
       },
     }),
     []
   );
 
-  // Check premium access
-  // const hasPremiumAccess = useMemo(
-  //   () =>
-  //     subscriptionStatus?.role === 'admin' ||
-  //     subscriptionStatus?.type === 'premium' ||
-  //     subscriptionStatus?.type === 'standard' ||
-  //     (subscriptionStatus?.type !== 'free trial' &&
-  //       subscriptionStatus?.role !== 'user' &&
-  //       !subscriptionStatus?.isExpired),
-  //   [subscriptionStatus]
-  // );
+  // Định nghĩa statusOptions
+  const statusOptions = useMemo(
+    () => [
+      { value: 'draft', label: 'Nháp' },
+      { value: 'scheduled', label: 'Đã lên lịch' },
+      { value: 'completed', label: 'Hoàn thành' },
+      { value: 'cancelled', label: 'Đã hủy' },
+    ],
+    []
+  );
 
-  // Enhanced date formatting utilities
-  const convertVNDateToISO = useCallback((vnDate) => {
-    try {
-      const [day, month, year] = vnDate.split('-');
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    } catch (error) {
-      // console.error('Error converting date:', vnDate, error);
-      return new Date().toISOString().split('T')[0];
-    }
-  }, []);
+  // Định nghĩa recurrenceOptions
+  const recurrenceOptions = useMemo(
+    () => [
+      { value: 'custom', label: 'Không lặp lại' },
+      { value: 'daily', label: 'Hàng ngày' },
+      { value: 'weekly', label: 'Hàng tuần' },
+      { value: 'monthly', label: 'Hàng tháng' },
+      { value: 'yearly', label: 'Hàng năm' },
+    ],
+    []
+  );
 
-  const isValidDate = (d) => d instanceof Date && !isNaN(d);
-
+  // Hàm định dạng ngày giờ
   const formatEventDate = useCallback((date) => {
-    if (!isValidDate(date)) return '';
+    if (!(date instanceof Date) || isNaN(date)) return '';
     return new Intl.DateTimeFormat('vi-VN', {
       weekday: 'long',
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
-    }).format(date);
-  }, []);
-
-  // Format dạng Việt Nam có AM/PM
-  const formatEventDateAMPM = useCallback((date) => {
-    if (!isValidDate(date)) return '';
-    return new Intl.DateTimeFormat('vi-VN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: true,
       timeZone: 'Asia/Ho_Chi_Minh',
     }).format(date);
   }, []);
 
-  // Thêm hàm chuyển UTC ISO sang Date ở múi giờ VN
-  const toVietnamDate = useCallback((isoString) => {
-    if (!isoString) return null;
-    // Chỉ parse ISO string
-    return new Date(isoString);
-  }, []);
-
-  // Get event color based on type
-  const getEventColor = useCallback(
-    (type) => {
-      const baseColor = eventTypes[type]?.color || eventTypes.other.color;
-    },
-    [eventTypes]
-  );
-
-  // Enhanced debounced fetchEvents with filtering
+  // Lấy danh sách sự kiện
   const debouncedFetchEvents = useCallback(
-    debounce(async (searchQuery = '', filterParams = {}) => {
-      if (!accessToken) return;
+    debounce(async (start, end) => {
+      if (!accessToken || !calendarUser?._id || !start || !end) {
+        console.warn('Thiếu tham số để lấy sự kiện:', {
+          accessToken: !!accessToken,
+          calendarId: calendarUser?._id,
+          start,
+          end,
+        });
+        return;
+      }
 
       try {
         setIsLoading(true);
-        const params = new URLSearchParams();
-
-        if (searchQuery) params.append('search', searchQuery);
-        if (filterParams.type) params.append('type', filterParams.type);
-        if (filterParams.groupId)
-          params.append('groupId', filterParams.groupId);
-
         const response = await axios.get(
-          `${apiBaseUrl}/calendar/683e53ec9249b6bc0dbc3d32/events?startDate=2025-05-25T00:00:00Z&endDate=2025-07-01T23:59:59Z`
-          // {
-          //   headers: { Authorization: `Bearer ${accessToken}` },
-          // }
+          `${apiBaseUrl}/calendar/${
+            calendarUser._id
+          }/events?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
         );
-
-        if (response.data.status === 'success') {
+        console.log('Fetch events response:', response.data);
+        if (response.data.status === 200) {
+          console.log('Fetched events oke:', response.data.data);
           const formattedEvents = response.data.data.map((event) => ({
-            id: event.eventId,
+            id: event.id,
             title: event.title,
-            start: convertVNDateToISO(event.date),
-            description: event.description,
-            backgroundColor: getEventColor(event.type),
-            borderColor: getEventColor(event.type),
+            // start: new Date(event.start).toLocaleString('en-US', {
+            //   timeZone: 'Asia/Ho_Chi_Minh',
+            // }),
+            // end: event.end
+            //   ? new Date(event.end).toLocaleString('en-US', {
+            //       timeZone: 'Asia/Ho_Chi_Minh',
+            //     })
+            //   : null,
+            start: new Date(event.start),
+            end: event.end ? new Date(event.end) : null,
+            allDay: event.allDay || false,
+            backgroundColor:
+              eventTypes[event.extendedProps.type]?.color || '#4CAF50',
+            borderColor:
+              eventTypes[event.extendedProps.type]?.color || '#4CAF50',
             textColor: '#ffffff',
-            classNames: [`event-type-${event.type}`],
             extendedProps: {
-              description: event.description,
-              userId: event.userId,
-              groupId: event.groupId,
-              isLunar: event.isLunar,
-              createdAt: event.createdAt,
-              updatedAt: event.updatedAt,
-              createdByName: event.createdByName,
-              groupName: event.groupName,
-              type: event.type,
-              date: event.date,
-              lunarDate: event.lunarDate,
+              description: event.extendedProps.description,
+              locationName: event.extendedProps.locationName,
+              address: event.extendedProps.address,
+              type: event.extendedProps.type,
+              onlineUrl: event.extendedProps.onlineUrl,
+              meetingCode: event.extendedProps.meetingCode,
+              organizer: event.extendedProps.organizer,
+              participants: event.extendedProps.participants,
+              status: event.extendedProps.status,
+              rrule: event.extendedProps.rrule,
             },
           }));
+          console.log('formattedEvents', formattedEvents);
           setEvents(formattedEvents);
-          setFilteredEvents(formattedEvents);
-        } else {
-          setEvents([]);
-          setFilteredEvents([]);
         }
+        // else {
+        //   setEvents([]);
+        //   setFilteredEvents([]);
+        //   toast.error('Không thể tải danh sách sự kiện');
+        // }
       } catch (error) {
-        // console.error('Error fetching events:', error);
-        toast.error('Không thể tải danh sách sự kiện');
+        console.error(
+          'Lỗi lấy sự kiện:',
+          error.response?.data || error.message
+        );
+        toast.error(error.response?.data?.message || 'Không thể tải sự kiện');
         setEvents([]);
         setFilteredEvents([]);
       } finally {
         setIsLoading(false);
       }
     }, 300),
-    [accessToken, apiBaseUrl, toast]
+    [accessToken, apiBaseUrl, toast, calendarUser, eventTypes]
   );
 
-  // Fetch statistics
-  // const fetchStatistics = useCallback(async () => {
-  //   if (!accessToken) return;
+  useEffect(() => {
+    console.log('Events fetched:', events);
+  }, [events]);
 
-  //   try {
-  //     const response = await axios.get(
-  //       `${apiBaseUrl}/calendar-event/statistics`,
-  //       {
-  //         headers: { Authorization: `Bearer ${accessToken}` },
-  //       }
-  //     );
+  // Đồng bộ filteredEvents với events
+  useEffect(() => {
+    setFilteredEvents(events);
+  }, [events]);
 
-  //     if (response.data.status === 'success') {
-  //       setStatistics(response.data.data);
-  //     }
-  //   } catch (error) {
-  //     // console.error('Error fetching statistics:', error);
-  //   }
-  // }, [accessToken, apiBaseUrl]);
+  // Khởi tạo lấy sự kiện
+  useEffect(() => {
+    if (!accessToken || !userDataLocal?._id) {
+      navigate('/login');
+      return;
+    }
 
-  // Fetch user groups
-  // const fetchGroupsData = useCallback(async () => {
-  //   if (!accessToken) return;
+    if (!calendarUser?._id) {
+      getCalendarUser();
+    } else {
+      const today = new Date();
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setDateRange({ start, end });
+      debouncedFetchEvents(start, end, searchTerm);
+    }
 
-  //   try {
-  //     await fetchUserGroups();
-  //     setUserGroups(contextUserGroups);
-  //   } catch (error) {
-  //     // console.error('Error fetching user groups:', error);
-  //   }
-  // }, [accessToken, fetchUserGroups, contextUserGroups]);
+    return () => debouncedFetchEvents.cancel();
+  }, [
+    accessToken,
+    userDataLocal,
+    calendarUser,
+    getCalendarUser,
+    navigate,
+    debouncedFetchEvents,
+    searchTerm,
+  ]);
 
-  // Initialize data
-  // useEffect(() => {
-  //   if (accessToken && hasPremiumAccess) {
-  //     debouncedFetchEvents(searchTerm, {});
-  //     fetchGroupsData();
-  //     fetchStatistics();
-  //   }
-  //   return () => debouncedFetchEvents.cancel();
-  // }, [accessToken, hasPremiumAccess, debouncedFetchEvents]);
+  // Xử lý thay đổi khoảng ngày
+  const handleDatesSet = useCallback(
+    (arg) => {
+      setDateRange({ start: arg.start, end: arg.end });
 
-  // Update user groups when context changes
-  // useEffect(() => {
-  //   setUserGroups(contextUserGroups);
-  // }, [contextUserGroups]);
+      // Chỉ cập nhật selectedDate nếu nó nằm ngoài view hiện tại
+      if (selectedDate < arg.start || selectedDate >= arg.end) {
+        setSelectedDate(new Date(arg.start));
+      }
 
-  // Handle search and filter changes
-  // useEffect(() => {
-  //   if (accessToken && hasPremiumAccess) {
-  //     debouncedFetchEvents(searchTerm, {});
-  //   }
-  //   return () => debouncedFetchEvents.cancel();
-  // }, [accessToken, hasPremiumAccess]);
+      debouncedFetchEvents(arg.start, arg.end, searchTerm);
+    },
+    [debouncedFetchEvents, searchTerm, selectedDate]
+  );
 
-  // useEffect fetch group chỉ khi accessToken thay đổi
-  // useEffect(() => {
-  //   if (accessToken) {
-  //     fetchGroupsData();
-  //   }
-  // }, [accessToken]);
+  // Xử lý tìm kiếm
+  const handleSearchChange = useCallback(
+    (e) => {
+      const query = e.target.value;
+      setSearchTerm(query);
+      if (dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, query);
+      }
+    },
+    [debouncedFetchEvents, dateRange]
+  );
 
-  // useEffect fetch statistics chỉ khi accessToken hoặc hasPremiumAccess thay đổi
-  // useEffect(() => {
-  //   if (accessToken || hasPremiumAccess) {
-  //     fetchStatistics();
-  //   }
-  // }, [accessToken, hasPremiumAccess]);
+  // Xử lý click ngày
+  const handleDateClick = useCallback(
+    (arg) => {
+      const clickedDate = new Date(arg.dateStr);
+      const dateStr = clickedDate.toISOString().slice(0, 16);
 
-  // Enhanced event handlers
-  const handleDateClick = useCallback((arg) => {
-    setSelectedDate(new Date(arg.dateStr));
-    setFormData((prev) => ({ ...prev, date: arg.dateStr }));
+      // Cập nhật ngày được chọn
+      setSelectedDate(clickedDate);
+
+      // Cập nhật form data cho việc tạo sự kiện mới
+      setFormData((prev) => ({
+        ...prev,
+        startDate: dateStr,
+        endDate: dateStr,
+      }));
+
+      console.log('Date clicked:', clickedDate.toDateString());
+      console.log(
+        'Events for this date:',
+        events.filter(
+          (event) =>
+            new Date(event.start).toDateString() === clickedDate.toDateString()
+        )
+      );
+    },
+    [events]
+  );
+
+  useEffect(() => {
+    console.log('Selected event changed:', selectedEvent);
+  }, [selectedEvent]);
+
+  // Xử lý click sự kiện
+  const handleEventClick = useCallback((eventInfo) => {
+    const event = {
+      id: eventInfo.event.id,
+      title: eventInfo.event.title,
+      start: new Date(eventInfo.event.start),
+      end: eventInfo.event.end ? new Date(eventInfo.event.end) : null,
+      allDay: eventInfo.event.allDay,
+      type: eventInfo.event.extendedProps.type,
+      description: eventInfo.event.extendedProps.description,
+      locationName: eventInfo.event.extendedProps.locationName,
+      address: eventInfo.event.extendedProps.address,
+      onlineUrl: eventInfo.event.extendedProps.onlineUrl,
+      meetingCode: eventInfo.event.extendedProps.meetingCode,
+      organizer: eventInfo.event.extendedProps.organizer,
+      participants: eventInfo.event.extendedProps.participants,
+      status: eventInfo.event.extendedProps.status,
+      recurrence: eventInfo.event.extendedProps.rrule,
+    };
+    setSelectedEvent(event);
+    setShowEventModal(true);
   }, []);
 
-  const handleEventClick = useCallback(
-    (eventInfo) => {
-      // Lấy toàn bộ extendedProps và merge các trường cần thiết
-      const event = {
-        ...eventInfo.event.extendedProps,
-        id: eventInfo.event.id,
-        title: eventInfo.event.title,
-        color: eventInfo.event.backgroundColor,
-        // Đảm bảo các trường gốc vẫn có
-        date: new Date(convertVNDateToISO(eventInfo.event.extendedProps.date)),
-        lunarDate: eventInfo.event.extendedProps.lunarDate || null,
-      };
-      setSelectedEvent(event);
-      setShowEventModal(true);
-    },
-    [convertVNDateToISO]
-  );
-
+  // Xử lý kéo thả sự kiện
   const handleEventDrop = useCallback(
     async (dropInfo) => {
       const { event } = dropInfo;
-      // Lấy ngày đúng định dạng YYYY-MM-DD
-      const newDate =
-        event.start.getFullYear() +
-        '-' +
-        String(event.start.getMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(event.start.getDate()).padStart(2, '0');
+      const newStart = toISODateTime(event.start);
+      const newEnd = event.end ? toISODateTime(event.end) : null;
       try {
         const response = await axios.patch(
-          `${apiBaseUrl}/calendar-event/${event.id}`,
-          { date: newDate },
+          `${apiBaseUrl}/event/${event.id}`,
+          { startDate: newStart, endDate: newEnd },
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        if (response.data.status === 'success') {
-          toast.success('Cập nhật ngày sự kiện thành công');
-          debouncedFetchEvents(searchTerm, {});
+        if (response.data.status === 200) {
+          toast.success('Cập nhật thời gian sự kiện thành công');
+          debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
         }
       } catch (error) {
-        // console.error('Error updating event date:', error);
         dropInfo.revert();
-        const errorMessage =
-          error.response?.data?.message || 'Không thể cập nhật sự kiện';
-        toast.error(errorMessage);
+        toast.error(
+          error.response?.data?.message || 'Không thể cập nhật sự kiện'
+        );
       }
     },
-    [apiBaseUrl, accessToken, toast, searchTerm]
+    [
+      apiBaseUrl,
+      accessToken,
+      toast,
+      debouncedFetchEvents,
+      dateRange,
+      searchTerm,
+    ]
   );
 
+  // Xử lý click nút "Today"
+  const handleTodayClick = useCallback(() => {
+    const calendarApi = calendarRef.current.getApi();
+    const now = new Date();
+    calendarApi.gotoDate(now); // Chuyển đến ngày hiện tại
+    if (calendarView === 'timeGridDay') {
+      const currentHour = now.getHours().toString().padStart(2, '0') + ':00';
+      calendarApi.scrollToTime(currentHour); // Focus vào giờ hiện tại
+    }
+
+    // Cập nhật ngày được chọn là hôm nay
+    setSelectedDate(now);
+
+    // Fetch events nếu cần
+    debouncedFetchEvents(
+      now,
+      new Date(now.getFullYear(), now.getMonth() + 1, 0),
+      searchTerm
+    );
+
+    console.log('Today clicked, selected date:', now.toDateString());
+  }, [calendarView, debouncedFetchEvents, searchTerm]);
+
+  // Cập nhật view khi thay đổi
+  const handleViewChange = useCallback((view) => {
+    setCalendarView(view);
+  }, []);
+
+  // Xử lý mở form tạo sự kiện
   const handleCreateClick = useCallback(() => {
+    const dateStr = selectedDate.toISOString().slice(0, 16);
     setFormData({
       title: '',
       description: '',
-      date: selectedDate.toISOString().split('T')[0],
-      type: 'other',
-      groupId: null,
-      isLunar: false,
+      startDate: dateStr,
+      endDate: dateStr,
+      type: 'offline',
+      locationName: '',
+      address: '',
+      // onlineUrl: '',
+      // meetingCode: '',
+      status: 'scheduled',
+      participants: [],
+      allDay: false,
+      recurrence: '',
     });
     setShowCreateModal(true);
   }, [selectedDate]);
 
-  // const handleEditClick = useCallback(() => {
-  //   if (!selectedEvent) return;
+  // Xử lý mở form chỉnh sửa
+  const handleEditClick = useCallback(() => {
+    if (!selectedEvent) return;
+    setEditFormData({
+      title: selectedEvent.title,
+      description: selectedEvent.description || '',
+      startDate: selectedEvent.start.toISOString().slice(0, 16),
+      endDate: selectedEvent.end
+        ? selectedEvent.end.toISOString().slice(0, 16)
+        : selectedEvent.start.toISOString().slice(0, 16),
+      type: selectedEvent.type || 'offline',
+      locationName: selectedEvent.locationName || '',
+      address:
+        typeof selectedEvent.address === 'string'
+          ? selectedEvent.address
+          : selectedEvent.address?.formattedAddress || '',
+      // onlineUrl: selectedEvent.onlineUrl || '',
+      // meetingCode: selectedEvent.meetingCode || '',
+      status: selectedEvent.status || 'scheduled',
+      participants: selectedEvent.participants || [],
+      allDay: selectedEvent.allDay || false,
+      recurrence: selectedEvent.recurrence || '',
+    });
+    setShowEventModal(false);
+    setShowEditModal(true);
+  }, [selectedEvent]);
 
-  //   setEditFormData({
-  //     title: selectedEvent.title,
-  //     description: selectedEvent.description || '',
-  //     date: selectedEvent.date.toISOString().split('T')[0],
-  //     type: selectedEvent.type,
-  //     groupId: selectedEvent.groupId || null,
-  //     isLunar: selectedEvent.isLunar || false,
-  //   });
-  //   setShowEventModal(false);
-  //   setShowEditModal(true);
-  // }, [selectedEvent]);
+  // Xử lý tạo sự kiện
+  const handleCreateSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!formData.title.trim()) {
+        toast.error('Vui lòng nhập tiêu đề sự kiện');
+        return;
+      }
 
-  // const handleCreateSubmit = useCallback(
-  //   async (e) => {
-  //     e.preventDefault();
-  //     if (!formData.title.trim()) {
-  //       toast.error('Vui lòng nhập tiêu đề sự kiện');
-  //       return;
-  //     }
+      // Chỉ validate date khi không phải sự kiện cả ngày
+      if (
+        !formData.allDay &&
+        new Date(formData.startDate) > new Date(formData.endDate)
+      ) {
+        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+        return;
+      }
 
-  //     try {
-  //       const response = await axios.post(
-  //         `${apiBaseUrl}/calendar-event`,
-  //         formData,
-  //         {
-  //           headers: { Authorization: `Bearer ${accessToken}` },
-  //         }
-  //       );
+      try {
+        const payload = {
+          calendarId: calendarUser._id,
+          title: formData.title,
+          description: formData.description || undefined,
+          startDate: toISODateTime(formData.startDate),
+          endDate: toISODateTime(formData.endDate),
+          type: formData.type,
+          organizer: userDataLocal._id,
+          locationName: formData.locationName || undefined,
+          address: formData.address || undefined,
+          // onlineUrl: formData.onlineUrl || undefined,
+          // meetingCode: formData.meetingCode || undefined,
+          status: 'scheduled' /* formData.status */,
+          participants: formData.participants.length
+            ? formData.participants
+            : undefined,
+          allDay: formData.allDay,
+          recurrence: formData.recurrence
+            ? { type: formData.recurrence, interval: 1 }
+            : undefined,
+        };
 
-  //       if (response.data.status === 'success') {
-  //         // toast.success('Thêm sự kiện thành công');
-  //         setShowCreateModal(false);
-  //         debouncedFetchEvents(searchTerm, {});
-  //         fetchStatistics();
-  //         setFormData({
-  //           title: '',
-  //           description: '',
-  //           date: new Date().toISOString().split('T')[0],
-  //           type: 'other',
-  //           groupId: null,
-  //           isLunar: false,
-  //         });
-  //       }
-  //     } catch (error) {
-  //       // console.error('Error creating event:', error);
-  //       const errorMessage =
-  //         error.response?.data?.message || 'Không thể thêm sự kiện';
-  //       toast.error(errorMessage);
-  //     }
-  //   },
-  //   [
-  //     formData,
-  //     apiBaseUrl,
-  //     accessToken,
-  //     toast,
-  //     debouncedFetchEvents,
-  //     searchTerm,
-  //     fetchStatistics,
-  //   ]
-  // );
+        const response = await axios.post(
+          `${apiBaseUrl}/event/create-event-for-calendar/${calendarUser._id}`,
+          payload,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
 
-  // const handleEditSubmit = useCallback(
-  //   async (e) => {
-  //     e.preventDefault();
-  //     if (!editFormData.title?.trim()) {
-  //       toast.error('Vui lòng nhập tiêu đề sự kiện');
-  //       return;
-  //     }
+        console.log('Create event response:', response.data);
 
-  //     try {
-  //       const response = await axios.patch(
-  //         `${apiBaseUrl}/calendar-event/${selectedEvent.id}`,
-  //         editFormData,
-  //         {
-  //           headers: { Authorization: `Bearer ${accessToken}` },
-  //         }
-  //       );
+        if (response.data.status === 201) {
+          toast.success('Thêm sự kiện thành công');
+          setShowCreateModal(false);
+          debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+          setFormData({
+            title: '',
+            description: '',
+            startDate: new Date().toISOString().slice(0, 16),
+            endDate: new Date().toISOString().slice(0, 16),
+            type: 'offline',
+            locationName: '',
+            address: '',
+            // onlineUrl: '',
+            // meetingCode: '',
+            status: 'scheduled',
+            participants: [],
+            allDay: false,
+            recurrence: '',
+          });
+        }
+      } catch (error) {
+        console.error(
+          'Lỗi tạo sự kiện:',
+          error.response?.data || error.message
+        );
+        toast.error(error.response?.data?.message || 'Không thể thêm sự kiện');
+      }
+    },
+    [
+      formData,
+      apiBaseUrl,
+      accessToken,
+      toast,
+      debouncedFetchEvents,
+      dateRange,
+      searchTerm,
+      calendarUser,
+      userDataLocal,
+    ]
+  );
 
-  //       if (response.data.status === 'success') {
-  //         toast.success('Cập nhật sự kiện thành công');
-  //         setShowEditModal(false);
-  //         debouncedFetchEvents(searchTerm, {});
-  //         fetchStatistics();
-  //       }
-  //     } catch (error) {
-  //       // console.error('Error updating event:', error);
-  //       const errorMessage =
-  //         error.response?.data?.message || 'Không thể cập nhật sự kiện';
-  //       toast.error(errorMessage);
-  //     }
-  //   },
-  //   [
-  //     editFormData,
-  //     selectedEvent,
-  //     apiBaseUrl,
-  //     accessToken,
-  //     toast,
-  //     debouncedFetchEvents,
-  //     searchTerm,
-  //     fetchStatistics,
-  //   ]
-  // );
+  // Xử lý chỉnh sửa sự kiện
+  const handleEditSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (!editFormData.title?.trim()) {
+        toast.error('Vui lòng nhập tiêu đề sự kiện');
+        return;
+      }
 
+      // Chỉ validate date khi không phải sự kiện cả ngày
+      if (
+        !editFormData.allDay &&
+        new Date(editFormData.startDate) > new Date(editFormData.endDate)
+      ) {
+        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+        return;
+      }
+
+      try {
+        const payload = {
+          title: editFormData.title,
+          description: editFormData.description || undefined,
+          startDate: toISODateTime(editFormData.startDate),
+          endDate: toISODateTime(editFormData.endDate),
+          type: editFormData.type,
+          locationName: editFormData.locationName || undefined,
+          address: editFormData.address || undefined,
+          // onlineUrl: editFormData.onlineUrl || undefined,
+          // meetingCode: editFormData.meetingCode || undefined,
+          status: 'scheduled' /* editFormData.status */,
+          participants: editFormData.participants.length
+            ? editFormData.participants
+            : undefined,
+          allDay: editFormData.allDay,
+          recurrence: editFormData.recurrence
+            ? { type: editFormData.recurrence, interval: 1 }
+            : undefined,
+        };
+
+        const response = await axios.patch(
+          `${apiBaseUrl}/event/${selectedEvent.id}`,
+          payload,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        if (response.data.status === 200) {
+          toast.success('Cập nhật sự kiện thành công');
+          setShowEditModal(false);
+          debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+        }
+      } catch (error) {
+        console.error(
+          'Lỗi cập nhật sự kiện:',
+          error.response?.data || error.message
+        );
+        toast.error(
+          error.response?.data?.message || 'Không thể cập nhật sự kiện'
+        );
+      }
+    },
+    [
+      editFormData,
+      selectedEvent,
+      apiBaseUrl,
+      accessToken,
+      toast,
+      debouncedFetchEvents,
+      dateRange,
+      searchTerm,
+    ]
+  );
+
+  // Xử lý xóa sự kiện
   const handleDeleteEvent = useCallback(async () => {
     if (!selectedEvent?.id) return;
     try {
       const response = await axios.delete(
-        `${apiBaseUrl}/calendar-event/${selectedEvent.id}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        `${apiBaseUrl}/event/${selectedEvent.id}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (response.data.status === 'success') {
+      if (response.data.status === 200) {
         toast.success('Xóa sự kiện thành công');
         setShowEventModal(false);
-        setShowDeleteConfirm(false);
-        debouncedFetchEvents(searchTerm, {});
-        fetchStatistics();
+        setShowDeleteModal(false);
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
       }
     } catch (error) {
-      // console.error('Error deleting event:', error);
-      const errorMessage =
-        error.response?.data?.message || 'Không thể xóa sự kiện';
-      toast.error(errorMessage);
+      console.error('Lỗi xóa sự kiện:', error.response?.data || error.message);
+      toast.error(error.response?.data?.message || 'Không thể xóa sự kiện');
     }
   }, [
     selectedEvent,
     apiBaseUrl,
     accessToken,
-    // toast,
-    // debouncedFetchEvents,
-    // searchTerm,
-    // fetchStatistics,
+    toast,
+    debouncedFetchEvents,
+    dateRange,
+    searchTerm,
   ]);
 
-  // Get filtered events for selected date
+  // Lọc sự kiện theo ngày được chọn
   const selectedDateEvents = useMemo(() => {
-    return filteredEvents.filter((event) => {
+    return events.filter((event) => {
       const eventDate = new Date(event.start);
       return eventDate.toDateString() === selectedDate.toDateString();
     });
-  }, [filteredEvents, selectedDate]);
+  }, [events, selectedDate]);
 
-  // Enhanced event content renderer
+  // Debug selectedDateEvents
+  useEffect(() => {
+    console.log('Selected date:', selectedDate.toDateString());
+    console.log('Selected date events:', selectedDateEvents);
+  }, [selectedDate, selectedDateEvents]);
+
+  // Render nội dung sự kiện
   const renderEventContent = useCallback(
     (eventInfo) => {
       const eventType =
-        eventTypes[eventInfo.event.extendedProps.type] || eventTypes.other;
-      // Lấy ngày âm lịch nếu có
-      let lunarDateStr = '';
-      if (
-        eventInfo.event.extendedProps.isLunar &&
-        eventInfo.event.extendedProps.lunarDate
-      ) {
-        try {
-          const lunarDate = new Date(eventInfo.event.extendedProps.lunarDate);
-          lunarDateStr =
-            '🌙 ' +
-            lunarDate.getDate().toString().padStart(2, '0') +
-            '/' +
-            (lunarDate.getMonth() + 1).toString().padStart(2, '0');
-        } catch {}
-      }
+        eventTypes[eventInfo.event.extendedProps.type] || eventTypes.offline;
       return (
         <div className='fc-event-content'>
           <span className='fc-event-icon'>{eventType.icon}</span>
           <span className='fc-event-title'>{eventInfo.event.title}</span>
-          {lunarDateStr && (
-            <span
-              className='fc-event-lunar ms-2'
-              style={{ fontSize: '0.85em', color: '#ffd700' }}
-            >
-              {lunarDateStr}
-            </span>
-          )}
         </div>
       );
     },
     [eventTypes]
   );
 
-  // Utility functions
-  // const getGroupName = useCallback(
-  //   (groupId) => {
-  //     const group = userGroups.find((g) => g.groupId === groupId);
-  //     return group?.groupName || 'Nhóm không xác định';
-  //   },
-  //   [userGroups]
-  // );
-
-  // const getUserDisplayName = useCallback(
-  //   (userId) => (userId === user?.userId ? 'Bạn' : `Thành viên ${userId}`),
-  //   [user]
-  // );
-
+  // Kiểm tra quyền chỉnh sửa sự kiện
   const canModifyEvent = useCallback(
-    (event) => event?.organizer === userDataLocal?._id, //lấy userDataLocal để sửa
+    (event) => event?.organizer?.userId === userDataLocal?._id,
     [userDataLocal]
   );
 
-  // // Hàm format ngày âm lịch chuẩn Việt Nam
-  // const formatLunarDateVN = (lunarDate) => {
-  //   if (!lunarDate) return '';
-  //   try {
-  //     let dateObj = null;
-  //     if (
-  //       typeof lunarDate === 'string' &&
-  //       /^\d{4}-\d{2}-\d{2}/.test(lunarDate)
-  //     ) {
-  //       dateObj = new Date(lunarDate);
-  //     } else if (lunarDate instanceof Date) {
-  //       dateObj = lunarDate;
-  //     }
-  //     if (!dateObj || isNaN(dateObj.getTime())) return '';
-  //     const vnDate = toZonedTime(dateObj, 'Asia/Ho_Chi_Minh');
-  //     return new Intl.DateTimeFormat('vi-VN', {
-  //       weekday: 'long',
-  //       year: 'numeric',
-  //       month: 'long',
-  //       day: 'numeric',
-  //     }).format(vnDate);
-  //   } catch {
-  //     return '';
-  //   }
-  // };
-
-  // Thêm hàm handleDatesSet để đồng bộ ngày khi chuyển view hoặc bấm prev/next/today
-  const handleDatesSet = useCallback((arg) => {
-    // arg.start là ngày đầu tiên của view hiện tại
-    setSelectedDate(new Date(arg.start));
-  }, []);
-
-  // Calendar configuration
+  // Cấu hình FullCalendar
   const calendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
     initialView: calendarView,
-    events: filteredEvents,
+    events: events,
     dateClick: handleDateClick,
     eventClick: handleEventClick,
     eventDrop: handleEventDrop,
@@ -643,13 +751,13 @@ const Calendar = () => {
       },
       timeGridWeek: {
         dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'numeric' },
-        slotMinTime: '06:00:00',
-        slotMaxTime: '22:00:00',
+        slotMinTime: '00:00:00',
+        slotMaxTime: '23:59:59',
       },
       timeGridDay: {
         dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'long' },
-        slotMinTime: '06:00:00',
-        slotMaxTime: '22:00:00',
+        slotMinTime: '00:00:00',
+        slotMaxTime: '23:59:59',
       },
     },
     buttonText: {
@@ -663,68 +771,67 @@ const Calendar = () => {
     weekNumbers: !isMobile,
     weekNumberTitle: 'Tuần',
     weekNumberCalculation: 'ISO',
+    // timeZone: 'Asia/Ho_Chi_Minh', // Đảm bảo múi giờ
     nowIndicator: true,
     selectMirror: true,
     dayMaxEventRows: isMobile ? 2 : 4,
     eventDisplay: 'block',
-    displayEventTime: false,
-    eventDidMount: (info) => {
-      const tooltip = document.createElement('div');
-      tooltip.className = 'event-tooltip';
-      const eventType =
-        eventTypes[info.event.extendedProps.type] || eventTypes.other;
-      let lunarDateTooltip = '';
-      if (
-        info.event.extendedProps.isLunar &&
-        info.event.extendedProps.lunarDate
-      ) {
-        try {
-          const lunarDate = new Date(info.event.extendedProps.lunarDate);
-          lunarDateTooltip =
-            `<div class="tooltip-lunar" style="color:#ffd700;">🌙 Âm lịch: ` +
-            lunarDate.getDate().toString().padStart(2, '0') +
-            '/' +
-            (lunarDate.getMonth() + 1).toString().padStart(2, '0') +
-            `</div>`;
-        } catch {}
-      }
-      tooltip.innerHTML = `
-        <div class="tooltip-header">
-          <span class="tooltip-icon">${eventType.icon}</span>
-          <span class="tooltip-title">${info.event.title}</span>
-        </div>
-        <div class="tooltip-meta">
-          <div class="tooltip-type">${eventType.label}</div>
-          ${lunarDateTooltip}
-        </div>
-        ${
-          info.event.extendedProps.description
-            ? `<div class="tooltip-desc">${info.event.extendedProps.description}</div>`
-            : ''
-        }
-      `;
-      let timeoutId;
-      info.el.addEventListener('mouseenter', () => {
-        clearTimeout(timeoutId);
-        document.body.appendChild(tooltip);
-        const rect = info.el.getBoundingClientRect();
-        tooltip.style.top = `${rect.bottom + window.scrollY + 5}px`;
-        tooltip.style.left = `${rect.left + window.scrollX}px`;
-        tooltip.style.display = 'block';
-        tooltip.style.opacity = '1';
-      });
-      info.el.addEventListener('mouseleave', () => {
-        timeoutId = setTimeout(() => {
-          if (tooltip.parentNode) {
-            tooltip.style.opacity = '0';
-            setTimeout(() => {
-              if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
-            }, 200);
-          }
-        }, 100);
-      });
+    displayEventTime: true,
+    eventTimeFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     },
     datesSet: handleDatesSet,
+    customButtons: {
+      today: {
+        text: 'Hôm nay',
+        click: handleTodayClick,
+      },
+    },
+  };
+
+  // Component nút xem vị trí trên bản đồ
+  const MapLocationButton = ({
+    address,
+    locationName,
+    className = '',
+    size = 'sm',
+  }) => {
+    const mapsUrl = generateMapsUrl(address, locationName);
+
+    if (!mapsUrl) return null;
+
+    const handleOpenMaps = (e) => {
+      e.stopPropagation(); // Ngăn click event bubble lên parent (event card)
+      window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+    };
+
+    // Cho event card, sử dụng style nhỏ gọn hơn
+    if (size === 'xs') {
+      return (
+        <button
+          onClick={handleOpenMaps}
+          className={`map-location-btn-xs ${className}`}
+          title='Xem trên bản đồ'
+        >
+          🗺️
+        </button>
+      );
+    }
+
+    return (
+      <Button
+        variant='outline-primary'
+        size={size}
+        onClick={handleOpenMaps}
+        className={`d-inline-flex align-items-center ${className}`}
+        style={{ marginLeft: '8px' }}
+      >
+        <span style={{ marginRight: '4px' }}>🗺️</span>
+        Xem trên bản đồ
+      </Button>
+    );
   };
 
   return (
@@ -732,34 +839,8 @@ const Calendar = () => {
       <div className='calendar-overlay' />
       <div className='calendar-content'>
         <Container fluid>
-          {/* Enhanced Header */}
-          <motion.div
-            className='calendar-header'
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className='d-flex align-items-center justify-content-between my-4 position-relative'>
-              <button className='back-button' onClick={() => navigate(-1)}>
-                <FaArrowLeft />
-              </button>
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                }}
-                className='text-center'
-              >
-                <div className='calendar-title'>Personal Working Calendar</div>
-              </div>
-              {/* View switcher (tháng, tuần, ngày) */}
-            </div>
-          </motion.div>
-
           {/* Main Content */}
           <Row className='calendar-main-container'>
-            {/* Calendar left, schedule right on desktop; stacked on mobile */}
             <Col lg={7} className='order-1 order-lg-1'>
               <motion.div
                 className='calendar-section calendar-container h-100'
@@ -767,14 +848,11 @@ const Calendar = () => {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
-                {isLoading ? (
-                  <div className='loading-container'>
-                    <div className='loading-spinner'></div>
-                    <p>Đang tải lịch...</p>
-                  </div>
-                ) : (
-                  <FullCalendar {...calendarOptions} />
-                )}
+                <FullCalendar
+                  ref={calendarRef}
+                  {...calendarOptions}
+                  viewDidMount={(info) => handleViewChange(info.view.type)}
+                />
               </motion.div>
             </Col>
             <Col lg={5} className='order-2 order-lg-2'>
@@ -787,7 +865,7 @@ const Calendar = () => {
                 <div className='d-flex justify-content-between mb-4 gap-5'>
                   <h3 className='schedule-header'>
                     <FaCalendarCheck className='me-2' />
-                    {/* {formatEventDate(selectedDate)} */}
+                    {formatEventDate(selectedDate)}
                   </h3>
                   <Badge bg='light' text='dark' className='h-100 px-3 py-2'>
                     {selectedDateEvents.length} sự kiện
@@ -817,59 +895,56 @@ const Calendar = () => {
                               </div>
                             </div>
                           </div>
-
-                          {event.description && (
+                          {event.extendedProps.description && (
                             <p className='event-description'>
-                              {event.description}
+                              {event.extendedProps.description}
                             </p>
                           )}
-
                           <div className='event-meta'>
-                            {/* Ngày Dương lịch */}
                             <div className='event-meta-item'>
                               <FaCalendarAlt size={18} className='ms-1' />
                               <span>
-                                Dương lịch:{' '}
                                 {formatEventDate(new Date(event.start))}
                               </span>
                             </div>
-                            {/* Ngày Âm lịch nếu có */}
-                            {event.extendedProps.isLunar &&
-                              event.extendedProps.lunarDate &&
-                              isValidDate(
-                                toVietnamDate(event.extendedProps.lunarDate)
-                              ) && (
+                            {event.extendedProps.locationName && (
+                              <div className='event-meta-item'>
+                                <span>📍</span>
+                                <span>{event.extendedProps.locationName}</span>
+                                {event.extendedProps.type === 'offline' && (
+                                  <MapLocationButton
+                                    address={event.extendedProps.address}
+                                    locationName={
+                                      event.extendedProps.locationName
+                                    }
+                                    size='xs'
+                                    className='ms-1'
+                                  />
+                                )}
+                              </div>
+                            )}
+                            {event.extendedProps.type === 'online' &&
+                              event.extendedProps?.onlineUrl && (
                                 <div className='event-meta-item'>
-                                  <span
-                                    className='fs-6'
-                                    style={{ marginRight: '0px' }}
-                                  >
-                                    🌙
-                                  </span>
+                                  <span>🌐</span>
                                   <span>
-                                    Âm lịch:{' '}
-                                    {/* {formatLunarDateVN(
-                                      event.extendedProps.lunarDate
-                                    )} */}
+                                    <a
+                                      href={event.extendedProps?.onlineUrl}
+                                      target='_blank'
+                                      rel='noopener noreferrer'
+                                    >
+                                      Link sự kiện
+                                    </a>
                                   </span>
                                 </div>
                               )}
-                            {/* Group */}
-                            {event.extendedProps.groupId && (
-                              <div className='event-meta-item'>
-                                <FaUsers />
-                                <span>
-                                  {/* {getGroupName(event.extendedProps.groupId)} */}
-                                </span>
-                              </div>
-                            )}
-                            {/* Người tạo */}
-                            <div className='event-meta-item'>
+                            {/* <div className='event-meta-item'>
                               <FaUser />
                               <span>
-                                {/* {getUserDisplayName(event.extendedProps.userId)} */}
+                                {event.extendedProps.organizer?.username ||
+                                  'Không xác định'}
                               </span>
-                            </div>
+                            </div> */}
                           </div>
                         </motion.div>
                       ))
@@ -912,7 +987,7 @@ const Calendar = () => {
           <FaPlus />
         </motion.button>
 
-        {/* Enhanced Event Detail Modal */}
+        {/* Event Detail Modal */}
         <AnimatePresence>
           {showEventModal && selectedEvent && (
             <motion.div
@@ -938,7 +1013,6 @@ const Calendar = () => {
                     <FaTimes />
                   </button>
                 </div>
-
                 <div className='event-modal-content'>
                   <div className='mb-3'>
                     <div className='event-badges-container'>
@@ -950,65 +1024,92 @@ const Calendar = () => {
                       </div>
                     </div>
                   </div>
-
                   <div className='event-info'>
-                    {/* Ngày Dương lịch */}
                     <p>
                       <FaCalendarAlt className='ms-1 me-2' />
-                      Dương lịch: {formatEventDate(selectedEvent.date)}
+                      Thời gian: {formatEventDate(selectedEvent.start)}
+                      {selectedEvent.end &&
+                        ` đến ${formatEventDate(selectedEvent.end)}`}
                     </p>
-                    {/* Ngày Âm lịch nếu có */}
-                    {/* {selectedEvent.lunarDate &&
-                      formatLunarDateVN(selectedEvent.lunarDate) && (
-                        <p>
-                          <span className='me-2'>🌙</span>
-                          Âm lịch: {formatLunarDateVN(selectedEvent.lunarDate)}
-                        </p>
-                      )} */}
-
-                    {/* Mô tả */}
-                    {selectedEvent.description && (
-                      <div className='mb-3'>
-                        <span>📝</span>
-                        <span className='ms-2'>
-                          {selectedEvent.description}
-                        </span>
-                      </div>
-                    )}
-                    {/* Người tạo */}
-                    <p>
-                      <FaUser className='ms-1 me-2' />
-                      Người tạo:
-                      {/* {getUserDisplayName(selectedEvent.userId)} */}
-                    </p>
-                    {/* Group */}
-                    {selectedEvent.groupId && (
+                    {selectedEvent.locationName && (
                       <p>
-                        <FaUsers className='ms-1 me-2' />
-                        Nhóm:
-                        {/* {getGroupName(selectedEvent.groupId)} */}
+                        <span className='ms-1 me-2'>📍</span>
+                        Địa điểm: {selectedEvent.locationName}
                       </p>
                     )}
-                    {/* Ngày tạo (createdAt) */}
+                    {selectedEvent.address && (
+                      <div>
+                        <p className='mb-1'>
+                          <span className='ms-1 me-2'>🏠</span>
+                          Địa chỉ: {getAddressDisplay(selectedEvent.address)}
+                        </p>
+                        {selectedEvent.type === 'offline' && (
+                          <MapLocationButton
+                            address={selectedEvent.address}
+                            locationName={selectedEvent.locationName}
+                            className='mb-2'
+                          />
+                        )}
+                      </div>
+                    )}
+                    {selectedEvent.type === 'online' &&
+                      selectedEvent?.onlineUrl && (
+                        <p>
+                          <span className='ms-1 me-2'>🌐</span>
+                          Link sự kiện:{' '}
+                          <a
+                            href={selectedEvent?.onlineUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                          >
+                            Tham gia
+                          </a>
+                        </p>
+                      )}
+                    {selectedEvent.meetingCode && (
+                      <p>
+                        <span className='ms-1 me-2'>🔑</span>
+                        Mã cuộc họp: {selectedEvent.meetingCode}
+                      </p>
+                    )}
+                    {selectedEvent.description && (
+                      <p>
+                        <span className='ms-1 me-2'>📝</span>
+                        Mô tả: {selectedEvent.description}
+                      </p>
+                    )}
                     <p>
-                      <FaClock className='ms-1 me-2' />
-                      Ngày tạo: {selectedEvent.createdAt}
+                      <FaUser className='ms-1 me-2' />
+                      Người tạo:{' '}
+                      {selectedEvent?.organizer.username || 'Không xác định'}
+                    </p>
+                    {selectedEvent.participants?.length > 0 && (
+                      <p>
+                        <span className='ms-1 me-2'>👥</span>
+                        Người tham gia:{' '}
+                        {selectedEvent.participants
+                          .map((p) => p.name || p.userId)
+                          .join(', ')}
+                      </p>
+                    )}
+                    <p>
+                      <span className='ms-1 me-2'>📊</span>
+                      Trạng thái:{' '}
+                      {statusOptions.find(
+                        (s) => s.value === selectedEvent.status
+                      )?.label || selectedEvent.status}
                     </p>
                   </div>
                 </div>
-
                 {canModifyEvent(selectedEvent) && (
                   <div className='event-modal-actions'>
-                    <Button
-                      variant='outline-light'
-                      //  onClick={handleEditClick}
-                    >
+                    <Button variant='outline-light' onClick={handleEditClick}>
                       <FaEdit className='me-2' />
                       Chỉnh sửa
                     </Button>
                     <Button
                       variant='outline-danger'
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={() => setShowDeleteModal(true)}
                     >
                       <FaTrash className='me-2' />
                       Xóa
@@ -1020,7 +1121,7 @@ const Calendar = () => {
           )}
         </AnimatePresence>
 
-        {/* Enhanced Create Modal */}
+        {/* Create Modal */}
         <Modal
           show={showCreateModal}
           onHide={() => setShowCreateModal(false)}
@@ -1033,11 +1134,9 @@ const Calendar = () => {
             <Modal.Title>Tạo sự kiện mới</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            <Form
-            // onSubmit={handleCreateSubmit}
-            >
+            <Form onSubmit={handleCreateSubmit}>
               <Row>
-                <Col md={8}>
+                <Col>
                   <Form.Group className='mb-3'>
                     <Form.Label>Tiêu đề *</Form.Label>
                     <Form.Control
@@ -1051,21 +1150,82 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                {/* <Col md={4}>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Ngày *</Form.Label>
-                    <Form.Control
-                      type='date'
-                      value={formData.date}
+                    <Form.Label>Trạng thái</Form.Label>
+                    <Form.Select
+                      value={formData.status}
                       onChange={(e) =>
-                        setFormData({ ...formData, date: e.target.value })
+                        setFormData({ ...formData, status: e.target.value })
                       }
-                      required
+                    >
+                      {statusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                </Col> */}
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Thời gian bắt đầu *</Form.Label>
+                    <Form.Control
+                      type={formData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        formData.allDay
+                          ? formData.startDate.split('T')[0]
+                          : formData.startDate
+                      }
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          startDate: formData.allDay
+                            ? e.target.value + 'T00:00'
+                            : e.target.value,
+                        })
+                      }
+                      required={!formData.allDay}
+                      disabled={formData.allDay}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Thời gian kết thúc *</Form.Label>
+                    <Form.Control
+                      type={formData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        formData.allDay
+                          ? formData.endDate.split('T')[0]
+                          : formData.endDate
+                      }
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          endDate: formData.allDay
+                            ? e.target.value + 'T23:59'
+                            : e.target.value,
+                        })
+                      }
+                      required={!formData.allDay}
+                      disabled={formData.allDay}
                     />
                   </Form.Group>
                 </Col>
               </Row>
-
+              <Form.Group className='mb-3'>
+                <Form.Check
+                  type='checkbox'
+                  label='Sự kiện cả ngày'
+                  checked={formData.allDay}
+                  onChange={(e) =>
+                    setFormData({ ...formData, allDay: e.target.checked })
+                  }
+                />
+              </Form.Group>
               <Form.Group className='mb-3'>
                 <Form.Label>Mô tả</Form.Label>
                 <Form.Control
@@ -1078,65 +1238,108 @@ const Calendar = () => {
                   placeholder='Mô tả chi tiết về sự kiện...'
                 />
               </Form.Group>
-
-              <Row>
-                <Col md={6}>
+              <Form.Group className='mb-3'>
+                <Form.Label>Loại sự kiện</Form.Label>
+                <Form.Select
+                  value={formData.type}
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value })
+                  }
+                >
+                  {Object.entries(eventTypes).map(([key, type]) => (
+                    <option key={key} value={key}>
+                      {type.icon} {type.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+              {/* {formData.type === 'online' && (
+                <>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Loại sự kiện</Form.Label>
-                    <Form.Select
-                      value={formData.type}
-                      onChange={(e) =>
-                        setFormData({ ...formData, type: e.target.value })
-                      }
-                    >
-                      {Object.entries(eventTypes).map(([key, type]) => (
-                        <option key={key} value={key}>
-                          {type.icon} {type.label}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-
-                {/* <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Nhóm</Form.Label>
-                    <Form.Select
-                      value={formData.groupId || ''}
+                    <Form.Label>Mật khẩu cuộc họp</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={formData.meetingCode}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          groupId: e.target.value || null,
+                          meetingCode: e.target.value,
                         })
                       }
-                    >
-                      <option value=''>👤 Sự kiện cá nhân</option>
-                      {userGroups.map((group) => (
-                        <option key={group.groupId} value={group.groupId}>
-                          👥 {group.groupName}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col> */}
-              </Row>
-
-              <Row>
-                <Col>
-                  <Form.Group className='mb-4'>
-                    <Form.Check
-                      type='checkbox'
-                      id='isLunar'
-                      label='🌙 Sử dụng lịch âm'
-                      checked={formData.isLunar}
-                      onChange={(e) =>
-                        setFormData({ ...formData, isLunar: e.target.checked })
-                      }
+                      placeholder='Nhập mã cuộc họp (nếu có)...'
                     />
                   </Form.Group>
-                </Col>
-              </Row>
-
+                </>
+              )} */}
+              {formData.type === 'offline' && (
+                <>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Tên địa điểm</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={formData.locationName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          locationName: e.target.value,
+                        })
+                      }
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
+                    />
+                  </Form.Group>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Địa chỉ chi tiết</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={formData.address}
+                      onChange={(e) =>
+                        setFormData({ ...formData, address: e.target.value })
+                      }
+                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                    />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
+                  </Form.Group>
+                </>
+              )}
+              {/* <Form.Group className='mb-3'>
+                <Form.Label>Lặp lại</Form.Label>
+                <Form.Select
+                  value={formData.recurrence}
+                  onChange={(e) =>
+                    setFormData({ ...formData, recurrence: e.target.value })
+                  }
+                >
+                  {recurrenceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group> */}
+              <Form.Group className='mb-3'>
+                <Form.Label>Người tham gia (email người dùng)</Form.Label>
+                <Form.Control
+                  type='text'
+                  value={formData.participants.map((p) => p.userId).join(',')}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      participants: e.target.value
+                        .split(',')
+                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
+                        .filter((p) => p.userId),
+                    })
+                  }
+                  placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
+                />
+                <Form.Text className='text-muted'>
+                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
+                  sau.
+                </Form.Text>
+              </Form.Group>
               <div className='d-flex justify-content-end gap-2'>
                 <Button
                   variant='outline-light'
@@ -1154,7 +1357,7 @@ const Calendar = () => {
           </Modal.Body>
         </Modal>
 
-        {/* Enhanced Edit Modal */}
+        {/* Edit Modal */}
         <Modal
           show={showEditModal}
           onHide={() => setShowEditModal(false)}
@@ -1170,12 +1373,9 @@ const Calendar = () => {
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            <Form
-
-            // onSubmit={handleEditSubmit}
-            >
+            <Form onSubmit={handleEditSubmit}>
               <Row>
-                <Col md={8}>
+                <Col>
                   <Form.Group className='mb-3'>
                     <Form.Label>Tiêu đề *</Form.Label>
                     <Form.Control
@@ -1192,24 +1392,88 @@ const Calendar = () => {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                {/* <Col md={4}>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Ngày *</Form.Label>
-                    <Form.Control
-                      type='date'
-                      value={editFormData.date || ''}
+                    <Form.Label>Trạng thái</Form.Label>
+                    <Form.Select
+                      value={editFormData.status || 'scheduled'}
                       onChange={(e) =>
                         setEditFormData({
                           ...editFormData,
-                          date: e.target.value,
+                          status: e.target.value,
                         })
                       }
-                      required
+                    >
+                      {statusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                </Col> */}
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Thời gian bắt đầu *</Form.Label>
+                    <Form.Control
+                      type={editFormData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        editFormData.allDay
+                          ? (editFormData.startDate || '').split('T')[0]
+                          : editFormData.startDate || ''
+                      }
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          startDate: editFormData.allDay
+                            ? e.target.value + 'T00:00'
+                            : e.target.value,
+                        })
+                      }
+                      required={!editFormData.allDay}
+                      disabled={editFormData.allDay}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Thời gian kết thúc *</Form.Label>
+                    <Form.Control
+                      type={editFormData.allDay ? 'date' : 'datetime-local'}
+                      value={
+                        editFormData.allDay
+                          ? (editFormData.endDate || '').split('T')[0]
+                          : editFormData.endDate || ''
+                      }
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          endDate: editFormData.allDay
+                            ? e.target.value + 'T23:59'
+                            : e.target.value,
+                        })
+                      }
+                      required={!editFormData.allDay}
+                      disabled={editFormData.allDay}
                     />
                   </Form.Group>
                 </Col>
               </Row>
-
+              <Form.Group className='mb-3'>
+                <Form.Check
+                  type='checkbox'
+                  label='Sự kiện cả ngày'
+                  checked={editFormData.allDay || false}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      allDay: e.target.checked,
+                    })
+                  }
+                />
+              </Form.Group>
               <Form.Group className='mb-3'>
                 <Form.Label>Mô tả</Form.Label>
                 <Form.Control
@@ -1225,71 +1489,131 @@ const Calendar = () => {
                   placeholder='Mô tả chi tiết về sự kiện...'
                 />
               </Form.Group>
-
-              <Row>
-                <Col md={6}>
+              <Form.Group className='mb-3'>
+                <Form.Label>Loại sự kiện</Form.Label>
+                <Form.Select
+                  value={editFormData.type || 'offline'}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, type: e.target.value })
+                  }
+                >
+                  {Object.entries(eventTypes).map(([key, type]) => (
+                    <option key={key} value={key}>
+                      {type.icon} {type.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+              {/* {editFormData.type === 'online' && (
+                <>
                   <Form.Group className='mb-3'>
-                    <Form.Label>Loại sự kiện</Form.Label>
-                    <Form.Select
-                      value={editFormData.type || 'other'}
+                    <Form.Label>Link sự kiện</Form.Label>
+                    <Form.Control
+                      type='url'
+                      value={editFormData.onlineUrl || ''}
                       onChange={(e) =>
                         setEditFormData({
                           ...editFormData,
-                          type: e.target.value,
+                          onlineUrl: e.target.value,
                         })
                       }
-                    >
-                      {Object.entries(eventTypes).map(([key, type]) => (
-                        <option key={key} value={key}>
-                          {type.icon} {type.label}
-                        </option>
-                      ))}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-
-                <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Nhóm</Form.Label>
-                    <Form.Select
-                      value={editFormData.groupId || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          groupId: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value=''>👤 Sự kiện cá nhân</option>
-                      {/* {userGroups.map((group) => (
-                        <option key={group.groupId} value={group.groupId}>
-                          👥 {group.groupName}
-                        </option>
-                      ))} */}
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col>
-                  <Form.Group className='mb-4'>
-                    <Form.Check
-                      type='checkbox'
-                      id='editIsLunar'
-                      label='🌙 Sử dụng lịch âm'
-                      checked={editFormData.isLunar || false}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          isLunar: e.target.checked,
-                        })
-                      }
+                      placeholder='Nhập URL sự kiện trực tuyến...'
                     />
                   </Form.Group>
-                </Col>
-              </Row>
-
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Mã cuộc họp</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={editFormData.meetingCode || ''}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          meetingCode: e.target.value,
+                        })
+                      }
+                      placeholder='Nhập mã cuộc họp (nếu có)...'
+                    />
+                  </Form.Group>
+                </>
+              )} */}
+              {editFormData.type === 'offline' && (
+                <>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Tên địa điểm</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={editFormData.locationName || ''}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          locationName: e.target.value,
+                        })
+                      }
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
+                    />
+                  </Form.Group>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Địa chỉ chi tiết</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={editFormData.address || ''}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          address: e.target.value,
+                        })
+                      }
+                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                    />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
+                  </Form.Group>
+                </>
+              )}
+              {/* <Form.Group className='mb-3'>
+                <Form.Label>Lặp lại</Form.Label>
+                <Form.Select
+                  value={editFormData.recurrence || ''}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      recurrence: e.target.value,
+                    })
+                  }
+                >
+                  {recurrenceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group> */}
+              <Form.Group className='mb-3'>
+                <Form.Label>Người tham gia (ID người dùng)</Form.Label>
+                <Form.Control
+                  type='text'
+                  value={
+                    editFormData.participants?.map((p) => p.userId).join(',') ||
+                    ''
+                  }
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      participants: e.target.value
+                        .split(',')
+                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
+                        .filter((p) => p.userId),
+                    })
+                  }
+                  placeholder='Nhập ID người tham gia, cách nhau bằng dấu phẩy...'
+                />
+                <Form.Text className='text-muted'>
+                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
+                  sau.
+                </Form.Text>
+              </Form.Group>
               <div className='d-flex justify-content-end gap-2'>
                 <Button
                   variant='outline-light'
@@ -1307,26 +1631,26 @@ const Calendar = () => {
           </Modal.Body>
         </Modal>
 
-        {/* Modal xác nhận xoá */}
+        {/* Delete Confirmation Modal */}
         <Modal
-          show={showDeleteConfirm}
-          onHide={() => setShowDeleteConfirm(false)}
+          show={showDeleteModal}
+          onHide={() => setShowDeleteModal(false)}
           centered
           backdrop='static'
         >
           <Modal.Header closeButton>
-            <Modal.Title>Xác nhận xoá sự kiện</Modal.Title>
+            <Modal.Title>Xác nhận xóa sự kiện</Modal.Title>
           </Modal.Header>
-          <Modal.Body>Bạn có chắc chắn muốn xoá sự kiện này không?</Modal.Body>
+          <Modal.Body>Bạn có chắc chắn muốn xóa sự kiện này không?</Modal.Body>
           <Modal.Footer>
             <Button
               variant='secondary'
-              onClick={() => setShowDeleteConfirm(false)}
+              onClick={() => setShowDeleteModal(false)}
             >
-              Huỷ
+              Hủy
             </Button>
             <Button variant='danger' onClick={handleDeleteEvent}>
-              Xoá
+              Xóa
             </Button>
           </Modal.Footer>
         </Modal>

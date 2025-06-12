@@ -11,6 +11,221 @@ const Board = require('../models/boardModel');
 const BoardMembership = require('../models/boardMembershipModel');
 const User = require('../models/userModel');
 const { formatDateToTimeZone } = require('../utils/dateUtils');
+const { createMeetSpace } = require('./meetController');
+const AppError = require('../utils/appError');
+const { authorize } = require('../utils/googleAuthUtils');
+const { google } = require('googleapis');
+const { geocodeAddress, validateCoordinates } = require('../utils/geocoding');
+
+const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
+const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
+
+// Helper function để xử lý địa chỉ và geocoding
+const processAddressData = async (locationName, addressInput, type) => {
+  if (type === 'online') {
+    return null; // Sự kiện online không cần address
+  }
+
+  if (!locationName && !addressInput) {
+    return null; // Không có thông tin địa chỉ
+  }
+
+  // Kết hợp locationName và address thành full address string
+  const fullAddress = [locationName, addressInput].filter(Boolean).join(', ');
+
+  console.log('Processing address:', fullAddress);
+
+  // Thử geocoding
+  const geocodedData = await geocodeAddress(fullAddress);
+
+  if (geocodedData) {
+    // Nếu geocoding thành công, trả về object đầy đủ
+    return geocodedData;
+  } else {
+    // Nếu geocoding thất bại, vẫn lưu thông tin cơ bản
+    console.warn('Geocoding failed, saving basic address info');
+    return {
+      type: 'Point',
+      coordinates: null,
+      formattedAddress: fullAddress,
+      placeId: null,
+      mapZoomLevel: 15,
+    };
+  }
+};
+
+// Helper function để tạo sự kiện trên Google Calendar
+const createGoogleCalendarEvent = async (userId, eventData) => {
+  try {
+    const auth = await authorize(userId, 'calendar', CALENDAR_SCOPES);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    // Lấy email của participants từ database
+    const participantEmails = [];
+    if (eventData.participants && eventData.participants.length > 0) {
+      for (const participant of eventData.participants) {
+        try {
+          const user = await User.findById(participant.userId, 'email');
+          if (user && user.email) {
+            participantEmails.push({ email: user.email });
+          }
+        } catch (error) {
+          console.warn(
+            'Could not find user email for participant:',
+            participant.userId
+          );
+        }
+      }
+    }
+
+    const googleEvent = {
+      summary: eventData.title,
+      description: eventData.description || '',
+      start: {
+        dateTime: eventData.allDay
+          ? undefined
+          : new Date(eventData.startDate).toISOString(),
+        date: eventData.allDay
+          ? new Date(eventData.startDate).toISOString().split('T')[0]
+          : undefined,
+        timeZone: eventData.timeZone || 'Asia/Ho_Chi_Minh',
+      },
+      end: {
+        dateTime: eventData.allDay
+          ? undefined
+          : new Date(eventData.endDate).toISOString(),
+        date: eventData.allDay
+          ? new Date(eventData.endDate).toISOString().split('T')[0]
+          : undefined,
+        timeZone: eventData.timeZone || 'Asia/Ho_Chi_Minh',
+      },
+      location:
+        eventData.type === 'offline'
+          ? `${eventData.locationName || ''} ${
+              eventData.address?.formattedAddress || ''
+            }`.trim()
+          : undefined,
+      attendees: participantEmails,
+    };
+
+    // Thêm Meet link nếu là sự kiện online
+    if (eventData.type === 'online' && eventData.onlineUrl) {
+      googleEvent.conferenceData = {
+        createRequest: {
+          requestId:
+            'meet-' +
+            Date.now() +
+            '-' +
+            Math.random().toString(36).substring(2, 9),
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      };
+      googleEvent.description += `\n\nLink tham gia: ${eventData.onlineUrl}`;
+    }
+
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      resource: googleEvent,
+      conferenceDataVersion: eventData.type === 'online' ? 1 : 0,
+    });
+
+    console.log('Google Calendar event created:', response.data.id);
+    return response.data.id; // Trả về Google event ID
+  } catch (error) {
+    console.error('Error creating Google Calendar event:', error.message);
+    // Không throw error để không làm gián đoạn quá trình tạo event chính
+    return null;
+  }
+};
+
+// Helper function để cập nhật sự kiện trên Google Calendar
+const updateGoogleCalendarEvent = async (userId, googleEventId, eventData) => {
+  try {
+    const auth = await authorize(userId, 'calendar', CALENDAR_SCOPES);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    // Lấy email của participants từ database
+    const participantEmails = [];
+    if (eventData.participants && eventData.participants.length > 0) {
+      for (const participant of eventData.participants) {
+        try {
+          const user = await User.findById(participant.userId, 'email');
+          if (user && user.email) {
+            participantEmails.push({ email: user.email });
+          }
+        } catch (error) {
+          console.warn(
+            'Could not find user email for participant:',
+            participant.userId
+          );
+        }
+      }
+    }
+
+    const googleEvent = {
+      summary: eventData.title,
+      description: eventData.description || '',
+      start: {
+        dateTime: eventData.allDay
+          ? undefined
+          : new Date(eventData.startDate).toISOString(),
+        date: eventData.allDay
+          ? new Date(eventData.startDate).toISOString().split('T')[0]
+          : undefined,
+        timeZone: eventData.timeZone || 'Asia/Ho_Chi_Minh',
+      },
+      end: {
+        dateTime: eventData.allDay
+          ? undefined
+          : new Date(eventData.endDate).toISOString(),
+        date: eventData.allDay
+          ? new Date(eventData.endDate).toISOString().split('T')[0]
+          : undefined,
+        timeZone: eventData.timeZone || 'Asia/Ho_Chi_Minh',
+      },
+      location:
+        eventData.type === 'offline'
+          ? `${eventData.locationName || ''} ${
+              eventData.address?.formattedAddress || ''
+            }`.trim()
+          : undefined,
+      attendees: participantEmails,
+    };
+
+    const response = await calendar.events.update({
+      calendarId: 'primary',
+      eventId: googleEventId,
+      resource: googleEvent,
+    });
+
+    console.log('Google Calendar event updated:', response.data.id);
+    return true;
+  } catch (error) {
+    console.error('Error updating Google Calendar event:', error.message);
+    return false;
+  }
+};
+
+// Helper function để xóa sự kiện trên Google Calendar
+const deleteGoogleCalendarEvent = async (userId, googleEventId) => {
+  try {
+    const auth = await authorize(userId, 'calendar', CALENDAR_SCOPES);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    await calendar.events.delete({
+      calendarId: 'primary',
+      eventId: googleEventId,
+    });
+
+    console.log('Google Calendar event deleted:', googleEventId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting Google Calendar event:', error.message);
+    return false;
+  }
+};
 
 exports.createEventForCalendar = async (req, res) => {
   try {
@@ -20,8 +235,6 @@ exports.createEventForCalendar = async (req, res) => {
       locationName,
       address,
       type,
-      onlineUrl,
-      meetingCode,
       startDate,
       endDate,
       recurrence,
@@ -35,11 +248,10 @@ exports.createEventForCalendar = async (req, res) => {
       allDay,
     } = req.body;
     const { calendarId } = req.params;
-    const organizer = req.user._id; // Lấy ID người dùng từ token đã xác thực
+    const organizer = req.user._id;
     let participants = req.body.participants || [];
-    participants.push({ userId: organizer, status: 'accepted' }); // Tự động thêm người tạo sự kiện là người tham gia
+    participants.push({ userId: organizer, status: 'accepted' });
 
-    // Kiểm tra các trường bắt buộc
     if (
       !title ||
       !calendarId ||
@@ -55,7 +267,6 @@ exports.createEventForCalendar = async (req, res) => {
       });
     }
 
-    //Check calendarId có tồn tại không - isDeleted = false
     const calendar = await Calendar.findById(calendarId);
     if (!calendar || calendar.isDeleted) {
       return res.status(404).json({
@@ -64,7 +275,6 @@ exports.createEventForCalendar = async (req, res) => {
       });
     }
 
-    //Nếu board tồn tại, kiểm tra workspace, và kiểm tra board có tồn tại trong workspace đó ko
     if (boardId) {
       const workspace = await Workspace.findById(workspaceId);
       if (!workspace || workspace.isDeleted) {
@@ -74,16 +284,13 @@ exports.createEventForCalendar = async (req, res) => {
         });
       }
 
-      const board = await Board.findById(boardId, {
-        isDeleted: false,
-      });
+      const board = await Board.findById(boardId, { isDeleted: false });
       if (!board || board.isDeleted) {
         return res.status(404).json({
           message: 'Không tìm thấy board với boardId đã cho',
           status: 404,
         });
       }
-      // Kiểm tra xem board có thuộc về workspace hay không
       if (board.workspaceId.toString() !== workspace._id.toString()) {
         return res.status(400).json({
           message: 'Board không thuộc về workspace đã cho',
@@ -91,12 +298,10 @@ exports.createEventForCalendar = async (req, res) => {
         });
       }
 
-      // Kiểm tra xem người dùng có ở trong workspace hay không
       const isWorkspaceMember = workspace.members.some(
         (member) => member.toString() === organizer.toString()
       );
 
-      // Nếu không phải là thành viên của workspace, và cũng không phải là người tạo workspace thì ko được tạo event
       if (
         !isWorkspaceMember &&
         workspace.creator.toString() !== organizer.toString()
@@ -107,7 +312,6 @@ exports.createEventForCalendar = async (req, res) => {
         });
       }
 
-      //Kiểm tra nếu người dùng chưa được join vào board thì không được tạo event
       const boardMembership = await BoardMembership.findOne({
         boardId: board._id,
         userId: organizer,
@@ -120,13 +324,11 @@ exports.createEventForCalendar = async (req, res) => {
         });
       }
 
-      //Kiểm tra participant, những người khác, không phải organizer, có trong boardMembership hay không
       if (participants && participants.length > 0) {
         for (const participant of participants) {
           const member = await BoardMembership.findOne({
             boardId: board._id,
             userId: participant.userId,
-            // invitationResponse: 'accepted', //Chỉ khi người dùng đã chấp nhận lời mời mới được xem là thành viên
           });
           if (!member) {
             return res.status(403).json({
@@ -137,25 +339,19 @@ exports.createEventForCalendar = async (req, res) => {
         }
       }
     }
-    // Kiểm tra type hợp lệ
+
     if (!['online', 'offline'].includes(type)) {
       return res.status(400).json({
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
         status: 400,
       });
-    } else if (type === 'online' && !onlineUrl) {
+    } else if (type === 'offline' && !locationName && !address) {
       return res.status(400).json({
-        message: 'Thiếu onlineUrl cho sự kiện trực tuyến',
-        status: 400,
-      });
-    } else if (type === 'offline' && !address) {
-      return res.status(400).json({
-        message: 'Thiếu địa chỉ cho sự kiện offline',
+        message: 'Thiếu thông tin địa điểm cho sự kiện offline',
         status: 400,
       });
     }
 
-    // Kiểm tra thời gian bắt đầu và kết thúc
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start >= end) {
@@ -164,34 +360,14 @@ exports.createEventForCalendar = async (req, res) => {
         status: 400,
       });
     }
-    // Kiểm tra định dạng tọa độ (nếu có)
-    if (address && address.coordinates) {
-      if (
-        !Array.isArray(address.coordinates) ||
-        address.coordinates.length !== 2 ||
-        typeof address.coordinates[0] !== 'number' ||
-        typeof address.coordinates[1] !== 'number'
-      ) {
-        return res.status(400).json({
-          message: 'Tọa độ phải là một mảng [longitude, latitude]',
-          status: 400,
-        });
-      }
-      // Kiểm tra xem tọa độ có hợp lệ không
-      if (
-        address.coordinates[0] < -180 ||
-        address.coordinates[0] > 180 ||
-        address.coordinates[1] < -90 ||
-        address.coordinates[1] > 90
-      ) {
-        return res.status(400).json({
-          message: 'Tọa độ không hợp lệ',
-          status: 400,
-        });
-      }
-    }
 
-    // Kiểm tra trạng thái
+    // Xử lý địa chỉ và geocoding
+    const processedAddress = await processAddressData(
+      locationName,
+      address,
+      type
+    );
+
     if (
       status &&
       !['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
@@ -202,7 +378,7 @@ exports.createEventForCalendar = async (req, res) => {
         status: 400,
       });
     }
-    // Kiểm tra loại sự kiện
+
     if (
       category &&
       !['workshop', 'meeting', 'party', 'other'].includes(category)
@@ -214,16 +390,13 @@ exports.createEventForCalendar = async (req, res) => {
       });
     }
 
-    // Tạo sự kiện mới
     const newEvent = new Event({
       title,
       description,
       calendarId,
-      locationName,
-      address,
+      locationName: type === 'offline' ? locationName : null,
+      address: processedAddress,
       type,
-      onlineUrl,
-      meetingCode,
       startDate,
       endDate,
       recurrence,
@@ -239,10 +412,60 @@ exports.createEventForCalendar = async (req, res) => {
       allDay: allDay || false,
     });
 
-    // Lưu sự kiện vào cơ sở dữ liệu
+    if (type === 'online') {
+      try {
+        const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
+        if (!meetUrl) {
+          console.warn(
+            'Không thể tạo Meet link, tiếp tục tạo event mà không có link'
+          );
+          // Vẫn tiếp tục tạo event nhưng không có onlineUrl
+        } else {
+          newEvent.onlineUrl = meetUrl;
+          console.log('Meeting created:', meetUrl);
+        }
+      } catch (meetError) {
+        console.error('Lỗi khi tạo Meet space:', meetError.message);
+        // Nếu là lỗi authentication, ném lỗi để user phải auth lại
+        if (meetError.statusCode === 401) {
+          throw meetError;
+        }
+        // Với các lỗi khác, vẫn tạo event nhưng thông báo warning
+        console.warn(
+          'Tạo event mà không có Meet link do lỗi:',
+          meetError.message
+        );
+      }
+    }
+
     const savedEvent = await newEvent.save();
 
-    // Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
+    // Đồng bộ với Google Calendar nếu user đã xác thực
+    try {
+      const googleEventId = await createGoogleCalendarEvent(organizer, {
+        title: savedEvent.title,
+        description: savedEvent.description,
+        startDate: savedEvent.startDate,
+        endDate: savedEvent.endDate,
+        allDay: savedEvent.allDay,
+        type: savedEvent.type,
+        locationName: savedEvent.locationName,
+        address: savedEvent.address,
+        onlineUrl: savedEvent.onlineUrl,
+        timeZone: savedEvent.timeZone,
+        participants: savedEvent.participants,
+      });
+
+      if (googleEventId) {
+        savedEvent.googleEventId = googleEventId;
+        await savedEvent.save();
+        console.log('Event synced to Google Calendar successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to sync to Google Calendar:', error.message);
+      // Không làm gián đoạn quá trình tạo event
+    }
+
     await EventHistory.create({
       eventId: savedEvent._id,
       action: 'create_event',
@@ -252,9 +475,6 @@ exports.createEventForCalendar = async (req, res) => {
       })),
     });
 
-    // Gửi thông báo đã tạo sự kiện, cho những người đã tham gia board
-
-    //Convert event result with timezone Asia/Ho_Chi_Minh
     const formattedStartDate = formatDateToTimeZone(
       savedEvent.startDate,
       savedEvent.timeZone
@@ -281,16 +501,17 @@ exports.createEventForCalendar = async (req, res) => {
     };
 
     res.status(201).json({
-      message: 'Tạo sự kiện thành công',
+      message: savedEvent.googleEventId
+        ? 'Tạo sự kiện thành công và đã đồng bộ lên Google Calendar'
+        : 'Tạo sự kiện thành công',
       status: 201,
       data: newEventResult,
     });
   } catch (error) {
-    console.error('Lỗi khi tạo sự kiện:', error);
-    res.status(500).json({
-      message: 'Lỗi máy chủ',
-      status: 500,
-      error: error.message,
+    console.error('Lỗi khi tạo sự kiện:', error.stack); // Log stack trace
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Lỗi máy chủ',
+      status: error.statusCode || 500,
     });
   }
 };
@@ -521,15 +742,24 @@ exports.updateEvent = async (req, res) => {
       event.locationName = null; // Đặt locationName là null nếu là sự kiện online
     } else if (type === 'offline') {
       //Nếu sự kiện offline thì có thể cập nhật address, locationName
-      if (!address || !locationName) {
+      if (!address && !locationName) {
         return res.status(400).json({
-          message: 'Thiếu address hoặc locationName cho sự kiện offline',
+          message: 'Thiếu thông tin địa điểm cho sự kiện offline',
           status: 400,
         });
       }
-      event.type = 'offline'; // Đặt type là offline
-      event.address = address;
-      event.locationName = locationName;
+
+      event.type = 'offline';
+
+      // Xử lý địa chỉ và geocoding
+      const processedAddress = await processAddressData(
+        locationName,
+        address,
+        'offline'
+      );
+
+      event.address = processedAddress;
+      event.locationName = locationName || event.locationName;
       event.onlineUrl = null; // Đặt onlineUrl là null nếu là sự kiện offline
     } else {
       return res.status(400).json({
@@ -538,7 +768,7 @@ exports.updateEvent = async (req, res) => {
       });
     }
 
-    if (startDate && endDate) {
+    if (allDay === false && startDate && endDate) {
       // Kiểm tra thời gian bắt đầu và kết thúc
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -565,10 +795,37 @@ exports.updateEvent = async (req, res) => {
 
     const updatedEvent = await event.save();
 
+    // Đồng bộ với Google Calendar nếu có googleEventId
+    if (updatedEvent.googleEventId) {
+      try {
+        await updateGoogleCalendarEvent(
+          updatedEvent.organizer,
+          updatedEvent.googleEventId,
+          {
+            title: updatedEvent.title,
+            description: updatedEvent.description,
+            startDate: updatedEvent.startDate,
+            endDate: updatedEvent.endDate,
+            allDay: updatedEvent.allDay,
+            type: updatedEvent.type,
+            locationName: updatedEvent.locationName,
+            address: updatedEvent.address,
+            onlineUrl: updatedEvent.onlineUrl,
+            timeZone: updatedEvent.timeZone,
+          }
+        );
+        console.log('Event updated on Google Calendar successfully');
+      } catch (error) {
+        console.warn('Failed to update Google Calendar event:', error.message);
+      }
+    }
+
     // Gửi thông báo cho những người đã tham gia trong sự kiện (chỉ những người là participants - đã accepted)
 
     res.status(200).json({
-      message: 'Cập nhật sự kiện thành công',
+      message: updatedEvent.googleEventId
+        ? 'Cập nhật sự kiện thành công và đã đồng bộ với Google Calendar'
+        : 'Cập nhật sự kiện thành công',
       status: 200,
       data: updatedEvent,
     });
@@ -611,6 +868,16 @@ exports.deleteEvent = async (req, res) => {
     event.isDeleted = true;
     event.deletedAt = new Date();
     await event.save();
+
+    // Xóa sự kiện trên Google Calendar nếu có googleEventId
+    if (event.googleEventId) {
+      try {
+        await deleteGoogleCalendarEvent(event.organizer, event.googleEventId);
+        console.log('Event deleted from Google Calendar successfully');
+      } catch (error) {
+        console.warn('Failed to delete Google Calendar event:', error.message);
+      }
+    }
 
     // Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
     await EventHistory.create({

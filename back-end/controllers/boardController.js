@@ -5,54 +5,168 @@ const BoardMembership = require('../models/boardMembershipModel');
 const User = require('../models/userModel');
 const sendEmail = require('../utils/sendMail');
 const WorkspaceMembership = require('../models/memberShipModel');
+const List                 = require('../models/listModel');
+// get all boards theo workspaceId, boardId, visibility, isDeleted
+// exports.getAllBoards = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
 
+//     // 1. Lấy list workspaceId mà user thuộc về (membership của workspace)
+//     const userWorkspaceDocs = await WorkspaceMembership.find({
+//       userId,
+//       invitationStatus: 'accepted',
+//       isDeleted: false,
+//     }).select('workspaceId');
+
+//     const workspaceIds = userWorkspaceDocs.map((doc) => doc.workspaceId);
+
+//     // 2. Lấy list boardId mà user đã được chấp nhận (boardMembership)
+//     const userBoardDocs = await BoardMembership.find({
+//       userId,
+//       applicationStatus: 'accepted',
+//       isDeleted: false,
+//     }).select('boardId');
+
+//     const boardIds = userBoardDocs.map((doc) => doc.boardId);
+
+//     // 3. Lấy danh sách board theo điều kiện
+//     const boards = await Board.find({
+//       isDeleted: false,
+//       $or: [
+//         {
+//           workspaceId: { $in: workspaceIds },
+//           visibility: 'public',
+//         },
+//         {
+//           _id: { $in: boardIds },
+//         },
+//       ],
+//     })
+//       .populate('creator', 'username email')
+//       .populate('workspaceId', 'name')
+//       .lean(); // Trả về plain JS object để dễ xử lý members
+
+//     const boardIdsFetched = boards.map((b) => b._id);
+
+//     // 4. Lấy tất cả các membership thuộc các board này
+//     const boardMemberships = await BoardMembership.find({
+//       boardId: { $in: boardIdsFetched },
+//       isDeleted: false,
+//     })
+//       .populate('userId', 'username email avatar') // Lấy thông tin người dùng
+//       .lean();
+
+//     // 5. Gộp dữ liệu membership vào từng board
+//     const membersByBoardId = {};
+//     for (const member of boardMemberships) {
+//       const boardIdStr = member.boardId.toString();
+//       if (!membersByBoardId[boardIdStr]) {
+//         membersByBoardId[boardIdStr] = [];
+//       }
+//       membersByBoardId[boardIdStr].push({
+//         _id: member.userId._id,
+//         username: member.userId.username,
+//         email: member.userId.email,
+//         avatar: member.userId.avatar || null,
+//         role: member.role,
+//         applicationStatus: member.applicationStatus,
+//       });
+//     }
+
+//     const boardsWithMembers = boards.map((board) => ({
+//       ...board,
+//       members: membersByBoardId[board._id.toString()] || [],
+//     }));
+
+//     return res.status(200).json({ boards: boardsWithMembers });
+//   } catch (err) {
+//     console.error('Lỗi getAllBoards:', err);
+//     return res.status(500).json({
+//       message: 'Lỗi server khi lấy danh sách Board',
+//       error: err.message,
+//     });
+//   }
+// };
+// controllers/boardController.js
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getAllBoards = async (req, res) => {
   try {
+    // 1. Bảo đảm đây là route đã qua `protect`, nên req.user luôn có
     const userId = req.user._id;
 
-    // 1. Lấy list workspaceId mà user thuộc về (membership của workspace)
-    // Membership ở đây là model workspaceMembership (không phải boardMembership)
-
+    // 2. Lấy workspace IDs user đang tham gia
     const userWorkspaceDocs = await WorkspaceMembership.find({
       userId,
       invitationStatus: 'accepted',
       isDeleted: false,
     }).select('workspaceId');
+    const workspaceIds = userWorkspaceDocs.map(d => d.workspaceId);
 
-    const workspaceIds = userWorkspaceDocs.map((doc) => doc.workspaceId);
-
-    // 2. Lấy list boardId mà user đã được chấp nhận (boardMembership)
+    // 3. Lấy board IDs user đã được chấp nhận
     const userBoardDocs = await BoardMembership.find({
       userId,
       applicationStatus: 'accepted',
       isDeleted: false,
     }).select('boardId');
+    const boardIds = userBoardDocs.map(d => d.boardId);
 
-    const boardIds = userBoardDocs.map((doc) => doc.boardId);
-
-    // 3. Query trả ra:
-    //    - Các board có workspaceId ∈ workspaceIds và visibility = 'public'
-    //    - Hoặc board._id ∈ boardIds (bất kể visibility ra sao)
-    //    - Và tất cả đều phải isDeleted = false
-
-    const boards = await Board.find({
+    // 4. Query boards theo điều kiện
+    let boards = await Board.find({
       isDeleted: false,
       $or: [
-        {
-          workspaceId: { $in: workspaceIds },
-          visibility: 'public',
-        },
-        {
-          _id: { $in: boardIds },
-        },
+        { workspaceId: { $in: workspaceIds }, visibility: 'public' },
+        { _id: { $in: boardIds } },
       ],
     })
-      .populate('creator', 'username email') // (tuỳ chọn) fetch luôn người tạo
-      .populate('workspaceId', 'name') // (tuỳ chọn) fetch tên workspace
+      .populate('creator', 'username email')
+      .populate('workspaceId', 'name')
       .lean();
 
-    return res.status(200).json({ boards });
+    const boardIdsFetched = boards.map(b => b._id);
+
+    // 5. Lấy membership của các boards này
+    const boardMemberships = await BoardMembership.find({
+      boardId: { $in: boardIdsFetched },
+      isDeleted: false,
+    })
+      .populate('userId', 'username email avatar')
+      .lean();
+
+    // Gom nhóm members theo boardId
+    const membersByBoardId = {};
+    boardMemberships.forEach(m => {
+      const bid = m.boardId.toString();
+      membersByBoardId[bid] = membersByBoardId[bid]||[];
+      membersByBoardId[bid].push({
+        _id: m.userId._id,
+        username: m.userId.username,
+        email: m.userId.email,
+        avatar: m.userId.avatar,
+        role: m.role,
+        applicationStatus: m.applicationStatus,
+      });
+    });
+    const boardsWithMembers = boards.map(b => ({
+      ...b,
+      members: membersByBoardId[b._id.toString()]||[]
+    }));
+
+    // 6. Đếm số lists cho mỗi board
+    const listCountsRaw = await List.aggregate([
+      { $match: { boardId: { $in: boardIdsFetched }, isDeleted: false } },
+      { $group: { _id: '$boardId', count: { $sum: 1 } } }
+    ]);
+    const countMap = {};
+    listCountsRaw.forEach(item => {
+      countMap[item._id.toString()] = item.count;
+    });
+    const boardsWithCounts = boardsWithMembers.map(b => ({
+      ...b,
+      listsCount: countMap[b._id.toString()] || 0
+    }));
+
+    // 7. Trả về
+    return res.status(200).json({ boards: boardsWithCounts });
   } catch (err) {
     console.error('Lỗi getAllBoards:', err);
     return res.status(500).json({
@@ -61,6 +175,7 @@ exports.getAllBoards = async (req, res) => {
     });
   }
 };
+
 
 // tạo Board
 exports.createBoard = async (req, res) => {

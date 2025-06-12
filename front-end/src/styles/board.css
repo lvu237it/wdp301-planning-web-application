@@ -4,18 +4,120 @@
   align-items: center;
   gap: 20px;
 }
-.list-menu-container { position: relative; }
-.list-menu-btn { cursor: pointer; margin-left: 8px; }
+/* trong styles/board.css */
+.list-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  width: 272px;
+  margin-right: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.list-title {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.list-menu {
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.list-tasks {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.task-card {
+  background: #f4f5f7;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.add-card-button {
+  color: #104bb1;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.add-card-button:hover {
+  background: rgba(9, 30, 66, 0.08);
+}
+
+.add-card-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.add-card-input {
+  padding: 6px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.add-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-add {
+  background: #5aac44;
+  color: rgb(226, 26, 26);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-cancel {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.list-menu-container {
+  position: relative;
+  display: inline-block;
+}
+.list-menu-btn {
+  cursor: pointer;
+  margin-left: 8px;
+}
 .list-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+
+  /* reset list */
   list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
-  background: white;
+  margin: 0;
+  padding: 4px 0;
+
+  /* cho đủ chỗ chứa text */
+  width: max-content;
+  min-width: 120px;
+
+  background: #fff;
   border: 1px solid #ddd;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  position: absolute;
-  right: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .dropdown-item {
   padding: 8px 12px;
@@ -33,6 +135,17 @@
   gap: 4px;
   align-items: center;
 }
+.list-menu-dropdown li {
+  padding: 8px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.list-menu-dropdown li:hover {
+  background-color: #f5f5f5;
+}
+.list-menu-dropdown li.delete {
+  color: #e74c3c;
+}
 .list-menu-dropdown button {
   display: block;
   width: 100%;
@@ -40,12 +153,12 @@
   background: none;
   border: none;
   text-align: left;
+  font-size: 0.9rem;
   cursor: pointer;
 }
 .list-menu-dropdown button:hover {
   background-color: #f5f5f5;
 }
-
 
 .board-actions {
   display: flex;
@@ -96,18 +209,13 @@
 /* Task lists */
 .list-container {
   display: flex;
-  gap: 20px;
-  overflow-x: auto;
-  padding-bottom: 20px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow: visible !important;
 }
-
-.task-list {
-  background: #f5f6fa;
-  border-radius: 10px;
-  min-width: 300px;
-  max-width: 300px;
+.list-card {
+  flex: 0 0 auto;
 }
-
 .list-header {
   padding: 15px;
   display: flex;
@@ -376,6 +484,9 @@
   font-weight: 500;
   cursor: pointer;
 }
+.task-list {
+  overflow: visible !important;
+}
 
 .btn-accept {
   background-color: #00b894;
@@ -390,13 +501,19 @@
 /* Responsive design */
 @media (max-width: 768px) {
   .list-container {
-    flex-direction: column;
-    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
   }
-
-  .task-list {
-    width: 100%;
-    max-width: none;
+  .list-container::-webkit-scrollbar {
+    height: 6px;
+  }
+  .list-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+  .list-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
   }
 
   .applicant-card {
@@ -411,5 +528,7 @@
   .match-score {
     margin: 10px 0;
   }
-  
+}
+.list-scroll-wrapper {
+  background: #fff;
 }

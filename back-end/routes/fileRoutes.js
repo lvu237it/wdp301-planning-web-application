@@ -7,7 +7,8 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 // Route cho xác thực Google Drive
-router.get('/google-auth', auth.protect, fileController.getGoogleAuthUrl);
+router.get('/get-auth-url', auth.protect, fileController.getGoogleAuthUrl);
+router.get('/check-google-auth', auth.protect, fileController.checkGoogleAuth);
 
 // Route cho các thao tác với file
 router.post(

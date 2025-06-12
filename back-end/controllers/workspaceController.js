@@ -5,13 +5,40 @@ const User = require('../models/userModel');
 const sendEmail = require('../utils/sendMail');
 const crypto = require('crypto');
 
-// lay tat ca workspace
+//lấy workspace mà user hiện tại đã tạo hoặc đã tham gia
 exports.getAllWorkspace = async (req, res) => {
   try {
-    const workspaces = await Workspace.find();
-    res.status(200).json(workspaces);
+    const userId = req.user._id;
+
+    // 1. Tìm tất cả các membership đã accepted của người dùng
+    const memberships = await Membership.find({
+      userId,
+      invitationStatus: 'accepted',
+      isDeleted: false,
+    }).select('workspaceId');
+
+    const workspaceIdsFromMembership = memberships.map(m => m.workspaceId);
+
+    // 2. Tìm tất cả workspace mà user là creator hoặc đã tham gia (từ memberships)
+    const workspaces = await Workspace.find({
+      isDeleted: false,
+      $or: [
+        { creator: userId },
+        { _id: { $in: workspaceIdsFromMembership } }
+      ]
+    }).populate('creator', 'username email') // Populate thêm nếu cần
+      .populate({
+        path: 'members',
+        match: { isDeleted: false },
+        populate: {
+          path: 'userId',
+          select: 'username email',
+        },
+      });
+
+    res.status(200).json({ success: true, data: workspaces });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 

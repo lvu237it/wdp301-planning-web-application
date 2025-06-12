@@ -1,6 +1,7 @@
 const Calendar = require('../models/calendarModel');
 const Event = require('../models/eventModel');
 const Task = require('../models/taskModel');
+const mongoose = require('mongoose');
 
 exports.createCalendar = async (req, res) => {
   try {
@@ -96,6 +97,8 @@ exports.getCalendarById = async (req, res) => {
   try {
     const { id } = req.params;
 
+    console.log('id getcalendarbyid', id);
+
     const calendar = await Calendar.findById(id)
       .populate('events')
       .populate('tasks')
@@ -115,6 +118,38 @@ exports.getCalendarById = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch:', error);
+    return res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+exports.getCalendarByUserId = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const calendars = await Calendar.find({
+      ownerId: userId,
+      ownerType: 'user',
+      isDeleted: false,
+    })
+      .populate('events')
+      .populate('tasks')
+      .select('-isDeleted -deletedAt');
+
+    if (!calendars.length) {
+      return res.status('Không tìm thấy lịch của người dùng:', error);
+    }
+
+    return res.status(200).json({
+      message: 'Lấy danh sách lịch thành công',
+      status: 200,
+      data: calendars,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thông tin lịch của người dùng:', error);
     return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
@@ -251,78 +286,9 @@ exports.deleteCalendar = async (req, res) => {
 exports.getCalendarEvents = async (req, res) => {
   try {
     const { id } = req.params; // calendarId
-    const { startDate, endDate, status, category, participantId, type } =
-      req.query;
+    const { startDate, endDate, status, participantId, type } = req.query;
 
-    // Xây dựng query cơ bản
-    const query = {
-      calendarId: id,
-      isDeleted: false,
-    };
-
-    // Lọc theo khoảng thời gian (bắt buộc cho FullCalendar)
-    if (startDate && endDate) {
-      query.startDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    } else {
-      // Nếu không có startDate/endDate, trả về lỗi vì FullCalendar thường yêu cầu
-      return res.status(400).json({
-        message: 'Thiếu ngày bắt đầu hoặc ngày kết thúc',
-        status: 400,
-      });
-    }
-
-    // Lọc theo trạng thái sự kiện (nếu có)
-    if (status) {
-      if (!['draft', 'scheduled', 'completed', 'cancelled'].includes(status)) {
-        return res.status(400).json({
-          message: 'Trạng thái sự kiện không hợp lệ',
-          status: 400,
-        });
-      }
-      query.status = status;
-    }
-
-    // Lọc theo danh mục sự kiện (nếu có)
-    if (category) {
-      if (!['workshop', 'meeting', 'party', 'other'].includes(category)) {
-        return res.status(400).json({
-          message:
-            'Danh mục sự kiện không hợp lệ (workshop - meeting - party - other)',
-          status: 400,
-        });
-      }
-      query.category = category;
-    }
-
-    // Lọc theo loại sự kiện (online/offline, nếu có)
-    if (type) {
-      if (!['online', 'offline'].includes(type)) {
-        return res.status(400).json({
-          message: 'Loại sự kiện không hợp lệ',
-          status: 400,
-        });
-      }
-      query.type = type;
-    }
-
-    // Lọc theo người tham gia (nếu có)
-    if (participantId) {
-      query['participants.userId'] = participantId;
-    }
-
-    // Lấy danh sách sự kiện
-    const events = await Event.find(query)
-      .populate('participants.userId', 'name email')
-      .populate('organizer', 'name email')
-      .populate('calendarId', 'name color')
-      .populate('workspaceId', 'name')
-      .populate('boardId', 'name')
-      .select('-isDeleted -deletedAt');
-
-    // Kiểm tra xem lịch có tồn tại không
+    // Validate calendar existence
     const calendar = await Calendar.findById(id).select(
       '-isDeleted -deletedAt'
     );
@@ -333,26 +299,71 @@ exports.getCalendarEvents = async (req, res) => {
       });
     }
 
-    // Chuyển đổi dữ liệu sang định dạng FullCalendar
+    // Build query
+    const query = {
+      calendarId: id,
+      isDeleted: false,
+    };
+
+    // Required date range filter for FullCalendar
+    if (startDate && endDate) {
+      query.startDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    } else {
+      return res.status(400).json({
+        message: 'Thiếu ngày bắt đầu hoặc ngày kết thúc',
+        status: 400,
+      });
+    }
+
+    // Optional filters
+    if (
+      status &&
+      ['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
+    ) {
+      query.status = status;
+    }
+
+    if (type && ['online', 'offline'].includes(type)) {
+      query.type = type;
+    }
+
+    if (participantId) {
+      query['participants.userId'] = participantId;
+    }
+
+    // Fetch events
+    const events = await Event.find(query)
+      .populate('participants.userId', 'name email')
+      .populate('organizer', 'username email')
+      .populate('calendarId', 'name color')
+      .populate('workspaceId', 'name')
+      .populate('boardId', 'name')
+      .select('-isDeleted -deletedAt');
+
+    // Format for FullCalendar
     const fullCalendarEvents = events.map((event) => ({
       id: event._id.toString(),
       title: event.title,
       start: event.startDate,
       end: event.endDate,
       allDay: event.allDay || false,
-      backgroundColor: event.color || calendar.color, // Ưu tiên màu của sự kiện, nếu không có thì dùng màu của lịch
-      rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
+      backgroundColor: event.color || calendar.color,
+      borderColor: event.color || calendar.color,
+      textColor: '#ffffff',
       extendedProps: {
         description: event.description,
         locationName: event.locationName,
-        address: event.address,
+        address: event.address?.formattedAddress,
         type: event.type,
         onlineUrl: event.onlineUrl,
         meetingCode: event.meetingCode,
         timeZone: event.timeZone,
         organizer: {
           userId: event.organizer._id,
-          name: event.organizer.name,
+          username: event.organizer.username,
           email: event.organizer.email,
         },
         participants: event.participants.map((p) => ({
@@ -367,19 +378,13 @@ exports.getCalendarEvents = async (req, res) => {
           color: event.calendarId.color,
         },
         workspace: event.workspaceId
-          ? {
-              id: event.workspaceId._id,
-              name: event.workspaceId.name,
-            }
+          ? { id: event.workspaceId._id, name: event.workspaceId.name }
           : null,
         board: event.boardId
-          ? {
-              id: event.boardId._id,
-              name: event.boardId.name,
-            }
+          ? { id: event.boardId._id, name: event.boardId.name }
           : null,
         status: event.status,
-        category: event.category,
+        rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
       },
     }));
 
@@ -407,6 +412,7 @@ function convertToRRule(recurrence) {
     weekly: 'WEEKLY',
     monthly: 'MONTHLY',
     yearly: 'YEARLY',
+    custom: 'CUSTOM',
   };
 
   let rrule = `FREQ=${freqMap[type]};INTERVAL=${interval}`;
@@ -417,3 +423,23 @@ function convertToRRule(recurrence) {
   }
   return rrule;
 }
+
+// function convertToRRule(recurrence) {
+//   if (!recurrence || !recurrence.type) return null;
+
+//   const { type, interval = 1, endDate } = recurrence;
+//   const freqMap = {
+//     daily: 'DAILY',
+//     weekly: 'WEEKLY',
+//     monthly: 'MONTHLY',
+//     yearly: 'YEARLY',
+//   };
+
+//   let rrule = `FREQ=${freqMap[type]};INTERVAL=${interval}`;
+//   if (endDate) {
+//     rrule += `;UNTIL=${
+//       new Date(endDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+//     }`;
+//   }
+//   return rrule;
+// }

@@ -8,7 +8,7 @@ import Workspaces from './pages/workspaces/Workspaces';
 import Boards from './pages/boards/Boards';
 import Calendar from './pages/calendar/Calendar';
 import Profile from './pages/profile/Profile';
-
+import BoardDetail from './pages/boards/BoardDetail';
 function App() {
   return (
     <Routes>
@@ -28,7 +28,8 @@ function App() {
         <Route index element={<Dashboard />} />
         <Route path='dashboard' element={<Dashboard />} />
         <Route path='workspaces' element={<Workspaces />} />
-        <Route path='boards' element={<Boards />} />
+        <Route path='/workspace/:workspaceId/boards' element={<Boards />} />
+         <Route path="/boards/:boardId" element={<BoardDetail />} />
         <Route path='calendar' element={<Calendar />} />
         <Route path='profile' element={<Profile />} />
       </Route>

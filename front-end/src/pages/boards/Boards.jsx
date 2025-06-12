@@ -1,70 +1,160 @@
-import React, { useState } from 'react';
-import '../../styles/board.css';
-import List from '../lists/List';
+import React, { useEffect } from "react";
+import { useCommon } from "../../contexts/CommonContext";
+import { useParams, useNavigate } from "react-router-dom";
+import { Breadcrumb } from "react-bootstrap";
+import { Link } from "react-router-dom";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Button,
+  Spinner,
+  Alert,
+  Image,
+} from "react-bootstrap";
+import { MdPerson, MdChecklist } from "react-icons/md";
 
-const Board = () => {
-  const [activeTab, setActiveTab] = useState('tasks');
-  const boardId = '683c7d46b5cb1174075fc16c'; // Thay thế bằng boardId thực tế hoặc lấy từ params
+const Boards = () => {
+  const { workspaceId } = useParams();
+  const navigate = useNavigate();
+  const {
+    boards,
+    loadingBoards,
+    boardsError,
+    fetchBoards,
+    setCurrentWorkspaceId,
+  } = useCommon();
 
-  const tabs = [
-    { id: 'tasks',    icon: 'fas fa-tasks',      label: 'Tasks' },
-    { id: 'calendar', icon: 'fas fa-calendar',   label: 'Calendar' },
-    { id: 'criteria', icon: 'fas fa-user-check', label: 'Member Criteria' },
-  ];
+  useEffect(() => {
+    fetchBoards(workspaceId);
+    setCurrentWorkspaceId(workspaceId);
+  }, [workspaceId]);
+
+  if (loadingBoards)
+    return (
+      <Container className="py-4 text-center">
+        <Spinner animation="border" />
+      </Container>
+    );
+  if (boardsError)
+    return (
+      <Container className="py-4">
+        <Alert variant="danger">{boardsError}</Alert>
+      </Container>
+    );
 
   return (
-    <div className="container">
-      <main className="main-content">
-        {/* Top Bar */}
-        <header className="top-bar">
-          <div className="board-title">
-            <h1>Website Redesign</h1>
-            <div className="board-actions">
-              <button className="btn-secondary"><i className="fas fa-users"></i> Members</button>
-              <button className="btn-secondary"><i className="fas fa-cog"></i> Settings</button>
-            </div>
-          </div>
-        </header>
+    <Container className="py-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div className="mt-3">
+          <Breadcrumb className="mb-4">
+            <Breadcrumb.Item
+              linkAs={Link}
+              linkProps={{
+                to: "/workspaces",
+                // style cho thẻ <a> bên trong
+                style: {
+                  color: "gray",
+                  cursor: "pointer",
+                  textDecoration: "none",
+                },
+                // hoặc className: 'text-secondary'
+              }}
+            >
+              Workspaces
+            </Breadcrumb.Item>
+            <Breadcrumb.Item active style={{ fontWeight: "bold" }}>
+              Boards
+            </Breadcrumb.Item>
+          </Breadcrumb>
 
-        {/* Tabs */}
-        <div className="board-tabs">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}>
-              <i className={tab.icon}></i> {tab.label}
-            </button>
-          ))}
+          {/* ... phần content còn lại ... */}
         </div>
 
-        {/* Tab Contents */}
-        {/* 1. Tasks Tab */}
-        <div className={`tab-content ${activeTab === 'tasks' ? 'active' : ''}`} id="tasks">
-          {/* Sử dụng component List để hiển thị danh sách và form thêm mới */}
-          <List boardId={boardId} />
-        </div>
+        <Button variant="success">+ New Board</Button>
+      </div>
+      <h1>Boards</h1>
+      <Row>
+        {boards.map((board) => {
+          // avatar handling
+          const members = board.members;
+          const displayMems = members.slice(0, 3);
+          const moreCount = members.length > 3 ? members.length - 3 : 0;
 
-        {/* 2. Calendar Tab */}
-        <div className={`tab-content ${activeTab === 'calendar' ? 'active' : ''}`} id="calendar">
-          <div id="board-calendar"></div>
-        </div>
+          return (
+            <Col key={board._id} md={6} lg={4} className="mb-4">
+              <Card
+                className="h-100 shadow-sm"
+                style={{ cursor: "pointer" }}
+                onClick={() => navigate(`/boards/${board._id}`)}
+              >
+                <Card.Body className="d-flex flex-column">
+                  {/* Title & desc */}
+                  <div>
+                    <Card.Title>{board.name}</Card.Title>
+                    <Card.Text className="text-muted">
+                      {board.description}
+                    </Card.Text>
+                  </div>
 
-        {/* 3. Member Criteria Tab */}
-        <div className={`tab-content ${activeTab === 'criteria' ? 'active' : ''}`} id="criteria">
-          <div className="criteria-section">
-            <h2>Member Requirements</h2>
-            <form className="criteria-form">
-              {/* Required Skills etc. */}
-            </form>
-            <div className="applicants-section">
-              {/* Applicant cards... */}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+                  {/* Avatars */}
+                  <div className="d-flex mb-3 mt-3">
+                    {displayMems.map((m, i) => {
+                      const avatar = m.userId?.avatar;
+                      const initial = m.username?.[0]?.toUpperCase() || "";
+                      return avatar ? (
+                        <Image
+                          key={i}
+                          src={avatar}
+                          roundedCircle
+                          width={40}
+                          height={40}
+                          className="me-2"
+                        />
+                      ) : (
+                        <div
+                          key={i}
+                          className="me-2 rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center"
+                          style={{ width: 40, height: 40, fontSize: "1rem" }}
+                        >
+                          {initial}
+                        </div>
+                      );
+                    })}
+                    {moreCount > 0 && (
+                      <div
+                        className="d-flex align-items-center justify-content-center rounded-circle bg-light text-muted"
+                        style={{ width: 40, height: 40 }}
+                      >
+                        +{moreCount}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Counts */}
+                  <div className="mt-auto d-flex align-items-center mb-3">
+                    <div className="d-flex align-items-center me-4">
+                      <MdPerson className="me-1" /> {members.length}
+                    </div>
+                    <div className="d-flex align-items-center">
+                      {/* <MdChecklist className="me-1" />{" "}
+                      {board.tasks?.length ?? 0} */}
+                      <MdChecklist className='me-1' /> {board.listsCount}
+
+                    </div>
+                  </div>
+
+                  {/* Invite */}
+                  <Button variant="outline-primary">Invite</Button>
+                </Card.Body>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
+    </Container>
   );
 };
 
-export default Board;
+export default Boards;

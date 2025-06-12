@@ -44,7 +44,7 @@ const swaggerDocument = require('./swagger.json');
 
 // Serve the Swagger UI. Now you can visit http://localhost:3000/api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-console.log('Swagger UI is available at http://localhost:3000/api-docs');
+console.log(`Swagger UI is available at ${process.env.BACKEND_URL}/api-docs`);
 
 // routing handlers
 app.use('/', authenticationRoutes);
@@ -56,7 +56,7 @@ app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
 app.use('/files', fileRouter);
-app.use('/auth/google/callback', fileController.handleGoogleAuthCallback);
+app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

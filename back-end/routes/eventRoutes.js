@@ -8,15 +8,15 @@ router.post(
   auth.protect,
   eventController.createEventForCalendar //ok
 );
-router.get('/:id', auth.protect, eventController.getEventById); //ok
 router.get('/', auth.protect, eventController.getAllEvents); //ok
-router.patch('/:id', auth.protect, eventController.updateEvent); //ok
-router.delete('/delete-event/:id', auth.protect, eventController.deleteEvent); //ok
+
 router.post(
   '/:id/invite',
   auth.protect,
   eventController.inviteToBecomeParticipant
 ); //ok
+router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
+router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',
   auth.protect,
@@ -27,7 +27,9 @@ router.delete(
   auth.protect,
   eventController.removeParticipant //ok
 );
-router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
-router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
+
+router.get('/:id', auth.protect, eventController.getEventById); //ok
+router.patch('/:id', auth.protect, eventController.updateEvent); //ok
+router.delete('/:id', auth.protect, eventController.deleteEvent); //ok
 
 module.exports = router;
