@@ -75,14 +75,47 @@ exports.checkGoogleAuth = async (req, res, next) => {
       (scope) => !existingScopes.includes(scope)
     );
 
-    if (missingScopes.length === 0) {
-      res
-        .status(200)
-        .json({ status: 'success', message: 'Đã xác thực tất cả dịch vụ' });
+    // Kiểm tra token expiry
+    const validTokens = tokens.filter(
+      (token) => !token.expiryDate || token.expiryDate > Date.now()
+    );
+
+    const existingTokensCount = tokens.length;
+
+    // Nếu có đủ scopes và tokens còn hạn
+    if (missingScopes.length === 0 && validTokens.length >= services.length) {
+      res.status(200).json({
+        status: 'success',
+        message: 'Đã xác thực tất cả dịch vụ',
+        hasValidTokens: true,
+        existingTokens: existingTokensCount,
+        validTokensCount: validTokens.length,
+        totalServicesRequired: services.length,
+      });
+    } else if (tokens.length > 0) {
+      // User có một số token Google nhưng có thể hết hạn hoặc thiếu scopes
+      res.status(200).json({
+        status: 'success',
+        message:
+          'User has some Google tokens but needs refresh/additional scopes',
+        hasValidTokens: false,
+        needsRefresh: true,
+        existingTokens: existingTokensCount,
+        validTokensCount: validTokens.length,
+        totalServicesRequired: services.length,
+        missingScopes: missingScopes,
+      });
     } else {
-      res
-        .status(401)
-        .json({ status: 'error', message: 'Chưa xác thực đầy đủ các dịch vụ' });
+      // User không có token Google nào
+      res.status(401).json({
+        status: 'error',
+        message: 'Chưa xác thực đầy đủ các dịch vụ',
+        hasValidTokens: false,
+        needsRefresh: false,
+        existingTokens: 0,
+        validTokensCount: 0,
+        totalServicesRequired: services.length,
+      });
     }
   } catch (error) {
     console.error('Lỗi khi kiểm tra xác thực:', error.message);

@@ -58,6 +58,8 @@ body {
 
 .button-login:hover {
   background-color: #00a184;
+  transform: scale(1.02);
+  transition: all 0.3s ease-in-out;
 }
 
 /* MenuBar Component Styles */
@@ -348,6 +350,29 @@ body {
   transition: all 0.3s ease-in-out;
 }
 
+/* Button login with Google */
+.button-google-login {
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+.button-google-login:hover {
+  /* Combine background gradient for google login button with red, blue, green, yellow, purple*/
+  background: linear-gradient(
+    135deg,
+    #4285f4,
+    #ea4335,
+    #fbbc05,
+    #34a853,
+    #9aa0a6
+  );
+  transform: scale(1.02);
+  transition: all 0.3s ease-in-out;
+}
+
+.image-button-google-login {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
 /* Calendar */
 
 .calendar-page {

@@ -10,7 +10,13 @@ const {
   forgotPassword,
   resetPassword,
   updateMyPassword,
+  googleAuth,
+  googleAuthCallback,
+  linkGoogleAccount,
+  getCurrentUser,
+  googleAuthCallbackUserData,
 } = require('../controllers/authenticationController');
+const auth = require('../utils/auth');
 
 const { verifyToken } = require('../middlewares/verifyToken');
 
@@ -20,10 +26,20 @@ router.post('/login', login);
 router.post('/forgotPassword', forgotPassword);
 router.patch('/resetPassword/:token', resetPassword);
 
-// Protected route: update own password
-router.patch('/updateMyPassword', verifyToken, updateMyPassword);
+// Route cho đăng nhập Google
+router.get('/google/login', googleAuth);
+router.get('/auth/google/login/callback', googleAuthCallback);
 
-// Protected route: logout
+// Special callback endpoint for frontend to get user data after OAuth
+router.get('/auth/google/callback/userdata', googleAuthCallbackUserData);
+
+// Route cho liên kết tài khoản Google với tài khoản hiện tại - optional
+// router.get('/link-google', verifyToken, googleAuth); // Khởi tạo liên kết Google
+// router.get('/auth/link-google', linkGoogleAccount);
+
+// Protected routes
+router.get('/auth/me', verifyToken, getCurrentUser);
+router.patch('/updateMyPassword', verifyToken, updateMyPassword);
 router.get('/logout', verifyToken, logoutUser);
 
 module.exports = router;
