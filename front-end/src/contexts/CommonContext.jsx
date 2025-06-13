@@ -10,6 +10,9 @@ import {
 } from '../utils/socketClient';
 import { formatDateAMPMForVN } from '../utils/dateUtils';
 
+// Configure axios defaults
+axios.defaults.withCredentials = true; // Include cookies in all requests
+
 const CommonContext = createContext();
 
 export const useCommon = () => useContext(CommonContext);
@@ -63,13 +66,40 @@ export const Common = ({ children }) => {
   const [boards, setBoards] = useState([]);
   const [loadingBoards, setLoading] = useState(false);
   const [boardsError, setError] = useState(null);
-  const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
 
+  const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
     !!localStorage.getItem('accessToken') && !!localStorage.getItem('userData')
   );
 
-  //Kiểm tra xem người dùng đã xác thực Google chưa
+  // Tạo ref để track đã thực hiện redirect hay chưa
+  const hasRedirected = useRef(false);
+  const isProcessingAuth = useRef(false); // Tránh xử lý auth nhiều lần
+
+  // Sửa useEffect để tránh redirect tự động gây conflict với Google callback
+  useEffect(() => {
+    // Chỉ redirect tự động nếu không phải đang ở Google callback và chưa redirect
+    if (
+      isAuthenticated &&
+      userDataLocal &&
+      !location.pathname.includes('/google-callback') &&
+      !hasRedirected.current &&
+      !isProcessingAuth.current
+    ) {
+      hasRedirected.current = true;
+      navigate('/');
+    }
+  }, [isAuthenticated, userDataLocal, location.pathname]);
+
+  // Reset redirect flag khi user logout
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hasRedirected.current = false;
+      isProcessingAuth.current = false;
+    }
+  }, [isAuthenticated]);
+
+  //Kiểm tra xem người dùng đã xác thực Google chưa với logic cải thiện
   const checkGoogleAuth = async () => {
     if (!accessToken || isCheckingGoogleAuth) return;
 
@@ -82,72 +112,222 @@ export const Common = ({ children }) => {
           timeout: 10000,
         }
       );
-      console.log('checkgoogleAuth response:', response);
+
+      console.log('🔍 Google auth check response:', response.data);
 
       if (response.data.status === 'success') {
-        setIsGoogleAuthenticated(true);
-        setShowGoogleAuthModal(false); // Đảm bảo modal không hiển thị
+        if (response.data.hasValidTokens) {
+          // User có tất cả token Google hợp lệ
+          console.log('✅ User has all valid Google tokens');
+          setIsGoogleAuthenticated(true);
+          setShowGoogleAuthModal(false);
+        } else if (
+          response.data.needsRefresh &&
+          response.data.existingTokens > 0
+        ) {
+          // User có token Google nhưng cần refresh hoặc thêm scopes
+          // Đánh dấu là authenticated và không hiện modal vì user đã từng auth Google
+          console.log(
+            '🔄 User has Google tokens but needs refresh/additional scopes'
+          );
+          setIsGoogleAuthenticated(true);
+          setShowGoogleAuthModal(false);
+        } else {
+          // Trường hợp có response success nhưng không có valid tokens
+          console.log('⚠️ Success response but no valid tokens');
+          setIsGoogleAuthenticated(false);
+
+          // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
+          const hasExistingTokens = response.data.existingTokens > 0;
+          if (!userDataLocal?.googleId && !hasExistingTokens) {
+            console.log(
+              '🔑 Showing Google auth modal - no tokens and not Google user'
+            );
+            setShowGoogleAuthModal(true);
+          } else {
+            console.log('🤝 Not showing auth modal - user has Google history');
+            setShowGoogleAuthModal(false);
+          }
+        }
       } else {
+        // Response status không phải success
+        console.log('❌ Google auth check failed:', response.data.message);
         setIsGoogleAuthenticated(false);
-        setShowGoogleAuthModal(true); // Hiển thị modal nếu chưa xác thực
+
+        // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
+        const hasExistingTokens = response.data.existingTokens > 0;
+        if (!userDataLocal?.googleId && !hasExistingTokens) {
+          console.log(
+            '🔑 Showing Google auth modal - check failed and no Google history'
+          );
+          setShowGoogleAuthModal(true);
+        } else {
+          console.log(
+            '🤝 Not showing auth modal - user has Google account or tokens'
+          );
+          setShowGoogleAuthModal(false);
+        }
       }
     } catch (error) {
-      console.error('Error checking Google auth:', error);
+      console.error('❌ Error checking Google auth:', error);
       setIsGoogleAuthenticated(false);
-      setShowGoogleAuthModal(true); // Hiển thị modal nếu có lỗi hoặc chưa xác thực
+
+      // Xử lý các trường hợp lỗi
+      if (error.response?.status === 401) {
+        // 401 có thể có nghĩa là user chưa có token hoặc token hết hạn
+        console.log('🔐 401 error - checking for existing tokens');
+        const errorData = error.response?.data;
+        const hasExistingTokens = errorData?.existingTokens > 0;
+
+        if (!userDataLocal?.googleId && !hasExistingTokens) {
+          console.log(
+            '🔑 Showing Google auth modal - 401 and no Google history'
+          );
+          setShowGoogleAuthModal(true);
+        } else {
+          console.log('🤝 Not showing auth modal - user has Google account');
+          setShowGoogleAuthModal(false);
+        }
+      } else {
+        // Lỗi khác (network, server error)
+        console.log('🚫 Other error, not showing auth modal');
+        setShowGoogleAuthModal(false);
+      }
     } finally {
       setIsCheckingGoogleAuth(false);
     }
   };
 
-  // Authentication functions
+  // Hàm xử lý đăng nhập chung (tái sử dụng cho login và googleLogin)
+  // Tách logic xử lý đăng nhập thành công thành hàm riêng để tái sử dụng cho cả login và register.
+  // const handleLoginSuccess = async (accessToken, user) => {
+  //   // Lưu vào localStorage
+  //   localStorage.setItem('accessToken', accessToken);
+  //   localStorage.setItem('userData', JSON.stringify(user));
+
+  //   // Cập nhật state
+  //   setAccessToken(accessToken);
+  //   setUserDataLocal(user);
+  //   setIsAuthenticated(true);
+
+  //   // Khởi tạo socket
+  //   if (user._id) {
+  //     console.log('🔌 Initializing socket for user:', user._id);
+  //     try {
+  //       await initSocketClient(user._id, apiBaseUrl, () => {
+  //         console.log('🎯 Socket connected callback triggered');
+  //         socketInitialized.current = true;
+  //         setupSocketListeners();
+  //       });
+  //       console.log('✅ Socket initialization completed');
+  //     } catch (error) {
+  //       console.error('❌ Socket initialization failed:', error);
+  //     }
+  //   }
+
+  //   // Tải dữ liệu ban đầu
+  //   await checkGoogleAuth();
+  //   await fetchNotifications();
+  //   await getCalendarUser();
+
+  //   toast.success('Login successful!');
+  //   navigate('/');
+  //   return true;
+  // };
+
+  // Authentication functions - Đăng nhập truyền thống
+  // const login = async (email, password) => {
+  //   try {
+  //     const response = await axios.post(
+  //       `${apiBaseUrl}/login`,
+  //       {
+  //         email,
+  //         password,
+  //       },
+  //       { timeout: 15000 }
+  //     );
+
+  //     if (response.data.success) {
+  //       const { accessToken, user } = response.data;
+
+  //       // Save to localStorage
+  //       localStorage.setItem('accessToken', accessToken);
+  //       localStorage.setItem('userData', JSON.stringify(user));
+
+  //       // Update state
+  //       setAccessToken(accessToken);
+  //       setUserDataLocal(user);
+  //       setIsAuthenticated(true);
+
+  //       // Initialize socket connection
+  //       if (user._id) {
+  //         console.log('🔌 Initializing socket for user:', user._id);
+  //         try {
+  //           await initSocketClient(user._id, apiBaseUrl, () => {
+  //             console.log('🎯 Socket connected callback triggered');
+  //             socketInitialized.current = true;
+  //             setupSocketListeners();
+  //           });
+  //           console.log('✅ Socket initialization completed');
+  //         } catch (error) {
+  //           console.error('❌ Socket initialization failed:', error);
+  //           // Continue anyway, socket is not critical for basic functionality
+  //         }
+  //       }
+
+  //       //Check auth - Fetch data
+  //       await checkGoogleAuth();
+  //       await fetchNotifications();
+  //       await getCalendarUser();
+
+  //       toast.success('Login successful!');
+  //       navigate('/'); // or wherever your home page is
+  //       return true;
+  //     }
+  //   } catch (error) {
+  //     console.error('Login error:', error);
+  //     toast.error(error.response?.data?.message || 'Login failed');
+  //     return false;
+  //   }
+  // };
+  // const login = async (email, password) => {
+  //   try {
+  //     const response = await axios.post(
+  //       `${apiBaseUrl}/login`,
+  //       {
+  //         email,
+  //         password,
+  //       },
+  //       { timeout: 15000 }
+  //     );
+
+  //     if (response.data.success) {
+  //       const { accessToken, user } = response.data;
+  //       return await handleLoginSuccess(accessToken, user);
+  //     }
+  //   } catch (error) {
+  //     console.error('Login error:', error);
+  //     toast.error(error.response?.data?.message || 'Login failed');
+  //     return false;
+  //   }
+  // };
+
   const login = async (email, password) => {
     try {
       const response = await axios.post(
         `${apiBaseUrl}/login`,
+        { email, password },
         {
-          email,
-          password,
-        },
-        { timeout: 15000 }
+          timeout: 15000,
+          withCredentials: true, // Include cookies
+        }
       );
 
       if (response.data.success) {
         const { accessToken, user } = response.data;
-
-        // Save to localStorage
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('userData', JSON.stringify(user));
-
-        // Update state
-        setAccessToken(accessToken);
-        setUserDataLocal(user);
-        setIsAuthenticated(true);
-
-        // Initialize socket connection
-        if (user._id) {
-          console.log('🔌 Initializing socket for user:', user._id);
-          try {
-            await initSocketClient(user._id, apiBaseUrl, () => {
-              console.log('🎯 Socket connected callback triggered');
-              socketInitialized.current = true;
-              setupSocketListeners();
-            });
-            console.log('✅ Socket initialization completed');
-          } catch (error) {
-            console.error('❌ Socket initialization failed:', error);
-            // Continue anyway, socket is not critical for basic functionality
-          }
-        }
-
-        //Check auth - Fetch data
-        await checkGoogleAuth();
-        await fetchNotifications();
-        await getCalendarUser();
-
-        toast.success('Login successful!');
-        navigate('/'); // or wherever your home page is
-        return true;
+        return await handleLoginSuccess(accessToken, user);
+      } else {
+        throw new Error(response.data.message || 'Login failed');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -156,6 +336,198 @@ export const Common = ({ children }) => {
     }
   };
 
+  // const handleLoginSuccess = async (accessToken, user) => {
+  //   localStorage.setItem('accessToken', accessToken);
+  //   localStorage.setItem('userData', JSON.stringify(user));
+
+  //   setAccessToken(accessToken);
+  //   setUserDataLocal(user);
+  //   setIsAuthenticated(true);
+
+  //   if (user._id && !socketInitialized.current) {
+  //     console.log('🔌 Initializing socket for user:', user._id);
+  //     try {
+  //       await initSocketClient(user._id, apiBaseUrl, () => {
+  //         console.log('🎯 Socket connected callback triggered');
+  //         socketInitialized.current = true;
+  //         setupSocketListeners();
+  //       });
+  //       console.log('✅ Socket initialization completed');
+  //     } catch (error) {
+  //       console.error('❌ Socket initialization failed:', error);
+  //     }
+  //   }
+
+  //   await checkGoogleAuth();
+  //   await fetchNotifications();
+  //   await getCalendarUser();
+
+  //   toast.success('Login successful!');
+  //   navigate('/');
+  //   return true;
+  // };
+
+  // Đăng nhập Google OAuth
+
+  const handleLoginSuccess = async (
+    accessToken,
+    user,
+    isGoogleLogin = false
+  ) => {
+    // Đánh dấu đang xử lý auth để tránh conflicts
+    isProcessingAuth.current = true;
+
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('userData', JSON.stringify(user));
+
+    setAccessToken(accessToken);
+    setUserDataLocal(user);
+    setIsAuthenticated(true);
+
+    // Khởi tạo socket với callback cải thiện
+    if (user._id && !socketInitialized.current) {
+      console.log('🔌 Initializing socket for user:', user._id);
+      try {
+        await initSocketClient(user._id, apiBaseUrl, () => {
+          console.log('🎯 Socket connected callback triggered');
+          socketInitialized.current = true;
+
+          // Thiết lập socket listeners ngay khi callback được gọi
+          setupSocketListeners();
+
+          // Set connected state ngay lập tức
+          setSocketConnected(true);
+          console.log('✅ Socket connection status set to true');
+        });
+        console.log('✅ Socket initialization completed');
+
+        // Kiểm tra bổ sung sau một khoảng thời gian ngắn
+        setTimeout(() => {
+          try {
+            const socket = getSocket();
+            if (socket && socket.connected) {
+              console.log('🔗 Secondary socket verification: connected');
+              setSocketConnected(true);
+            } else {
+              console.log('⚠️ Secondary socket verification: not connected');
+              setSocketConnected(false);
+            }
+          } catch (error) {
+            console.error('❌ Error in secondary socket check:', error);
+          }
+        }, 1000);
+      } catch (error) {
+        console.error('❌ Socket initialization failed:', error);
+        setSocketConnected(false);
+      }
+    }
+
+    // Tải dữ liệu ban đầu
+    await Promise.all([
+      checkGoogleAuth(),
+      fetchNotifications(),
+      getCalendarUser(),
+    ]);
+
+    // Kiểm tra socket status cuối cùng sau khi tất cả đã hoàn thành
+    setTimeout(() => {
+      if (socketInitialized.current) {
+        try {
+          const socket = getSocket();
+          const isConnected = socket && socket.connected;
+          console.log('🔗 Final socket status verification:', isConnected);
+          setSocketConnected(isConnected);
+        } catch (error) {
+          console.error('❌ Error in final socket verification:', error);
+          setSocketConnected(false);
+        }
+      }
+    }, 2000);
+
+    // Chỉ hiển thị toast và navigate nếu không phải Google login
+    if (!isGoogleLogin) {
+      toast.success('Login successful!');
+      navigate('/');
+    }
+
+    // Reset processing flag sau khi hoàn thành
+    setTimeout(() => {
+      isProcessingAuth.current = false;
+    }, 1500);
+
+    return true;
+  };
+
+  const googleLogin = async () => {
+    try {
+      // Chuyển hướng đến backend để bắt đầu Google OAuth
+      window.location.href = `${apiBaseUrl}/google/login`;
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast.error('Failed to initiate Google login');
+      return false;
+    }
+  };
+
+  //Đăng ký truyền thống
+  // const register = async (username, email, password, passwordConfirm) => {
+  //   try {
+  //     const response = await axios.post(
+  //       `${apiBaseUrl}/signup`,
+  //       {
+  //         username,
+  //         email,
+  //         password,
+  //         passwordConfirm,
+  //       },
+  //       { timeout: 15000 }
+  //     );
+
+  //     if (response.data.status === 'success') {
+  //       const { token, data } = response.data;
+
+  //       // Save to localStorage
+  //       localStorage.setItem('accessToken', token);
+  //       localStorage.setItem('userData', JSON.stringify(data.user));
+
+  //       // Update state
+  //       setAccessToken(token);
+  //       setUserDataLocal(data.user);
+  //       setIsAuthenticated(true);
+
+  //       // Initialize socket connection
+  //       if (data.user._id) {
+  //         console.log('🔌 Initializing socket for user:', data.user._id);
+  //         try {
+  //           await initSocketClient(data.user._id, apiBaseUrl, () => {
+  //             console.log('🎯 Socket connected callback triggered');
+  //             socketInitialized.current = true;
+  //             setupSocketListeners();
+  //           });
+  //           console.log('✅ Socket initialization completed');
+  //         } catch (error) {
+  //           console.error('❌ Socket initialization failed:', error);
+  //           // Continue anyway, socket is not critical for basic functionality
+  //         }
+  //       }
+
+  //       // Check auth - Fetch data
+  //       await checkGoogleAuth();
+  //       await fetchNotifications();
+  //       await getCalendarUser();
+
+  //       toast.success('Registration successful!');
+  //       navigate('/');
+  //       return true;
+  //     }
+  //   } catch (error) {
+  //     console.error('Registration error:', error);
+  //     toast.error(error.response?.data?.message || 'Registration failed');
+  //     return false;
+  //   }
+  // };
+
+  // Đăng ký truyền thống
   const register = async (username, email, password, passwordConfirm) => {
     try {
       const response = await axios.post(
@@ -166,45 +538,15 @@ export const Common = ({ children }) => {
           password,
           passwordConfirm,
         },
-        { timeout: 15000 }
+        {
+          timeout: 15000,
+          withCredentials: true, // Include cookies
+        }
       );
 
       if (response.data.status === 'success') {
         const { token, data } = response.data;
-
-        // Save to localStorage
-        localStorage.setItem('accessToken', token);
-        localStorage.setItem('userData', JSON.stringify(data.user));
-
-        // Update state
-        setAccessToken(token);
-        setUserDataLocal(data.user);
-        setIsAuthenticated(true);
-
-        // Initialize socket connection
-        if (data.user._id) {
-          console.log('🔌 Initializing socket for user:', data.user._id);
-          try {
-            await initSocketClient(data.user._id, apiBaseUrl, () => {
-              console.log('🎯 Socket connected callback triggered');
-              socketInitialized.current = true;
-              setupSocketListeners();
-            });
-            console.log('✅ Socket initialization completed');
-          } catch (error) {
-            console.error('❌ Socket initialization failed:', error);
-            // Continue anyway, socket is not critical for basic functionality
-          }
-        }
-
-        // Check auth - Fetch data
-        await checkGoogleAuth();
-        await fetchNotifications();
-        await getCalendarUser();
-
-        toast.success('Registration successful!');
-        navigate('/');
-        return true;
+        return await handleLoginSuccess(token, data.user);
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -213,13 +555,47 @@ export const Common = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    // Clear localStorage
+  // const logout = () => {
+  //   // Clear localStorage
+  //   localStorage.removeItem('accessToken');
+  //   localStorage.removeItem('userData');
+  //   localStorage.removeItem('notifications');
+
+  //   // Clear state
+  //   setAccessToken(null);
+  //   setUserDataLocal(null);
+  //   setIsAuthenticated(false);
+  //   setNotifications([]);
+  //   setCalendarUser(null);
+  //   setIsGoogleAuthenticated(false);
+  //   setShowGoogleAuthModal(false);
+  //   setIsCheckingGoogleAuth(false);
+
+  //   // Disconnect socket if initialized
+  //   disconnectSocket();
+  //   socketInitialized.current = false;
+  //   setSocketConnected(false);
+
+  //   // Navigate to login
+  //   navigate('/login');
+  // };
+
+  // Fetch notifications
+
+  const logout = async () => {
+    try {
+      await axios.get(`${apiBaseUrl}/logout`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        withCredentials: true, // Include cookies
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+
     localStorage.removeItem('accessToken');
     localStorage.removeItem('userData');
     localStorage.removeItem('notifications');
 
-    // Clear state
     setAccessToken(null);
     setUserDataLocal(null);
     setIsAuthenticated(false);
@@ -229,16 +605,13 @@ export const Common = ({ children }) => {
     setShowGoogleAuthModal(false);
     setIsCheckingGoogleAuth(false);
 
-    // Disconnect socket if initialized
     disconnectSocket();
     socketInitialized.current = false;
     setSocketConnected(false);
 
-    // Navigate to login
     navigate('/login');
   };
 
-  // Fetch notifications
   const fetchNotifications = async () => {
     if (!accessToken || !userDataLocal?._id) return;
 
@@ -265,6 +638,17 @@ export const Common = ({ children }) => {
   const markNotificationAsRead = async (notificationId) => {
     if (!accessToken || !notificationId) return;
 
+    // Kiểm tra xem notification đã được đọc chưa
+    const notification = notifications.find(
+      (n) => n.notificationId === notificationId
+    );
+    if (notification && notification.isRead) {
+      console.log('📖 Notification already marked as read, skipping request');
+      return;
+    }
+
+    console.log(`📝 Marking notification ${notificationId} as read...`);
+
     try {
       const response = await axios.patch(
         `${apiBaseUrl}/notification/${notificationId}/read`,
@@ -276,17 +660,19 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        setNotifications((prev) =>
-          prev.map((n) =>
+        console.log('✅ Notification marked as read successfully');
+        setNotifications((prev) => {
+          const updated = prev.map((n) =>
             n.notificationId === notificationId
               ? { ...n, isRead: true, readAt: formatDateAMPMForVN(new Date()) }
               : n
-          )
-        );
-        localStorage.setItem('notifications', JSON.stringify(notifications));
+          );
+          localStorage.setItem('notifications', JSON.stringify(updated));
+          return updated;
+        });
       }
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('❌ Error marking notification as read:', error);
       // toast.error(
       //   error.response?.data?.message ||
       //     'Không thể đánh dấu thông báo là đã đọc'
@@ -320,7 +706,7 @@ export const Common = ({ children }) => {
         return true;
       }
     } catch (error) {
-      console.error('Error responding to event invitation:', error);
+      console.error('❌ Error responding to event invitation:', error);
       toast.error(
         error.response?.data?.message ||
           'Không thể phản hồi lời mời tham gia sự kiện'
@@ -329,7 +715,31 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Setup socket listeners
+  // Update event status based on time
+  const updateEventStatusByTime = async (eventId) => {
+    if (!accessToken || !eventId) return null;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/${eventId}/update-status-by-time`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error('❌ Error updating event status by time:', error);
+      // Không hiển thị toast error vì đây là background process
+      return null;
+    }
+  };
+
+  // Setup socket listeners với cải thiện
   const setupSocketListeners = () => {
     if (!userDataLocal?._id) {
       console.log('⚠️ No user ID available for socket listeners');
@@ -346,11 +756,12 @@ export const Common = ({ children }) => {
       // Remove existing listeners first to avoid duplicates
       socket.off('new_notification');
       socket.off('notification_updated');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('test_pong');
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
-        console.log('🔔 Received new notification:', notification);
-
         setNotifications((prev) => {
           const newNotifications = [
             { ...notification, isRead: false, readAt: null },
@@ -381,17 +792,8 @@ export const Common = ({ children }) => {
           });
         }
 
-        console.log(
-          '✅ Toast shown for:',
-          notification.title,
-          notification.content
-        );
-
         // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
         if (notification.type === 'event_update') {
-          console.log(
-            '📅 Received event update notification, triggering refresh...'
-          );
           window.dispatchEvent(
             new CustomEvent('eventUpdated', {
               detail: { eventId: notification.eventId },
@@ -402,13 +804,6 @@ export const Common = ({ children }) => {
 
       // Xử lý cập nhật thông báo
       const handleNotificationUpdate = ({ notificationId, isRead }) => {
-        console.log(
-          '🔄 Updating notification:',
-          notificationId,
-          'isRead:',
-          isRead
-        );
-
         setNotifications((prev) => {
           const updated = prev.map((n) =>
             n.notificationId === notificationId
@@ -424,24 +819,33 @@ export const Common = ({ children }) => {
         });
       };
 
-      // Test listener để verify socket hoạt động
+      // Listen for actual socket connection events
       socket.on('connect', () => {
-        console.log('🔗 Socket connected in listeners setup');
+        console.log('🔗 Socket connected event received');
+        setSocketConnected(true);
       });
 
       socket.on('disconnect', () => {
-        console.log('❌ Socket disconnected');
+        console.log('❌ Socket disconnected event received');
         setSocketConnected(false);
       });
 
       // Test pong listener để verify connection
       socket.on('test_pong', (data) => {
         console.log('🏓 Received test pong from backend:', data);
+        // Đảm bảo connection status được update khi nhận được pong
+        setSocketConnected(true);
       });
 
       // Đăng ký listeners
       socket.on('new_notification', handleNewNotification);
       socket.on('notification_updated', handleNotificationUpdate);
+
+      // Check if socket is already connected
+      if (socket.connected) {
+        console.log('🔗 Socket already connected during setup');
+        setSocketConnected(true);
+      }
 
       // Test ping để verify connection
       socket.emit('test_ping', {
@@ -450,7 +854,6 @@ export const Common = ({ children }) => {
       });
 
       console.log('✅ Socket listeners registered successfully');
-      setSocketConnected(true);
     } catch (error) {
       console.error('❌ Error setting up socket listeners:', error);
       setSocketConnected(false);
@@ -488,7 +891,6 @@ export const Common = ({ children }) => {
           timeout: 10000,
         },
       });
-      console.log('Lấy lịch user:', response.data);
       if (response.data.status === 200 && response.data.data?.length > 0) {
         setCalendarUser(response.data.data[0]); // Lấy lịch đầu tiên
       }
@@ -515,7 +917,6 @@ export const Common = ({ children }) => {
         headers: { Authorization: `Bearer ${accessToken}` },
         timeout: 10000,
       });
-      console.log('get google auth url response:', response);
 
       if (response.data.status === 'success') {
         window.location.href = response.data.data.authUrl; // Redirect đến Google
@@ -628,9 +1029,57 @@ export const Common = ({ children }) => {
     }
   }, [notifications]);
 
+  // Periodic socket status check với cải thiện
+  useEffect(() => {
+    if (!isAuthenticated || !socketInitialized.current) return;
+
+    const checkSocketStatus = () => {
+      try {
+        const socket = getSocket();
+        const isConnected = socket && socket.connected;
+        const currentStatus = socketConnected;
+
+        if (isConnected !== currentStatus) {
+          console.log(
+            `🔄 Socket status mismatch detected: ${currentStatus} -> ${isConnected}`
+          );
+          setSocketConnected(isConnected);
+
+          // Log detailed status for debugging
+          if (isConnected) {
+            console.log('✅ Socket status updated to connected');
+          } else {
+            console.log('❌ Socket status updated to disconnected');
+          }
+        }
+      } catch (error) {
+        // Socket not initialized yet, set to false
+        if (socketConnected) {
+          console.log(
+            '⚠️ Socket not accessible, setting status to disconnected'
+          );
+          setSocketConnected(false);
+        }
+      }
+    };
+
+    // Initial check
+    checkSocketStatus();
+
+    // Check every 2 seconds
+    const interval = setInterval(checkSocketStatus, 2000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, socketInitialized.current, socketConnected]);
+
   // Initialize socket khi user đã login (for page reload)
   useEffect(() => {
-    if (accessToken && userDataLocal?._id && !socketInitialized.current) {
+    if (
+      accessToken &&
+      userDataLocal?._id &&
+      !socketInitialized.current &&
+      !isProcessingAuth.current
+    ) {
       console.log('🔄 Reinitializing socket after page reload');
       const initSocket = async () => {
         try {
@@ -646,16 +1095,56 @@ export const Common = ({ children }) => {
       };
       initSocket();
     }
-  }, [accessToken, userDataLocal]);
+  }, [accessToken, userDataLocal?._id]); // Simplified dependencies
 
   // Tải dữ liệu ban đầu sau khi có userDataLocal
   useEffect(() => {
-    if (accessToken && userDataLocal?._id && !isCheckingGoogleAuth) {
-      fetchNotifications();
-      checkGoogleAuth();
-      getCalendarUser();
+    if (
+      accessToken &&
+      userDataLocal?._id &&
+      !isCheckingGoogleAuth &&
+      !isProcessingAuth.current
+    ) {
+      const loadInitialData = async () => {
+        try {
+          await Promise.all([
+            fetchNotifications(),
+            checkGoogleAuth(),
+            getCalendarUser(),
+          ]);
+        } catch (error) {
+          console.error('Error loading initial data:', error);
+        }
+      };
+
+      loadInitialData();
     }
-  }, [accessToken, userDataLocal]);
+  }, [accessToken, userDataLocal?._id]); // Simplified dependencies
+
+  // Xử lý query parameter khi quay lại từ Google OAuth
+  // useEffect(() => {
+  //   const query = new URLSearchParams(location.search);
+  //   const error = query.get('error');
+
+  //   if (error === 'google_auth_failed') {
+  //     toast.error('Google login failed. Please try again.');
+  //     navigate('/login', { replace: true });
+  //   }
+  // }, [location, navigate]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const error = query.get('error');
+    const message = query.get('message');
+
+    if (error === 'google_auth_failed') {
+      toast.error(
+        message || 'Email tài khoản đã tồn tại.'
+        // Vui lòng đăng nhập thủ công và kết nối với tài khoản Google của bạn.
+      );
+      navigate('/login', { replace: true });
+    }
+  }, [location, navigate]);
 
   return (
     <CommonContext.Provider
@@ -673,6 +1162,8 @@ export const Common = ({ children }) => {
         login,
         register,
         logout,
+        googleLogin,
+        handleLoginSuccess,
         createInitialCalendar,
         getCalendarUser,
         calendarUser,
@@ -687,6 +1178,7 @@ export const Common = ({ children }) => {
         fetchNotifications,
         markNotificationAsRead,
         respondToEventInvitation,
+        updateEventStatusByTime,
         formatDateAMPMForVN,
         workspaces,
         loadingWorkspaces,
@@ -706,10 +1198,11 @@ export const Common = ({ children }) => {
         richColors
         position='top-center'
         expand={true}
-        visibleToasts={5}
+        visibleToasts={3}
         toastOptions={{
           duration: 2000,
         }}
+        closeButton={true}
       />
 
       {children}

@@ -12,6 +12,7 @@ const {
   updateUserById,
   deleteUserById,
   findUsersByEmails,
+  getUserById,
 } = require('../controllers/userController');
 const { protect } = require('../middlewares/auth');
 
@@ -41,6 +42,7 @@ router.route('/').get(protect, getAllUsers);
 
 router
   .route('/:id')
+  .get(protect, getUserById)
   .put(protect, updateUserById)
   .delete(protect, deleteUserById);
 

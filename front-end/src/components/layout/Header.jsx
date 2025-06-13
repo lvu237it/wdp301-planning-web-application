@@ -16,6 +16,7 @@ const Header = () => {
     userDataLocal,
     formatDateAMPMForVN,
     socketConnected,
+    toast,
   } = useCommon();
   const [showPopover, setShowPopover] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -24,18 +25,40 @@ const Header = () => {
 
   const unreadCount = notifications?.filter((n) => !n.isRead)?.length || 0;
 
-  useEffect(() => {
-    // console.log('notifications', notifications);
-  }, []);
-
   const handleAvatarClick = () => {
     setShowPopover(!showPopover);
     setShowNotifDropdown(false);
     setShowNotifModal(false);
   };
 
-  const handleNotificationClick = async (notificationId) => {
-    await markNotificationAsRead(notificationId);
+  const handleNotificationClick = async (
+    notificationId,
+    eventId = null,
+    notificationType = null,
+    responseStatus = null,
+    isRead = false
+  ) => {
+    // Chỉ mark as read nếu chưa được đọc
+    if (!isRead) {
+      await markNotificationAsRead(notificationId);
+    }
+
+    // Nếu thông báo có eventId và user đã chấp nhận tham gia event, navigate tới calendar
+    if (
+      eventId &&
+      notificationType === 'event_invitation' &&
+      responseStatus === 'accepted'
+    ) {
+      navigate('/calendar');
+      // Đóng dropdown/modal sau khi navigate
+      setShowNotifDropdown(false);
+      setShowNotifModal(false);
+    } else if (eventId && notificationType !== 'event_invitation') {
+      // Đối với các loại notification khác về event (event_update, event_reminder, etc.)
+      navigate('/calendar');
+      setShowNotifDropdown(false);
+      setShowNotifModal(false);
+    }
   };
 
   const handleEventInvitationResponse = async (
@@ -125,17 +148,59 @@ const Header = () => {
         {notifications.map((notif) => (
           <Dropdown.Item
             key={notif.notificationId}
-            onClick={() => handleNotificationClick(notif.notificationId)}
+            onClick={() =>
+              handleNotificationClick(
+                notif.notificationId,
+                notif.eventId,
+                notif.type,
+                notif.responseStatus,
+                notif.isRead
+              )
+            }
             className={`notification-item py-2 ${
               notif.isRead ? 'text-muted' : 'fw-bold'
             }`}
             style={{
               whiteSpace: 'normal',
               borderBottom: '1px solid #eee',
+              cursor: canNavigateToCalendar(
+                notif.eventId,
+                notif.type,
+                notif.responseStatus
+              )
+                ? 'pointer'
+                : 'default',
             }}
+            title={
+              canNavigateToCalendar(
+                notif.eventId,
+                notif.type,
+                notif.responseStatus
+              )
+                ? 'Click to view in calendar'
+                : ''
+            }
           >
             <div className='d-flex flex-column'>
-              <span className='notification-title mb-1'>{notif.title}</span>
+              <span className='notification-title mb-1'>
+                {notif.title}
+                {notif.eventId && (
+                  <small
+                    className='ms-2'
+                    style={{
+                      color: canNavigateToCalendar(
+                        notif.eventId,
+                        notif.type,
+                        notif.responseStatus
+                      )
+                        ? '#007bff'
+                        : '#6c757d',
+                    }}
+                  >
+                    📅
+                  </small>
+                )}
+              </span>
               <small className='notification-content text-wrap'>
                 {notif.content}
               </small>
@@ -145,8 +210,8 @@ const Header = () => {
 
               {/* Hiển thị buttons cho event invitation nếu chưa respond */}
               {notif.type === 'event_invitation' &&
-                (!notif.responseStatus || notif.responseStatus === 'pending') &&
-                !notif.isRead && (
+                (!notif.responseStatus ||
+                  notif.responseStatus === 'pending') && (
                   <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
                     <button
                       className='btn btn-success btn-sm'
@@ -239,6 +304,19 @@ const Header = () => {
         ))}
       </div>
     );
+  };
+
+  // Helper function để kiểm tra có thể navigate tới calendar không
+  const canNavigateToCalendar = (eventId, type, responseStatus) => {
+    if (!eventId) return false;
+
+    // Event invitation: chỉ navigate khi đã accept
+    if (type === 'event_invitation') {
+      return responseStatus === 'accepted';
+    }
+
+    // Các loại notification khác về event: luôn có thể navigate
+    return true;
   };
 
   return (
@@ -398,18 +476,67 @@ const Header = () => {
             notifications.map((notif) => (
               <div
                 key={notif.notificationId}
-                onClick={() => handleNotificationClick(notif.notificationId)}
+                onClick={() =>
+                  handleNotificationClick(
+                    notif.notificationId,
+                    notif.eventId,
+                    notif.type,
+                    notif.responseStatus,
+                    notif.isRead
+                  )
+                }
                 className={`notification-item py-2 ${
                   notif.isRead ? 'text-muted' : 'fw-bold'
                 }`}
                 style={{
                   whiteSpace: 'normal',
                   borderBottom: '1px solid #eee',
-                  cursor: 'pointer',
+                  cursor: canNavigateToCalendar(
+                    notif.eventId,
+                    notif.type,
+                    notif.responseStatus
+                  )
+                    ? 'pointer'
+                    : 'default',
                 }}
+                title={
+                  canNavigateToCalendar(
+                    notif.eventId,
+                    notif.type,
+                    notif.responseStatus
+                  )
+                    ? 'Click to view in calendar'
+                    : ''
+                }
               >
                 <div className='d-flex flex-column'>
-                  <span className='notification-title mb-1'>{notif.title}</span>
+                  <span className='notification-title mb-1'>
+                    {notif.title}
+                    {notif.eventId && (
+                      <small
+                        className='ms-2'
+                        style={{
+                          color: canNavigateToCalendar(
+                            notif.eventId,
+                            notif.type,
+                            notif.responseStatus
+                          )
+                            ? '#007bff'
+                            : '#6c757d',
+                        }}
+                      >
+                        📅
+                        {notif.type === 'event_invitation' &&
+                          notif.responseStatus !== 'accepted' && (
+                            <span
+                              style={{ fontSize: '8px', marginLeft: '2px' }}
+                            >
+                              🔒
+                            </span>
+                          )}
+                      </small>
+                    )}
+                  </span>
                   <small className='notification-content text-wrap'>
                     {notif.content}
                   </small>
@@ -420,8 +547,7 @@ const Header = () => {
                   {/* Hiển thị buttons cho event invitation nếu chưa respond */}
                   {notif.type === 'event_invitation' &&
                     (!notif.responseStatus ||
-                      notif.responseStatus === 'pending') &&
-                    !notif.isRead && (
+                      notif.responseStatus === 'pending') && (
                       <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
                         <button
                           className='btn btn-success btn-sm'

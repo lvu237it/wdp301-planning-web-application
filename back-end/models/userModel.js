@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
     },
     username: {
       type: String,
-      required: true,
+      required: false, //Không bắt buộc với người dùng đăng nhập bằng OAuth
     },
     email: {
       type: String,
@@ -22,7 +22,13 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: false, //Không bắt buộc với người dùng đăng nhập bằng OAuth
+    },
+    googleId: {
+      //Lưu ID duy nhất của người dùng từ Google để liên kết tài khoản Google với tài khoản trong hệ thống
+      type: String,
+      unique: true,
+      sparse: true, // Cho phép null, chỉ lưu khi đăng nhập qua Google
     },
     avatar: String,
     role: {
@@ -87,9 +93,10 @@ const userSchema = new mongoose.Schema(
 );
 
 //Mã hoá mật khẩu trước khi save vào database
+//Nếu không có password thì bỏ qua bước mã hoá - khi đăng nhập bằng OAuth
 userSchema.pre('save', async function (next) {
   //Only run this function if password was actually modified
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     //neu password chua duoc sua doi thi chuyen sang middleware tiep theo
     return next();
   }

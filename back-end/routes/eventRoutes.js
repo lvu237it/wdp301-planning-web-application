@@ -21,6 +21,11 @@ router.post(
   eventController.inviteToBecomeParticipant
 ); //ok
 router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
+router.patch(
+  '/:id/update-status-by-time',
+  auth.protect,
+  eventController.updateEventStatusByTime
+); // Cập nhật trạng thái dựa trên thời gian
 router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',

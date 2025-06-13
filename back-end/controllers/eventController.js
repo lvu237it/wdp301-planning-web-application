@@ -945,6 +945,14 @@ exports.updateEvent = async (req, res) => {
         status: 403,
       });
     }
+
+    // Kiểm tra trạng thái sự kiện có thể chỉnh sửa không
+    if (event.status === 'in-progress' || event.status === 'completed') {
+      return res.status(400).json({
+        message: 'Không thể chỉnh sửa sự kiện đang diễn ra hoặc đã hoàn thành',
+        status: 400,
+      });
+    }
     console.log('type onlineofline', type);
     //Nếu sự kiện online thì có thể cập nhật onlineUrl hoặc meetingCode
     if (type === 'online') {
@@ -1345,6 +1353,14 @@ exports.deleteEvent = async (req, res) => {
       return res.status(403).json({
         message: 'Bạn không có quyền xóa sự kiện này',
         status: 403,
+      });
+    }
+
+    // Kiểm tra trạng thái sự kiện có thể xóa không
+    if (event.status === 'in-progress' || event.status === 'completed') {
+      return res.status(400).json({
+        message: 'Không thể xóa sự kiện đang diễn ra hoặc đã hoàn thành',
+        status: 400,
       });
     }
 
@@ -1902,6 +1918,116 @@ exports.sendEventReminder = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi gửi lời nhắc:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+// Helper function để xác định trạng thái sự kiện dựa trên thời gian
+const determineEventStatus = (startDate, endDate, currentStatus) => {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Nếu sự kiện đã được hủy hoặc đã hoàn thành thủ công, giữ nguyên
+  if (currentStatus === 'cancelled') {
+    return currentStatus;
+  }
+
+  // Nếu sự kiện đã kết thúc
+  if (now > end) {
+    return 'completed';
+  }
+
+  // Nếu sự kiện đang diễn ra
+  if (now >= start && now <= end) {
+    return 'in-progress';
+  }
+
+  // Nếu sự kiện chưa bắt đầu
+  if (now < start) {
+    return 'scheduled';
+  }
+
+  return currentStatus;
+};
+
+// Cập nhật trạng thái sự kiện dựa trên thời gian
+exports.updateEventStatusByTime = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện',
+        status: 400,
+      });
+    }
+
+    const event = await Event.findById(id);
+    if (!event || event.isDeleted) {
+      return res.status(404).json({
+        message: 'Không tìm thấy sự kiện',
+        status: 404,
+      });
+    }
+
+    // Kiểm tra quyền truy cập - user phải là participant hoặc organizer
+    const userId = req.user._id;
+    const isParticipant = event.participants.some(
+      (p) => p.userId.toString() === userId.toString()
+    );
+    const isOrganizer = event.organizer.toString() === userId.toString();
+
+    if (!isParticipant && !isOrganizer) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền truy cập sự kiện này',
+        status: 403,
+      });
+    }
+
+    // Xác định trạng thái mới dựa trên thời gian
+    const newStatus = determineEventStatus(
+      event.startDate,
+      event.endDate,
+      event.status
+    );
+
+    // Chỉ cập nhật nếu trạng thái thực sự thay đổi
+    if (newStatus !== event.status) {
+      event.status = newStatus;
+      await event.save();
+
+      // Ghi lịch sử thay đổi trạng thái
+      await EventHistory.create({
+        eventId: event._id,
+        action: 'auto_update_status',
+        participants: event.participants.map((p) => ({
+          userId: p.userId,
+          status: p.status,
+        })),
+      });
+
+      console.log(
+        `Auto-updated event ${event._id} status from ${event.status} to ${newStatus}`
+      );
+    }
+
+    res.status(200).json({
+      message: 'Cập nhật trạng thái sự kiện thành công',
+      status: 200,
+      data: {
+        eventId: event._id,
+        oldStatus: event.status,
+        newStatus: newStatus,
+        updated: newStatus !== event.status,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi khi cập nhật trạng thái sự kiện:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,

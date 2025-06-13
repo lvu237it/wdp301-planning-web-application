@@ -3,9 +3,12 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const passport = require('passport');
 const User = require('../models/userModel');
 const AppError = require('../utils/appError');
 const sendMail = require('../utils/sendMail');
+const { getAdminId } = require('../utils/admin');
+const NotificationService = require('../services/NotificationService');
 
 /**
  * Generate a JWT access token.
@@ -80,11 +83,11 @@ const createSendToken = (user, statusCode, res) => {
 // @route   POST /authentication/signup
 // @access  Public
 // -----------------------------------------------------------------------------
+
 exports.signup = async (req, res, next) => {
   try {
     const { username, email, password, passwordConfirm } = req.body;
 
-    // 1) Basic validation
     if (!username || !email || !password) {
       return res.status(400).json({
         status: 'error',
@@ -98,37 +101,29 @@ exports.signup = async (req, res, next) => {
       });
     }
 
-    // 2) Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         status: 'error',
-        message:
-          'This email is already registered. Please use a different email or login.',
+        message: 'This email is already registered.',
       });
     }
 
-    // 3) Create new user; pre‐save hook will hash the password
     const newUser = await User.create({ username, email, password });
 
-    // 4) Send welcome email (optional)
     try {
       await sendMail(
         newUser.email,
         'Welcome to the App!',
         `Hi ${newUser.username},\n\nYour account has been created successfully.`
       );
-    } catch (_) {
-      // Ignore mailing errors
-    }
+    } catch (_) {}
 
-    // 5) Send JWT (legacy flow)
     createSendToken(newUser, 201, res);
   } catch (err) {
-    // Handle other errors
     res.status(500).json({
       status: 'error',
-      message: 'An error occurred while creating your account.',
+      message: 'Error creating account.',
     });
   }
 };
@@ -138,11 +133,11 @@ exports.signup = async (req, res, next) => {
 // @route   POST /authentication/login
 // @access  Public
 // -----------------------------------------------------------------------------
+
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Kiểm tra dữ liệu đầu vào
     if (!email || !password) {
       return res.status(400).json({
         message: 'Missing email or password',
@@ -150,10 +145,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 2) Find user by email (select refreshToken and password explicitly if needed)
-    const user = await User.findOne({ email }).select(
-      '+password +refreshToken'
-    );
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
         message: 'Invalid email',
@@ -161,7 +153,6 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 3) Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({
@@ -170,29 +161,18 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 4) Generate new tokens
-    const accessToken = generateAccessToken(user._id, user.role);
-    const newRefreshToken = generateRefreshToken(user._id);
-
-    // 5) Update refresh token in database
-    user.refreshToken = newRefreshToken;
-    await user.save({ validateBeforeSave: false });
-
-    // 6) Set cookie for refresh token (HTTP‐only)
-    res.cookie('refreshToken', newRefreshToken, {
+    const token = signToken(user._id);
+    res.cookie('jwt', token, {
       httpOnly: true,
-      maxAge: 15 * 60 * 1000, // 15 minutes (adjust if you want a longer lifespan)
-      secure: process.env.NODE_ENV === 'production', // set secure flag in production
-      sameSite: 'Strict',
+      maxAge: 2 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
     });
 
-    // 7) Prepare userData to return (omit sensitive fields)
-    const { password: pw, refreshToken: rt, ...userData } = user.toObject();
-
-    // 8) Return success response
+    const { password: pw, ...userData } = user.toObject();
     res.status(200).json({
       success: true,
-      accessToken,
+      accessToken: token,
       user: {
         ...userData,
         role: user.role,
@@ -201,7 +181,7 @@ exports.login = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Error while logging in:', error);
+    console.error('Login error:', error);
     res.status(500).json({
       message: 'Internal Server Error',
       status: 500,
@@ -215,15 +195,37 @@ exports.login = async (req, res, next) => {
 // @route   GET /authentication/me
 // @access  Private
 // -----------------------------------------------------------------------------
+
 exports.getCurrentUser = async (req, res, next) => {
   try {
     const { _id } = req.user;
+    console.log('req.user:', req.user); // Debugging line to check user data
     const user = await User.findById(_id).select(
       '-refreshToken -password -role'
     );
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Tạo token mới để trả về
+    const token = signToken(_id);
+
     res.status(200).json({
-      success: !!user,
-      user: user || 'User not found',
+      success: true,
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        fullname: user.fullname,
+        username: user.username,
+        avatar: user.avatar,
+        role: user.role, // Giữ role để khớp với login
+        createdAt: user.createdAt,
+        description: user?.description || null,
+      },
     });
   } catch (err) {
     next(err);
@@ -271,33 +273,33 @@ exports.refreshAccessToken = async (req, res, next) => {
 // @route   POST /authentication/logout
 // @access  Private
 // -----------------------------------------------------------------------------
+
 exports.logoutUser = async (req, res, next) => {
   try {
-    const { refreshToken } = req.cookies;
-    if (!refreshToken) {
-      return next(new AppError('No refresh token in cookies.', 400));
-    }
-
-    // 1) Remove refresh token from DB
-    await User.findOneAndUpdate(
-      { refreshToken },
-      { refreshToken: '' },
-      { new: true }
-    );
-
-    // 2) Clear the HTTP‐only cookie
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Strict',
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Logout successful',
+    // Hủy session Passport
+    req.logout((err) => {
+      if (err) {
+        return next(new AppError('Error logging out', 500));
+      }
+      // Hủy session Express
+      req.session.destroy((err) => {
+        if (err) {
+          return next(new AppError('Error destroying session', 500));
+        }
+        // Xóa cookie
+        res.clearCookie('jwt', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Strict',
+        });
+        res.status(200).json({
+          success: true,
+          message: 'Logout successful',
+        });
+      });
     });
   } catch (err) {
-    next(err);
+    next(new AppError('Logout error', 500));
   }
 };
 
@@ -439,4 +441,242 @@ exports.updateMyPassword = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// Hàm gửi token cho đăng nhập Google
+const sendGoogleAuthToken = async (user, res) => {
+  try {
+    const token = signToken(user._id);
+
+    // Gửi token trong cookie với cấu hình phù hợp cho cross-origin
+    const cookieOptions = {
+      httpOnly: true,
+      maxAge: 2 * 24 * 60 * 60 * 1000, // 2 ngày
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-origin for OAuth
+    };
+
+    // Only set domain in production if COOKIE_DOMAIN is specified
+    // COOKIE_DOMAIN should be set in .env file for production (e.g., COOKIE_DOMAIN=.yourdomain.com)
+    if (process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN) {
+      cookieOptions.domain = process.env.COOKIE_DOMAIN;
+    }
+
+    console.log('Setting cookie with options:', cookieOptions);
+    res.cookie('jwt', token, cookieOptions);
+
+    console.log('Redirecting to frontend with success=true and token');
+    // Redirect về frontend với token trong URL để backup
+    res.redirect(
+      `${
+        process.env.FRONTEND_URL
+      }/google-callback?success=true&token=${encodeURIComponent(token)}`
+    );
+  } catch (err) {
+    console.error('Google auth token error:', err);
+    res.redirect(
+      `${
+        process.env.FRONTEND_URL
+      }/login?error=google_auth_failed&message=${encodeURIComponent(
+        err.message || 'Lỗi khi xử lý đăng nhập Google'
+      )}`
+    );
+  }
+};
+
+// Khởi tạo quy trình đăng nhập Google bằng passport.authenticate.
+// Đơn giản hóa và chỉ sử dụng prompt select_account thay vì consent để tránh yêu cầu scopes mỗi lần
+exports.googleAuth = passport.authenticate('google', {
+  scope: [
+    'profile',
+    'email',
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/meetings.space.created',
+    'https://www.googleapis.com/auth/calendar',
+  ],
+  prompt: 'select_account', // Chỉ yêu cầu chọn tài khoản, không ép consent mỗi lần
+});
+
+// Xử lý callback từ Google, sử dụng sendGoogleAuthToken để tạo token JWT, lưu refreshToken
+// vào cookie và database, gửi thông báo, và trả về phản hồi tương tự như login.
+exports.googleAuthCallback = async (req, res, next) => {
+  passport.authenticate(
+    'google',
+    {
+      failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
+    },
+    async (err, user) => {
+      if (err || !user) {
+        console.error('Google auth failed:', err);
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/login?error=google_auth_failed`
+        );
+      }
+      console.log('Google auth user:', user.email);
+      await sendGoogleAuthToken(user, res);
+    }
+  )(req, res, next);
+};
+
+exports.googleAuthCallbackUserData = async (req, res) => {
+  // Debug logs
+  console.log('=== DEBUG USERDATA ENDPOINT ===');
+  console.log('Headers:', req.headers);
+  console.log('Cookies:', req.cookies);
+  console.log('All cookies from header:', req.headers.cookie);
+
+  // This endpoint will extract user data from JWT cookie
+  let token;
+
+  // Try to get token from cookie
+  if (req.cookies && req.cookies.jwt) {
+    token = req.cookies.jwt;
+    console.log('Found JWT in cookies:', token.substring(0, 20) + '...');
+  } else {
+    console.log('No JWT cookie found');
+  }
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'No authentication token found',
+    });
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded successfully:', decoded);
+
+    // Get user data
+    User.findById(decoded._id)
+      .then((user) => {
+        if (!user) {
+          return res.status(401).json({
+            success: false,
+            message: 'User not found',
+          });
+        }
+
+        console.log('User found:', user.email);
+        res.status(200).json({
+          success: true,
+          token: token,
+          user: {
+            _id: user._id,
+            email: user.email,
+            fullname: user.fullname,
+            username: user.username,
+            avatar: user.avatar,
+            role: user.role,
+            createdAt: user.createdAt,
+            description: user.description || null,
+          },
+        });
+      })
+      .catch((error) => {
+        console.error('Error fetching user:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error fetching user data',
+        });
+      });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Invalid token',
+    });
+  }
+};
+
+//Link Google account to existing user
+exports.linkGoogleAccount = async (req, res, next) => {
+  passport.authenticate(
+    'google',
+    {
+      failureRedirect: `${process.env.FRONTEND_URL}/profile?error=google_link_failed`,
+    },
+    async (err, user) => {
+      if (err || !user) {
+        console.error('Google link failed:', err);
+        return res.redirect(
+          `${
+            process.env.FRONTEND_URL
+          }/profile?error=google_link_failed&message=${encodeURIComponent(
+            err ? err.message : 'Failed to link Google account'
+          )}`
+        );
+      }
+
+      try {
+        // Cập nhật googleId cho user hiện tại
+        const currentUser = await User.findById(req.user._id);
+        if (!currentUser) {
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=User not found`
+          );
+        }
+
+        if (currentUser.googleId) {
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=Google account already linked`
+          );
+        }
+
+        currentUser.googleId = user.googleId;
+        await currentUser.save();
+
+        // Lưu Google tokens
+        const services = [
+          {
+            service: 'calendar',
+            scopes: ['https://www.googleapis.com/auth/calendar'],
+          },
+          {
+            service: 'drive',
+            scopes: [
+              'https://www.googleapis.com/auth/drive.file',
+              'https://www.googleapis.com/auth/drive.metadata.readonly',
+            ],
+          },
+          {
+            service: 'meet',
+            scopes: ['https://www.googleapis.com/auth/meetings.space.created'],
+          },
+        ];
+
+        for (const { service, scopes } of services) {
+          await GoogleToken.findOneAndUpdate(
+            { userId: currentUser._id, service },
+            {
+              userId: currentUser._id,
+              service,
+              scopes,
+              accessToken: user.accessToken || null,
+              refreshToken: user.refreshToken || null,
+              expiryDate: user.expiry_date || Date.now() + 3600 * 1000,
+              status: 'active',
+            },
+            { upsert: true, new: true }
+          );
+        }
+
+        // Redirect về profile với thông báo thành công
+        res.redirect(
+          `${process.env.FRONTEND_URL}/profile?success=google_link_success`
+        );
+      } catch (err) {
+        console.error('Error linking Google account:', err);
+        res.redirect(
+          `${
+            process.env.FRONTEND_URL
+          }/profile?error=google_link_failed&message=${encodeURIComponent(
+            err.message
+          )}`
+        );
+      }
+    }
+  )(req, res, next);
 };

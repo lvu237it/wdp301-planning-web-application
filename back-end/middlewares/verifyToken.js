@@ -1,8 +1,8 @@
 // verifyToken.js
 
-const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
-const AppError = require("../utils/appError");
+const jwt = require('jsonwebtoken');
+const User = require('../models/userModel');
+const AppError = require('../utils/appError');
 
 /**
  * @desc    Middleware to verify that the request has a valid JWT.
@@ -18,9 +18,9 @@ const verifyToken = async (req, res, next) => {
   // 1) Attempt to read token from "Authorization" header: "Bearer <token>"
   if (
     req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
+    req.headers.authorization.startsWith('Bearer')
   ) {
-    token = req.headers.authorization.split(" ")[1];
+    token = req.headers.authorization.split(' ')[1];
   }
   // 2) If not found in header, try cookie "jwt"
   else if (req.cookies && req.cookies.jwt) {
@@ -30,20 +30,21 @@ const verifyToken = async (req, res, next) => {
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: "Authentication required: no token provided",
+      message: 'Authentication required: no token provided',
     });
   }
 
   try {
     // 3) Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Decoded token:', decoded); // Debug log
 
     // 4) Optionally: ensure that the user still exists and is active
-    const currentUser = await User.findById(decoded.id);
+    const currentUser = await User.findById(decoded._id);
     if (!currentUser) {
       return res.status(401).json({
         success: false,
-        message: "The user belonging to this token no longer exists",
+        message: 'The user belonging to this token no longer exists',
       });
     }
 
@@ -56,24 +57,26 @@ const verifyToken = async (req, res, next) => {
       if (decoded.iat < changedTimestamp) {
         return res.status(401).json({
           success: false,
-          message: "User recently changed password! Please log in again",
+          message: 'User recently changed password! Please log in again',
         });
       }
     }
 
     // 6) Attach user info onto req.user
     req.user = {
-      id: currentUser._id,
+      _id: currentUser._id, // Use _id to be consistent
+      id: currentUser._id, // Keep id for backward compatibility
       role: currentUser.role,
-      // you can also attach other fields if you need them:
-      // email: currentUser.email
+      email: currentUser.email,
+      username: currentUser.username,
     };
 
     next();
   } catch (err) {
+    console.error('Token verification error:', err);
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired token",
+      message: 'Invalid or expired token',
     });
   }
 };
@@ -90,7 +93,7 @@ const restrictTo = (...allowedRoles) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: "You do not have permission to perform this action",
+        message: 'You do not have permission to perform this action',
       });
     }
     next();
@@ -103,7 +106,7 @@ const restrictTo = (...allowedRoles) => {
  * Usage:
  *   router.use(isAdmin);
  */
-const isAdmin = restrictTo("admin");
+const isAdmin = restrictTo('admin');
 
 module.exports = {
   verifyToken,
