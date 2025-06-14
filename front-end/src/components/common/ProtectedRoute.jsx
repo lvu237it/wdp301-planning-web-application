@@ -5,7 +5,7 @@ const ProtectedRoute = ({ children }) => {
   const { userDataLocal, accessToken } = useCommon();
 
   if (!userDataLocal || !accessToken) {
-    return <Navigate to='/login' replace />;
+    return <Navigate to='/login' />;
   }
 
   return children;

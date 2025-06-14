@@ -89,7 +89,7 @@ export const Common = ({ children }) => {
       hasRedirected.current = true;
       navigate('/');
     }
-  }, [isAuthenticated, userDataLocal, location.pathname]);
+  }, [isAuthenticated, userDataLocal]);
 
   // Reset redirect flag khi user logout
   useEffect(() => {
@@ -100,8 +100,14 @@ export const Common = ({ children }) => {
   }, [isAuthenticated]);
 
   //Kiểm tra xem người dùng đã xác thực Google chưa với logic cải thiện
-  const checkGoogleAuth = async () => {
-    if (!accessToken || isCheckingGoogleAuth) return;
+  const checkGoogleAuth = async (force = false) => {
+    if (!accessToken || (isCheckingGoogleAuth && !force)) return;
+
+    // Kiểm tra nếu userDataLocal chưa được set và không phải force call
+    if (!force && !userDataLocal) {
+      console.log('⏳ userDataLocal not set yet, skipping checkGoogleAuth');
+      return;
+    }
 
     setIsCheckingGoogleAuth(true);
     try {
@@ -198,120 +204,6 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Hàm xử lý đăng nhập chung (tái sử dụng cho login và googleLogin)
-  // Tách logic xử lý đăng nhập thành công thành hàm riêng để tái sử dụng cho cả login và register.
-  // const handleLoginSuccess = async (accessToken, user) => {
-  //   // Lưu vào localStorage
-  //   localStorage.setItem('accessToken', accessToken);
-  //   localStorage.setItem('userData', JSON.stringify(user));
-
-  //   // Cập nhật state
-  //   setAccessToken(accessToken);
-  //   setUserDataLocal(user);
-  //   setIsAuthenticated(true);
-
-  //   // Khởi tạo socket
-  //   if (user._id) {
-  //     console.log('🔌 Initializing socket for user:', user._id);
-  //     try {
-  //       await initSocketClient(user._id, apiBaseUrl, () => {
-  //         console.log('🎯 Socket connected callback triggered');
-  //         socketInitialized.current = true;
-  //         setupSocketListeners();
-  //       });
-  //       console.log('✅ Socket initialization completed');
-  //     } catch (error) {
-  //       console.error('❌ Socket initialization failed:', error);
-  //     }
-  //   }
-
-  //   // Tải dữ liệu ban đầu
-  //   await checkGoogleAuth();
-  //   await fetchNotifications();
-  //   await getCalendarUser();
-
-  //   toast.success('Login successful!');
-  //   navigate('/');
-  //   return true;
-  // };
-
-  // Authentication functions - Đăng nhập truyền thống
-  // const login = async (email, password) => {
-  //   try {
-  //     const response = await axios.post(
-  //       `${apiBaseUrl}/login`,
-  //       {
-  //         email,
-  //         password,
-  //       },
-  //       { timeout: 15000 }
-  //     );
-
-  //     if (response.data.success) {
-  //       const { accessToken, user } = response.data;
-
-  //       // Save to localStorage
-  //       localStorage.setItem('accessToken', accessToken);
-  //       localStorage.setItem('userData', JSON.stringify(user));
-
-  //       // Update state
-  //       setAccessToken(accessToken);
-  //       setUserDataLocal(user);
-  //       setIsAuthenticated(true);
-
-  //       // Initialize socket connection
-  //       if (user._id) {
-  //         console.log('🔌 Initializing socket for user:', user._id);
-  //         try {
-  //           await initSocketClient(user._id, apiBaseUrl, () => {
-  //             console.log('🎯 Socket connected callback triggered');
-  //             socketInitialized.current = true;
-  //             setupSocketListeners();
-  //           });
-  //           console.log('✅ Socket initialization completed');
-  //         } catch (error) {
-  //           console.error('❌ Socket initialization failed:', error);
-  //           // Continue anyway, socket is not critical for basic functionality
-  //         }
-  //       }
-
-  //       //Check auth - Fetch data
-  //       await checkGoogleAuth();
-  //       await fetchNotifications();
-  //       await getCalendarUser();
-
-  //       toast.success('Login successful!');
-  //       navigate('/'); // or wherever your home page is
-  //       return true;
-  //     }
-  //   } catch (error) {
-  //     console.error('Login error:', error);
-  //     toast.error(error.response?.data?.message || 'Login failed');
-  //     return false;
-  //   }
-  // };
-  // const login = async (email, password) => {
-  //   try {
-  //     const response = await axios.post(
-  //       `${apiBaseUrl}/login`,
-  //       {
-  //         email,
-  //         password,
-  //       },
-  //       { timeout: 15000 }
-  //     );
-
-  //     if (response.data.success) {
-  //       const { accessToken, user } = response.data;
-  //       return await handleLoginSuccess(accessToken, user);
-  //     }
-  //   } catch (error) {
-  //     console.error('Login error:', error);
-  //     toast.error(error.response?.data?.message || 'Login failed');
-  //     return false;
-  //   }
-  // };
-
   const login = async (email, password) => {
     try {
       const response = await axios.post(
@@ -336,39 +228,7 @@ export const Common = ({ children }) => {
     }
   };
 
-  // const handleLoginSuccess = async (accessToken, user) => {
-  //   localStorage.setItem('accessToken', accessToken);
-  //   localStorage.setItem('userData', JSON.stringify(user));
-
-  //   setAccessToken(accessToken);
-  //   setUserDataLocal(user);
-  //   setIsAuthenticated(true);
-
-  //   if (user._id && !socketInitialized.current) {
-  //     console.log('🔌 Initializing socket for user:', user._id);
-  //     try {
-  //       await initSocketClient(user._id, apiBaseUrl, () => {
-  //         console.log('🎯 Socket connected callback triggered');
-  //         socketInitialized.current = true;
-  //         setupSocketListeners();
-  //       });
-  //       console.log('✅ Socket initialization completed');
-  //     } catch (error) {
-  //       console.error('❌ Socket initialization failed:', error);
-  //     }
-  //   }
-
-  //   await checkGoogleAuth();
-  //   await fetchNotifications();
-  //   await getCalendarUser();
-
-  //   toast.success('Login successful!');
-  //   navigate('/');
-  //   return true;
-  // };
-
   // Đăng nhập Google OAuth
-
   const handleLoginSuccess = async (
     accessToken,
     user,
@@ -384,11 +244,13 @@ export const Common = ({ children }) => {
     setUserDataLocal(user);
     setIsAuthenticated(true);
 
+    let userId = user?._id || user?.id;
+
     // Khởi tạo socket với callback cải thiện
-    if (user._id && !socketInitialized.current) {
-      console.log('🔌 Initializing socket for user:', user._id);
+    if (userId && !socketInitialized.current) {
+      console.log('🔌 Initializing socket for user:', userId);
       try {
-        await initSocketClient(user._id, apiBaseUrl, () => {
+        await initSocketClient(userId, apiBaseUrl, () => {
           console.log('🎯 Socket connected callback triggered');
           socketInitialized.current = true;
 
@@ -422,12 +284,22 @@ export const Common = ({ children }) => {
       }
     }
 
-    // Tải dữ liệu ban đầu
-    await Promise.all([
-      checkGoogleAuth(),
-      fetchNotifications(),
-      getCalendarUser(),
-    ]);
+    // Gọi checkGoogleAuth ngay lập tức để modal hiển thị ngay
+    console.log('🔍 Calling checkGoogleAuth immediately after login');
+    try {
+      await checkGoogleAuth(true); // Force check even if userDataLocal might not be fully updated in state yet
+    } catch (error) {
+      console.error('Error checking Google auth immediately:', error);
+    }
+
+    // Tải các dữ liệu khác trong background
+    setTimeout(async () => {
+      try {
+        await Promise.all([fetchNotifications(), getCalendarUser()]);
+      } catch (error) {
+        console.error('Error loading background data:', error);
+      }
+    }, 100);
 
     // Kiểm tra socket status cuối cùng sau khi tất cả đã hoàn thành
     setTimeout(() => {
@@ -544,6 +416,9 @@ export const Common = ({ children }) => {
         }
       );
 
+      console.log('🔍 Registration response:', response.data);
+      console.log('response.data.status', response.data.status);
+
       if (response.data.status === 'success') {
         const { token, data } = response.data;
         return await handleLoginSuccess(token, data.user);
@@ -613,7 +488,8 @@ export const Common = ({ children }) => {
   };
 
   const fetchNotifications = async () => {
-    if (!accessToken || !userDataLocal?._id) return;
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (!accessToken || !userId) return;
 
     try {
       const response = await axios.get(`${apiBaseUrl}/notification`, {
@@ -682,11 +558,12 @@ export const Common = ({ children }) => {
 
   // Respond to event invitation
   const respondToEventInvitation = async (eventId, status, notificationId) => {
-    if (!accessToken || !eventId || !userDataLocal?._id) return false;
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (!accessToken || !eventId || !userId) return false;
 
     try {
       const response = await axios.patch(
-        `${apiBaseUrl}/event/${eventId}/participants/${userDataLocal._id}/update-status`,
+        `${apiBaseUrl}/event/${eventId}/participants/${userId}/update-status`,
         { status },
         {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -741,17 +618,15 @@ export const Common = ({ children }) => {
 
   // Setup socket listeners với cải thiện
   const setupSocketListeners = () => {
-    if (!userDataLocal?._id) {
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (!userId) {
       console.log('⚠️ No user ID available for socket listeners');
       return;
     }
 
     try {
       const socket = getSocket();
-      console.log(
-        '🔧 Setting up socket listeners for user:',
-        userDataLocal._id
-      );
+      console.log('🔧 Setting up socket listeners for user:', userId);
 
       // Remove existing listeners first to avoid duplicates
       socket.off('new_notification');
@@ -850,7 +725,7 @@ export const Common = ({ children }) => {
       // Test ping để verify connection
       socket.emit('test_ping', {
         message: 'Hello from frontend',
-        userId: userDataLocal._id,
+        userId: userId,
       });
 
       console.log('✅ Socket listeners registered successfully');
@@ -1009,16 +884,17 @@ export const Common = ({ children }) => {
 
   // Check if need to setup socket listeners when user changes
   useEffect(() => {
+    let userId = userDataLocal?.id || userDataLocal?._id;
     if (
       isAuthenticated &&
-      userDataLocal?._id &&
+      userId &&
       socketInitialized.current &&
       !socketConnected
     ) {
       console.log('🔄 Setting up socket listeners for existing connection');
       setupSocketListeners();
     }
-  }, [isAuthenticated, userDataLocal?._id, socketConnected]);
+  }, [isAuthenticated, userDataLocal, socketConnected]);
 
   // Lưu thông báo vào localStorage
   useEffect(() => {
@@ -1074,16 +950,17 @@ export const Common = ({ children }) => {
 
   // Initialize socket khi user đã login (for page reload)
   useEffect(() => {
+    let userId = userDataLocal?.id || userDataLocal?._id;
     if (
       accessToken &&
-      userDataLocal?._id &&
+      userId &&
       !socketInitialized.current &&
       !isProcessingAuth.current
     ) {
       console.log('🔄 Reinitializing socket after page reload');
       const initSocket = async () => {
         try {
-          await initSocketClient(userDataLocal._id, apiBaseUrl, () => {
+          await initSocketClient(userId, apiBaseUrl, () => {
             console.log('🎯 Socket reconnected callback triggered');
             socketInitialized.current = true;
             setupSocketListeners();
@@ -1095,13 +972,14 @@ export const Common = ({ children }) => {
       };
       initSocket();
     }
-  }, [accessToken, userDataLocal?._id]); // Simplified dependencies
+  }, [accessToken, userDataLocal]); // Simplified dependencies
 
   // Tải dữ liệu ban đầu sau khi có userDataLocal
   useEffect(() => {
+    let userId = userDataLocal?.id || userDataLocal?._id;
     if (
       accessToken &&
-      userDataLocal?._id &&
+      userId &&
       !isCheckingGoogleAuth &&
       !isProcessingAuth.current
     ) {
@@ -1119,7 +997,34 @@ export const Common = ({ children }) => {
 
       loadInitialData();
     }
-  }, [accessToken, userDataLocal?._id]); // Simplified dependencies
+  }, [accessToken, userDataLocal]); // Simplified dependencies
+
+  // Fallback effect to ensure Google auth modal shows for new users
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      userDataLocal &&
+      accessToken &&
+      !isCheckingGoogleAuth &&
+      !isProcessingAuth.current &&
+      !isGoogleAuthenticated &&
+      !showGoogleAuthModal
+    ) {
+      console.log('🔄 Fallback: Checking Google auth for modal display');
+      const timer = setTimeout(() => {
+        checkGoogleAuth();
+      }, 2000); // Delay for fallback check
+
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isAuthenticated,
+    userDataLocal,
+    accessToken,
+    isGoogleAuthenticated,
+    showGoogleAuthModal,
+    isCheckingGoogleAuth,
+  ]);
 
   // Xử lý query parameter khi quay lại từ Google OAuth
   // useEffect(() => {
@@ -1171,6 +1076,7 @@ export const Common = ({ children }) => {
         showGoogleAuthModal,
         setShowGoogleAuthModal,
         handleGoogleAuth,
+        checkGoogleAuth,
         isGoogleAuthenticated,
         isCheckingGoogleAuth,
         isAuthenticated,
@@ -1202,7 +1108,6 @@ export const Common = ({ children }) => {
         toastOptions={{
           duration: 2000,
         }}
-        closeButton={true}
       />
 
       {children}

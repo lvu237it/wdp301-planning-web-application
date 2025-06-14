@@ -222,7 +222,7 @@ exports.getCurrentUser = async (req, res, next) => {
         fullname: user.fullname,
         username: user.username,
         avatar: user.avatar,
-        role: user.role, // Giữ role để khớp với login
+        role: user.role,
         createdAt: user.createdAt,
         description: user?.description || null,
       },

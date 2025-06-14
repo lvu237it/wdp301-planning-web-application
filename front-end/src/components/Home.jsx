@@ -16,6 +16,7 @@ function Home() {
     isGoogleAuthenticated,
     isCheckingGoogleAuth,
     navigate,
+    checkGoogleAuth,
   } = useCommon();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +26,24 @@ function Home() {
       getCalendarUser();
     }
   }, [accessToken, userDataLocal, isGoogleAuthenticated]);
+
+  // Debug effect to track modal state
+  useEffect(() => {
+    console.log('🏠 Home component modal state:', {
+      showGoogleAuthModal,
+      isCheckingGoogleAuth,
+      userDataLocal: !!userDataLocal,
+      accessToken: !!accessToken,
+      googleId: userDataLocal?.googleId,
+      modalShouldShow: showGoogleAuthModal && !isCheckingGoogleAuth,
+    });
+  }, [showGoogleAuthModal, isCheckingGoogleAuth, userDataLocal, accessToken]);
+
+  useEffect(() => {
+    if (!isGoogleAuthenticated) {
+      checkGoogleAuth();
+    }
+  }, []);
 
   const handleConfirmGoogleAuth = async () => {
     setIsLoading(true);

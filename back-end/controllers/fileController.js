@@ -61,11 +61,16 @@ exports.checkGoogleAuth = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const services = ['drive', 'meet', 'calendar'];
+
+    console.log(`🔍 Checking Google auth for user: ${userId}`);
+
     const tokens = await GoogleToken.find({
       userId,
       service: { $in: services },
       status: 'active',
     });
+
+    console.log(`📊 Found ${tokens.length} tokens for user`);
 
     const requiredScopes = services.flatMap(
       (service) => SERVICE_SCOPES[service] || []
@@ -82,8 +87,13 @@ exports.checkGoogleAuth = async (req, res, next) => {
 
     const existingTokensCount = tokens.length;
 
+    console.log(
+      `🔍 Missing scopes: ${missingScopes.length}, Valid tokens: ${validTokens.length}, Required services: ${services.length}`
+    );
+
     // Nếu có đủ scopes và tokens còn hạn
     if (missingScopes.length === 0 && validTokens.length >= services.length) {
+      console.log('✅ User has all valid Google tokens');
       res.status(200).json({
         status: 'success',
         message: 'Đã xác thực tất cả dịch vụ',
@@ -94,6 +104,9 @@ exports.checkGoogleAuth = async (req, res, next) => {
       });
     } else if (tokens.length > 0) {
       // User có một số token Google nhưng có thể hết hạn hoặc thiếu scopes
+      console.log(
+        '🔄 User has some Google tokens but needs refresh/additional scopes'
+      );
       res.status(200).json({
         status: 'success',
         message:
@@ -107,6 +120,7 @@ exports.checkGoogleAuth = async (req, res, next) => {
       });
     } else {
       // User không có token Google nào
+      console.log('❌ User has no Google tokens');
       res.status(401).json({
         status: 'error',
         message: 'Chưa xác thực đầy đủ các dịch vụ',
@@ -118,7 +132,7 @@ exports.checkGoogleAuth = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('Lỗi khi kiểm tra xác thực:', error.message);
+    console.error('❌ Error checking Google auth:', error.message);
     next(new AppError('Lỗi khi kiểm tra xác thực: ' + error.message, 500));
   }
 };

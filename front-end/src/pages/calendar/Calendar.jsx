@@ -175,7 +175,7 @@ const Calendar = () => {
   const statusOptions = useMemo(
     () => [
       { value: 'draft', label: 'Nháp' },
-      { value: 'scheduled', label: 'Đã lên lịch' },
+      { value: 'scheduled', label: 'Chưa diễn ra' },
       { value: 'in-progress', label: 'Đang diễn ra' },
       { value: 'completed', label: 'Đã xong' },
       { value: 'cancelled', label: 'Đã hủy' },
@@ -341,7 +341,14 @@ const Calendar = () => {
 
   // Khởi tạo lấy sự kiện
   useEffect(() => {
-    if (!accessToken || !userDataLocal?._id) {
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (!accessToken || !userId) {
+      console.log('accesstoken', accessToken);
+      console.log('userDataLocal', userDataLocal.id);
+      console.log(' userDataLocal._id', userDataLocal._id);
+      console.log(
+        'Chưa đăng nhập hoặc không có userDataLocal, chuyển hướng đến login'
+      );
       navigate('/login');
       return;
     }
@@ -460,12 +467,12 @@ const Calendar = () => {
   // Xử lý kéo thả sự kiện
   const handleEventDrop = useCallback(
     async (dropInfo) => {
+      let userId = userDataLocal?.id || userDataLocal?._id;
       const { event } = dropInfo;
 
       // Kiểm tra quyền chỉnh sửa dựa trên status
       const eventStatus = event.extendedProps?.status;
-      const isOrganizer =
-        event.extendedProps?.organizer?.userId === userDataLocal?._id;
+      const isOrganizer = event.extendedProps?.organizer?.userId === userId;
 
       if (
         !isOrganizer ||
@@ -597,6 +604,8 @@ const Calendar = () => {
 
       try {
         setIsCreatingEvent(true);
+        let userId = userDataLocal?.id || userDataLocal?._id;
+
         const payload = {
           calendarId: calendarUser._id,
           title: formData.title,
@@ -604,7 +613,7 @@ const Calendar = () => {
           startDate: fromLocalDateTime(formData.startDate),
           endDate: fromLocalDateTime(formData.endDate),
           type: formData.type,
-          organizer: userDataLocal._id,
+          organizer: userId,
           locationName: formData.locationName || undefined,
           address: formData.address || undefined,
           status: 'scheduled',
@@ -824,8 +833,9 @@ const Calendar = () => {
   // Kiểm tra quyền chỉnh sửa sự kiện
   const canModifyEvent = useCallback(
     (event) => {
+      let userId = userDataLocal?.id || userDataLocal?._id;
       // Chỉ có thể chỉnh sửa nếu là organizer của sự kiện
-      return event?.organizer?.userId === userDataLocal?._id;
+      return event?.organizer?.userId === userId;
     },
     [userDataLocal]
   );
@@ -1352,7 +1362,7 @@ const Calendar = () => {
                           {selectedEvent.status === 'cancelled' && '❌ Đã hủy'}
                           {selectedEvent.status === 'draft' && '📝 Nháp'}
                           {selectedEvent.status === 'scheduled' &&
-                            '📅 Đã lên lịch'}
+                            '📅 Chưa diễn ra'}
                           {![
                             'in-progress',
                             'completed',
