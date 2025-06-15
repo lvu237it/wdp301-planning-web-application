@@ -4,7 +4,7 @@ import { useMediaQuery } from 'react-responsive';
 import { Toaster, toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-const CommonContext = createContext();
+export const CommonContext = createContext();
 
 export const useCommon = () => useContext(CommonContext);
 
@@ -256,29 +256,6 @@ export const Common = ({ children }) => {
 			throw new Error('Upload to Cloudinary failed');
 		}
 	};
-
-	// 1. Effect để fetch workspaces
-	// useEffect(() => {
-	// 	const fetchWorkspaces = async () => {
-	// 		if (!accessToken) {
-	// 			setLoadingWorkspaces(false);
-	// 			return;
-	// 		}
-	// 		try {
-	// 			const res = await axios.get(`${apiBaseUrl}/workspace`, {
-	// 				headers: { Authorization: `Bearer ${accessToken}` },
-	// 			});
-	// 			// Giả sử API trả { workspaces: [...] }
-	// 			setWorkspaces(res.data.data || []);
-	// 		} catch (err) {
-	// 			setWorkspacesError(err.response?.data?.message || err.message);
-	// 		} finally {
-	// 			setLoadingWorkspaces(false);
-	// 		}
-	// 	};
-
-	// 	fetchWorkspaces();
-	// }, [apiBaseUrl, accessToken]);
 	useEffect(() => {
   const fetchWorkspaces = async () => {
   setLoadingWorkspaces(true);
@@ -317,28 +294,6 @@ export const Common = ({ children }) => {
 		navigate('/workspace/create');
 	};
 
-	// const fetchBoards = async (workspaceId) => {
-	// 	setLoading(true);
-	// 	setError(null);
-	// 	try {
-	// 		const res = await axios.get(
-	// 			`${apiBaseUrl}/workspace/${workspaceId}/board`,
-	// 			{ headers: { Authorization: `Bearer ${accessToken}` } }
-	// 		);
-	// 		// unwrap đúng field và ép mọi mảng về [] nếu missing
-	// 		const raw = res.data.boards || [];
-	// 		const norm = raw.map((board) => ({
-	// 			...board,
-	// 			members: board.members || [], // luôn có mảng
-	// 			tasks: board.tasks || [], // luôn có mảng
-	// 		}));
-	// 		setBoards(norm);
-	// 	} catch (err) {
-	// 		setError(err.response?.data?.message || err.message);
-	// 	} finally {
-	// 		setLoading(false);
-	// 	}
-	// };
 	const fetchBoards = async (workspaceId) => {
   setLoading(true);
   setError(null);

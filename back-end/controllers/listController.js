@@ -6,18 +6,21 @@ const mongoose = require('mongoose');
 exports.getAllList = async (req, res) => {
   try {
     const { boardId } = req.query;
-    if (!boardId) {
-      return res.status(400).json({ status: 'fail', message: 'boardId là bắt buộc' });
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'boardId không hợp lệ'
+      });
     }
-    if (!mongoose.Types.ObjectId.isValid(boardId)) {
-      return res.status(400).json({ status: 'fail', message: 'boardId không hợp lệ' });
-    }
-
-    const lists = await List.find({ boardId, isDeleted: false }).sort('position');
-    res.status(200).json({ status: 'success', results: lists.length, data: lists });
-  } catch (error) {
-    console.error('Error in getAllList:', error);
-    res.status(500).json({ status: 'error', message: error.message });
+    const lists = await List.find({ boardId, isDeleted: false })
+                            .sort('position');
+    res.status(200).json({
+      status: 'success',
+      results: lists.length,
+      data: lists
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
 
