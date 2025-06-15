@@ -138,9 +138,9 @@ const Boards = () => {
                       <MdPerson className="me-1" /> {members.length}
                     </div>
                     <div className="d-flex align-items-center">
-                      {/* <MdChecklist className="me-1" />{" "}
-                      {board.tasks?.length ?? 0} */}
-                      <MdChecklist className='me-1' /> {board.listsCount}
+                      <MdChecklist className="me-1" />{" "}
+                      {board.lists?.length ?? 0}
+                      {/* <MdChecklist className='me-1' /> {board.listsCount} */}
 
                     </div>
                   </div>

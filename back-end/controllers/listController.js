@@ -133,18 +133,22 @@ exports.deleteList = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ status: 'fail', message: 'ID không hợp lệ' });
     }
+
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
       return res.status(404).json({ status: 'fail', message: 'Không tìm thấy danh sách' });
     }
     const { boardId, position: delPos } = list;
 
-    // delete list
+    
     await List.deleteOne({ _id: id });
-    // pull from Board.lists
-    await Board.findByIdAndUpdate(boardId, { $pull: { lists: id } });
 
-    // shift positions
+    await Board.findByIdAndUpdate(
+      boardId,
+      { $pull: { lists: id } },
+      { new: true }
+    );
+
     await List.updateMany(
       { boardId, position: { $gt: delPos }, isDeleted: false },
       { $inc: { position: -1 } }

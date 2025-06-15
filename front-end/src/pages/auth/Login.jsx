@@ -2,21 +2,16 @@ import { Container, Image, Form, Spinner } from 'react-bootstrap';
 import logoWebProPlan from '/images/PlanPro-removebg-preview.png';
 import { useCommon } from '../../contexts/CommonContext';
 import { useEffect, useState } from 'react';
+import googleImage from '/images/google-icon-removebg-preview.png';
 
 function Login() {
-  const { navigate, login, userDataLocal, toast } = useCommon();
+  const { navigate, login, userDataLocal, toast, googleLogin } = useCommon();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
-
-  // If already logged in, redirect to home
-  useEffect(() => {
-    if (userDataLocal) {
-      navigate('/');
-    }
-  }, []);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,15 +46,54 @@ function Login() {
     return true;
   };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   if (validateForm()) {
+  //     setIsLoading(true);
+  //     setLoadingMessage('Đang đăng nhập...');
+  //     try {
+  //       const success = await login(formData.email, formData.password);
+  //       if (success) {
+  //         setLoadingMessage('Đang kết nối socket...');
+  //         // Redirect to home after successful login
+  //         setTimeout(() => {
+  //           navigate('/');
+  //         }, 1000);
+  //       }
+  //     } finally {
+  //       setIsLoading(false);
+  //       setLoadingMessage('');
+  //     }
+  //   }
+  // };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
       setIsLoading(true);
+      setLoadingMessage('Đang đăng nhập...');
       try {
-        await login(formData.email, formData.password);
+        const success = await login(formData.email, formData.password);
+        if (!success) {
+          toast.error('Login failed');
+        }
       } finally {
         setIsLoading(false);
+        setLoadingMessage('');
       }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setLoadingMessage('Đang chuyển hướng đến Google...');
+    try {
+      await googleLogin();
+    } catch (error) {
+      setIsLoading(false);
+      setLoadingMessage('');
+      toast.error('Failed to initiate Google login');
     }
   };
 
@@ -97,7 +131,6 @@ function Login() {
           </div>
           <h5 className='text-center'>Welcome Back!</h5>
           <div className='text-center mb-4'>Please login to your account</div>
-
           <Form onSubmit={handleSubmit}>
             <Form.Group className='mb-3'>
               <Form.Label>
@@ -144,7 +177,7 @@ function Login() {
 
             <button
               type='submit'
-              className='w-100 button-login border-0 mb-3 d-flex align-items-center justify-content-center'
+              className='w-100 button-login border-0 mb-2 d-flex align-items-center justify-content-center'
               style={{
                 backgroundColor: '#00B894',
                 color: 'white',
@@ -155,20 +188,47 @@ function Login() {
               }}
               disabled={isLoading}
             >
-              {isLoading ? (
-                <Spinner
-                  as='span'
-                  animation='border'
-                  size='sm'
-                  role='status'
-                  aria-hidden='true'
-                />
-              ) : (
-                'Login'
-              )}
+              {/* {isLoading ? (
+                <div className='d-flex align-items-center'>
+                  <Spinner
+                    as='span'
+                    animation='border'
+                    size='sm'
+                    role='status'
+                    aria-hidden='true'
+                    className='me-2'
+                  />
+                  {loadingMessage || 'Đang xử lý...'}
+                </div>
+              ) : ( */}
+              Login
+              {/* )} */}
             </button>
           </Form>
-
+          <div className='d-flex justify-content-between align-items-center'>
+            <hr className='' style={{ width: '100%' }} />{' '}
+            <div
+              className='text-center mb-2'
+              style={{ fontSize: 12, margin: '0 5px' }}
+            >
+              or
+            </div>{' '}
+            <hr className='' style={{ width: '100%' }} />
+          </div>
+          <div
+            onClick={() => handleGoogleLogin()}
+            className='button-google-login d-flex justify-content-center align-items-center border rounded-2 mb-3'
+          >
+            <Image
+              className='image-button-google-login'
+              src={googleImage}
+              width={20}
+              height={20}
+              style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
+              alt='Login with Google'
+              title='Login with Google'
+            />
+          </div>
           <div style={{ fontSize: 12 }} className='text-center'>
             Don't have an account?{' '}
             <span

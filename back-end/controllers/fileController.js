@@ -9,6 +9,8 @@ const {
   saveCredentials,
   getCombinedAuthUrl,
 } = require('../utils/googleAuthUtils');
+const NotificationService = require('../services/NotificationService');
+const { getAdminId } = require('../utils/admin');
 
 const SERVICE_SCOPES = {
   drive: [
@@ -59,11 +61,16 @@ exports.checkGoogleAuth = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const services = ['drive', 'meet', 'calendar'];
+
+    console.log(`🔍 Checking Google auth for user: ${userId}`);
+
     const tokens = await GoogleToken.find({
       userId,
       service: { $in: services },
       status: 'active',
     });
+
+    console.log(`📊 Found ${tokens.length} tokens for user`);
 
     const requiredScopes = services.flatMap(
       (service) => SERVICE_SCOPES[service] || []
@@ -73,17 +80,59 @@ exports.checkGoogleAuth = async (req, res, next) => {
       (scope) => !existingScopes.includes(scope)
     );
 
-    if (missingScopes.length === 0) {
-      res
-        .status(200)
-        .json({ status: 'success', message: 'Đã xác thực tất cả dịch vụ' });
+    // Kiểm tra token expiry
+    const validTokens = tokens.filter(
+      (token) => !token.expiryDate || token.expiryDate > Date.now()
+    );
+
+    const existingTokensCount = tokens.length;
+
+    console.log(
+      `🔍 Missing scopes: ${missingScopes.length}, Valid tokens: ${validTokens.length}, Required services: ${services.length}`
+    );
+
+    // Nếu có đủ scopes và tokens còn hạn
+    if (missingScopes.length === 0 && validTokens.length >= services.length) {
+      console.log('✅ User has all valid Google tokens');
+      res.status(200).json({
+        status: 'success',
+        message: 'Đã xác thực tất cả dịch vụ',
+        hasValidTokens: true,
+        existingTokens: existingTokensCount,
+        validTokensCount: validTokens.length,
+        totalServicesRequired: services.length,
+      });
+    } else if (tokens.length > 0) {
+      // User có một số token Google nhưng có thể hết hạn hoặc thiếu scopes
+      console.log(
+        '🔄 User has some Google tokens but needs refresh/additional scopes'
+      );
+      res.status(200).json({
+        status: 'success',
+        message:
+          'User has some Google tokens but needs refresh/additional scopes',
+        hasValidTokens: false,
+        needsRefresh: true,
+        existingTokens: existingTokensCount,
+        validTokensCount: validTokens.length,
+        totalServicesRequired: services.length,
+        missingScopes: missingScopes,
+      });
     } else {
-      res
-        .status(401)
-        .json({ status: 'error', message: 'Chưa xác thực đầy đủ các dịch vụ' });
+      // User không có token Google nào
+      console.log('❌ User has no Google tokens');
+      res.status(401).json({
+        status: 'error',
+        message: 'Chưa xác thực đầy đủ các dịch vụ',
+        hasValidTokens: false,
+        needsRefresh: false,
+        existingTokens: 0,
+        validTokensCount: 0,
+        totalServicesRequired: services.length,
+      });
     }
   } catch (error) {
-    console.error('Lỗi khi kiểm tra xác thực:', error.message);
+    console.error('❌ Error checking Google auth:', error.message);
     next(new AppError('Lỗi khi kiểm tra xác thực: ' + error.message, 500));
   }
 };
@@ -132,6 +181,21 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
         console.log(`Đã lưu token cho dịch vụ: ${service}`);
       }
     }
+
+    //Gửi thông báo cho user sau khi xác thực thành công
+    await NotificationService.createPersonalNotification({
+      title: 'Xác thực Google thành công',
+      content:
+        'Bạn đã xác thực thành công tài khoản Google. Giờ đây bạn có thể tiếp tục sử dụng dịch vụ của chúng tôi.',
+      type: 'google_auth',
+      targetUserId: userId,
+      targetWorkspaceId: null,
+      createdBy: getAdminId(),
+      relatedUserId: null,
+      eventId: null,
+      taskId: null,
+      messageId: null,
+    });
 
     res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
   } catch (error) {

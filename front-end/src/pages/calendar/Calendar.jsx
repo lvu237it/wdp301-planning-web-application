@@ -7,6 +7,7 @@ import {
   Button,
   Badge,
   Form,
+  Spinner,
 } from 'react-bootstrap';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -31,6 +32,23 @@ import debounce from 'lodash/debounce';
 const toISODateTime = (dateTime) => {
   if (!dateTime) return new Date().toISOString();
   return new Date(dateTime).toISOString();
+};
+
+// Hàm chuyển đổi từ UTC sang local datetime cho input
+const toLocalDateTime = (dateTime) => {
+  if (!dateTime) return '';
+  const date = new Date(dateTime);
+  // Chuyển sang múi giờ địa phương và format cho datetime-local input
+  const offset = date.getTimezoneOffset() * 60000; // offset tính bằng milliseconds
+  const localTime = new Date(date.getTime() - offset);
+  return localTime.toISOString().slice(0, 16); // Cắt để lấy format YYYY-MM-DDTHH:mm
+};
+
+// Hàm chuyển đổi từ local datetime input sang UTC
+const fromLocalDateTime = (localDateTime) => {
+  if (!localDateTime) return new Date().toISOString();
+  // Input datetime-local đã ở múi giờ địa phương, chỉ cần convert sang ISO
+  return new Date(localDateTime).toISOString();
 };
 
 // Helper function để tạo Google Maps URL
@@ -72,7 +90,7 @@ const generateMapsUrl = (address, locationName) => {
 };
 
 // Helper function để safely extract address data
-const getAddressDisplay = (address) => {
+const getAddressDisplay = (address, locationName) => {
   if (!address) return '';
 
   if (typeof address === 'string') {
@@ -98,6 +116,7 @@ const Calendar = () => {
     userDataLocal,
     calendarUser,
     getCalendarUser,
+    updateEventStatusByTime,
   } = useCommon();
 
   // Thêm ref cho FullCalendar
@@ -117,21 +136,21 @@ const Calendar = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    startDate: new Date().toISOString().slice(0, 16), // datetime-local
-    endDate: new Date().toISOString().slice(0, 16),
+    startDate: toLocalDateTime(new Date()), // Use local datetime
+    endDate: toLocalDateTime(new Date()),
     type: 'offline',
     locationName: '',
     address: '',
-    // onlineUrl: '',
-    // meetingCode: '',
     status: 'scheduled',
-    participants: [], // [{ userId, status }]
+    participantEmails: '', // Email string separated by commas
     allDay: false,
     recurrence: '',
   });
   const [editFormData, setEditFormData] = useState({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   // Định nghĩa eventTypes
   const eventTypes = useMemo(
@@ -156,8 +175,9 @@ const Calendar = () => {
   const statusOptions = useMemo(
     () => [
       { value: 'draft', label: 'Nháp' },
-      { value: 'scheduled', label: 'Đã lên lịch' },
-      { value: 'completed', label: 'Hoàn thành' },
+      { value: 'scheduled', label: 'Chưa diễn ra' },
+      { value: 'in-progress', label: 'Đang diễn ra' },
+      { value: 'completed', label: 'Đã xong' },
       { value: 'cancelled', label: 'Đã hủy' },
     ],
     []
@@ -205,7 +225,9 @@ const Calendar = () => {
 
       try {
         setIsLoading(true);
-        const response = await axios.get(
+
+        // Fetch events từ lịch của mình
+        const ownEventsResponse = await axios.get(
           `${apiBaseUrl}/calendar/${
             calendarUser._id
           }/events?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
@@ -213,20 +235,32 @@ const Calendar = () => {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
         );
-        console.log('Fetch events response:', response.data);
-        if (response.data.status === 200) {
-          console.log('Fetched events oke:', response.data.data);
-          const formattedEvents = response.data.data.map((event) => ({
+
+        // Fetch events mà mình đã tham gia từ lịch của người khác
+        const participatedEventsResponse = await axios.get(
+          `${apiBaseUrl}/event/participated?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        const ownEvents =
+          ownEventsResponse.data.status === 200
+            ? ownEventsResponse.data.data
+            : [];
+        const participatedEvents =
+          participatedEventsResponse.data.status === 200
+            ? participatedEventsResponse.data.data
+            : [];
+
+        // Format own events
+        const formattedOwnEvents = ownEvents.map((event) => {
+          const status = event.extendedProps?.status;
+          const canEdit = status === 'draft' || status === 'scheduled';
+
+          return {
             id: event.id,
             title: event.title,
-            // start: new Date(event.start).toLocaleString('en-US', {
-            //   timeZone: 'Asia/Ho_Chi_Minh',
-            // }),
-            // end: event.end
-            //   ? new Date(event.end).toLocaleString('en-US', {
-            //       timeZone: 'Asia/Ho_Chi_Minh',
-            //     })
-            //   : null,
             start: new Date(event.start),
             end: event.end ? new Date(event.end) : null,
             allDay: event.allDay || false,
@@ -235,27 +269,41 @@ const Calendar = () => {
             borderColor:
               eventTypes[event.extendedProps.type]?.color || '#4CAF50',
             textColor: '#ffffff',
+            // Disable drag/edit for events that can't be edited
+            startEditable: canEdit,
+            durationEditable: canEdit,
+            resourceEditable: canEdit,
             extendedProps: {
-              description: event.extendedProps.description,
-              locationName: event.extendedProps.locationName,
-              address: event.extendedProps.address,
-              type: event.extendedProps.type,
-              onlineUrl: event.extendedProps.onlineUrl,
-              meetingCode: event.extendedProps.meetingCode,
-              organizer: event.extendedProps.organizer,
-              participants: event.extendedProps.participants,
-              status: event.extendedProps.status,
-              rrule: event.extendedProps.rrule,
+              ...event.extendedProps,
+              isOwn: true, // Đánh dấu là sự kiện của mình
+              canEdit: canEdit,
             },
-          }));
-          console.log('formattedEvents', formattedEvents);
-          setEvents(formattedEvents);
-        }
-        // else {
-        //   setEvents([]);
-        //   setFilteredEvents([]);
-        //   toast.error('Không thể tải danh sách sự kiện');
-        // }
+          };
+        });
+
+        // Format participated events
+        const formattedParticipatedEvents = participatedEvents.map((event) => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: event.end ? new Date(event.end) : null,
+          allDay: event.allDay || false,
+          backgroundColor: event.backgroundColor || '#6c757d',
+          borderColor: event.borderColor || '#6c757d',
+          textColor: '#ffffff',
+          extendedProps: {
+            ...event.extendedProps,
+            isOwn: false, // Đánh dấu là sự kiện tham gia
+          },
+        }));
+
+        // Merge cả 2 loại events
+        const allEvents = [
+          ...formattedOwnEvents,
+          ...formattedParticipatedEvents,
+        ];
+
+        setEvents(allEvents);
       } catch (error) {
         console.error(
           'Lỗi lấy sự kiện:',
@@ -271,9 +319,20 @@ const Calendar = () => {
     [accessToken, apiBaseUrl, toast, calendarUser, eventTypes]
   );
 
+  // Lắng nghe event update từ notifications
   useEffect(() => {
-    console.log('Events fetched:', events);
-  }, [events]);
+    const handleEventUpdated = (e) => {
+      // Refresh events khi có sự kiện được cập nhật
+      if (dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+      }
+    };
+
+    window.addEventListener('eventUpdated', handleEventUpdated);
+    return () => {
+      window.removeEventListener('eventUpdated', handleEventUpdated);
+    };
+  }, [debouncedFetchEvents, dateRange, searchTerm]);
 
   // Đồng bộ filteredEvents với events
   useEffect(() => {
@@ -282,7 +341,14 @@ const Calendar = () => {
 
   // Khởi tạo lấy sự kiện
   useEffect(() => {
-    if (!accessToken || !userDataLocal?._id) {
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (!accessToken || !userId) {
+      console.log('accesstoken', accessToken);
+      console.log('userDataLocal', userDataLocal.id);
+      console.log(' userDataLocal._id', userDataLocal._id);
+      console.log(
+        'Chưa đăng nhập hoặc không có userDataLocal, chuyển hướng đến login'
+      );
       navigate('/login');
       return;
     }
@@ -339,7 +405,7 @@ const Calendar = () => {
   const handleDateClick = useCallback(
     (arg) => {
       const clickedDate = new Date(arg.dateStr);
-      const dateStr = clickedDate.toISOString().slice(0, 16);
+      const localDateStr = toLocalDateTime(clickedDate);
 
       // Cập nhật ngày được chọn
       setSelectedDate(clickedDate);
@@ -347,55 +413,79 @@ const Calendar = () => {
       // Cập nhật form data cho việc tạo sự kiện mới
       setFormData((prev) => ({
         ...prev,
-        startDate: dateStr,
-        endDate: dateStr,
+        startDate: localDateStr,
+        endDate: localDateStr,
       }));
-
-      console.log('Date clicked:', clickedDate.toDateString());
-      console.log(
-        'Events for this date:',
-        events.filter(
-          (event) =>
-            new Date(event.start).toDateString() === clickedDate.toDateString()
-        )
-      );
     },
     [events]
   );
 
-  useEffect(() => {
-    console.log('Selected event changed:', selectedEvent);
-  }, [selectedEvent]);
-
   // Xử lý click sự kiện
-  const handleEventClick = useCallback((eventInfo) => {
-    const event = {
-      id: eventInfo.event.id,
-      title: eventInfo.event.title,
-      start: new Date(eventInfo.event.start),
-      end: eventInfo.event.end ? new Date(eventInfo.event.end) : null,
-      allDay: eventInfo.event.allDay,
-      type: eventInfo.event.extendedProps.type,
-      description: eventInfo.event.extendedProps.description,
-      locationName: eventInfo.event.extendedProps.locationName,
-      address: eventInfo.event.extendedProps.address,
-      onlineUrl: eventInfo.event.extendedProps.onlineUrl,
-      meetingCode: eventInfo.event.extendedProps.meetingCode,
-      organizer: eventInfo.event.extendedProps.organizer,
-      participants: eventInfo.event.extendedProps.participants,
-      status: eventInfo.event.extendedProps.status,
-      recurrence: eventInfo.event.extendedProps.rrule,
-    };
-    setSelectedEvent(event);
-    setShowEventModal(true);
-  }, []);
+  const handleEventClick = useCallback(
+    async (eventInfo) => {
+      const event = {
+        id: eventInfo.event.id,
+        title: eventInfo.event.title,
+        start: new Date(eventInfo.event.start),
+        end: eventInfo.event.end ? new Date(eventInfo.event.end) : null,
+        allDay: eventInfo.event.allDay,
+        type: eventInfo.event.extendedProps.type,
+        description: eventInfo.event.extendedProps.description,
+        locationName: eventInfo.event.extendedProps.locationName,
+        address: eventInfo.event.extendedProps.address,
+        onlineUrl: eventInfo.event.extendedProps.onlineUrl,
+        meetingCode: eventInfo.event.extendedProps.meetingCode,
+        organizer: eventInfo.event.extendedProps.organizer,
+        participants: eventInfo.event.extendedProps.participants,
+        status: eventInfo.event.extendedProps.status,
+        recurrence: eventInfo.event.extendedProps.rrule,
+      };
+
+      // Cập nhật trạng thái dựa trên thời gian trước khi hiển thị modal
+      try {
+        const statusUpdate = await updateEventStatusByTime(event.id);
+        if (statusUpdate && statusUpdate.updated) {
+          // Cập nhật status trong event object
+          event.status = statusUpdate.newStatus;
+
+          // Refresh events để cập nhật UI
+          if (dateRange.start && dateRange.end) {
+            debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to update event status by time:', error);
+        // Tiếp tục hiển thị modal ngay cả khi cập nhật status thất bại
+      }
+
+      setSelectedEvent(event);
+      setShowEventModal(true);
+    },
+    [updateEventStatusByTime, dateRange, debouncedFetchEvents, searchTerm]
+  );
 
   // Xử lý kéo thả sự kiện
   const handleEventDrop = useCallback(
     async (dropInfo) => {
+      let userId = userDataLocal?.id || userDataLocal?._id;
       const { event } = dropInfo;
+
+      // Kiểm tra quyền chỉnh sửa dựa trên status
+      const eventStatus = event.extendedProps?.status;
+      const isOrganizer = event.extendedProps?.organizer?.userId === userId;
+
+      if (
+        !isOrganizer ||
+        (eventStatus !== 'draft' && eventStatus !== 'scheduled')
+      ) {
+        dropInfo.revert();
+        toast.error('Không thể di chuyển sự kiện này do trạng thái hiện tại');
+        return;
+      }
+
       const newStart = toISODateTime(event.start);
       const newEnd = event.end ? toISODateTime(event.end) : null;
+
       try {
         const response = await axios.patch(
           `${apiBaseUrl}/event/${event.id}`,
@@ -420,6 +510,7 @@ const Calendar = () => {
       debouncedFetchEvents,
       dateRange,
       searchTerm,
+      userDataLocal,
     ]
   );
 
@@ -442,8 +533,6 @@ const Calendar = () => {
       new Date(now.getFullYear(), now.getMonth() + 1, 0),
       searchTerm
     );
-
-    console.log('Today clicked, selected date:', now.toDateString());
   }, [calendarView, debouncedFetchEvents, searchTerm]);
 
   // Cập nhật view khi thay đổi
@@ -453,19 +542,17 @@ const Calendar = () => {
 
   // Xử lý mở form tạo sự kiện
   const handleCreateClick = useCallback(() => {
-    const dateStr = selectedDate.toISOString().slice(0, 16);
+    const localDateStr = toLocalDateTime(selectedDate);
     setFormData({
       title: '',
       description: '',
-      startDate: dateStr,
-      endDate: dateStr,
+      startDate: localDateStr,
+      endDate: localDateStr,
       type: 'offline',
       locationName: '',
       address: '',
-      // onlineUrl: '',
-      // meetingCode: '',
       status: 'scheduled',
-      participants: [],
+      participantEmails: '',
       allDay: false,
       recurrence: '',
     });
@@ -478,20 +565,18 @@ const Calendar = () => {
     setEditFormData({
       title: selectedEvent.title,
       description: selectedEvent.description || '',
-      startDate: selectedEvent.start.toISOString().slice(0, 16),
+      startDate: toLocalDateTime(selectedEvent.start),
       endDate: selectedEvent.end
-        ? selectedEvent.end.toISOString().slice(0, 16)
-        : selectedEvent.start.toISOString().slice(0, 16),
+        ? toLocalDateTime(selectedEvent.end)
+        : toLocalDateTime(selectedEvent.start),
       type: selectedEvent.type || 'offline',
       locationName: selectedEvent.locationName || '',
       address:
         typeof selectedEvent.address === 'string'
           ? selectedEvent.address
           : selectedEvent.address?.formattedAddress || '',
-      // onlineUrl: selectedEvent.onlineUrl || '',
-      // meetingCode: selectedEvent.meetingCode || '',
       status: selectedEvent.status || 'scheduled',
-      participants: selectedEvent.participants || [],
+      participantEmails: '', // Luôn để trống để chỉ thêm participants mới
       allDay: selectedEvent.allDay || false,
       recurrence: selectedEvent.recurrence || '',
     });
@@ -518,21 +603,25 @@ const Calendar = () => {
       }
 
       try {
+        setIsCreatingEvent(true);
+        let userId = userDataLocal?.id || userDataLocal?._id;
+
         const payload = {
           calendarId: calendarUser._id,
           title: formData.title,
           description: formData.description || undefined,
-          startDate: toISODateTime(formData.startDate),
-          endDate: toISODateTime(formData.endDate),
+          startDate: fromLocalDateTime(formData.startDate),
+          endDate: fromLocalDateTime(formData.endDate),
           type: formData.type,
-          organizer: userDataLocal._id,
+          organizer: userId,
           locationName: formData.locationName || undefined,
           address: formData.address || undefined,
-          // onlineUrl: formData.onlineUrl || undefined,
-          // meetingCode: formData.meetingCode || undefined,
-          status: 'scheduled' /* formData.status */,
-          participants: formData.participants.length
-            ? formData.participants
+          status: 'scheduled',
+          participantEmails: formData.participantEmails
+            ? formData.participantEmails
+                .split(',')
+                .map((email) => email.trim())
+                .filter((email) => email.length > 0)
             : undefined,
           allDay: formData.allDay,
           recurrence: formData.recurrence
@@ -546,8 +635,6 @@ const Calendar = () => {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
 
-        console.log('Create event response:', response.data);
-
         if (response.data.status === 201) {
           toast.success('Thêm sự kiện thành công');
           setShowCreateModal(false);
@@ -555,15 +642,13 @@ const Calendar = () => {
           setFormData({
             title: '',
             description: '',
-            startDate: new Date().toISOString().slice(0, 16),
-            endDate: new Date().toISOString().slice(0, 16),
+            startDate: toLocalDateTime(new Date()),
+            endDate: toLocalDateTime(new Date()),
             type: 'offline',
             locationName: '',
             address: '',
-            // onlineUrl: '',
-            // meetingCode: '',
             status: 'scheduled',
-            participants: [],
+            participantEmails: '',
             allDay: false,
             recurrence: '',
           });
@@ -574,6 +659,8 @@ const Calendar = () => {
           error.response?.data || error.message
         );
         toast.error(error.response?.data?.message || 'Không thể thêm sự kiện');
+      } finally {
+        setIsCreatingEvent(false);
       }
     },
     [
@@ -608,25 +695,40 @@ const Calendar = () => {
       }
 
       try {
+        setIsUpdatingEvent(true);
+        // Chỉ gửi những field đã được thay đổi
         const payload = {
           title: editFormData.title,
           description: editFormData.description || undefined,
-          startDate: toISODateTime(editFormData.startDate),
-          endDate: toISODateTime(editFormData.endDate),
           type: editFormData.type,
           locationName: editFormData.locationName || undefined,
           address: editFormData.address || undefined,
-          // onlineUrl: editFormData.onlineUrl || undefined,
-          // meetingCode: editFormData.meetingCode || undefined,
-          status: 'scheduled' /* editFormData.status */,
-          participants: editFormData.participants.length
-            ? editFormData.participants
+          status: 'scheduled',
+          participantEmails: editFormData.participantEmails
+            ? editFormData.participantEmails
+                .split(',')
+                .map((email) => email.trim())
+                .filter((email) => email.length > 0)
             : undefined,
           allDay: editFormData.allDay,
           recurrence: editFormData.recurrence
             ? { type: editFormData.recurrence, interval: 1 }
             : undefined,
         };
+
+        // Chỉ thêm startDate và endDate nếu chúng đã được thay đổi
+        const originalStartDate = toLocalDateTime(selectedEvent.start);
+        const originalEndDate = selectedEvent.end
+          ? toLocalDateTime(selectedEvent.end)
+          : toLocalDateTime(selectedEvent.start);
+
+        if (editFormData.startDate !== originalStartDate) {
+          payload.startDate = fromLocalDateTime(editFormData.startDate);
+        }
+
+        if (editFormData.endDate !== originalEndDate) {
+          payload.endDate = fromLocalDateTime(editFormData.endDate);
+        }
 
         const response = await axios.patch(
           `${apiBaseUrl}/event/${selectedEvent.id}`,
@@ -647,6 +749,8 @@ const Calendar = () => {
         toast.error(
           error.response?.data?.message || 'Không thể cập nhật sự kiện'
         );
+      } finally {
+        setIsUpdatingEvent(false);
       }
     },
     [
@@ -708,10 +812,18 @@ const Calendar = () => {
     (eventInfo) => {
       const eventType =
         eventTypes[eventInfo.event.extendedProps.type] || eventTypes.offline;
+      const canEdit = eventInfo.event.extendedProps?.canEdit;
+      const status = eventInfo.event.extendedProps?.status;
+
       return (
-        <div className='fc-event-content'>
+        <div className={`fc-event-content`}>
           <span className='fc-event-icon'>{eventType.icon}</span>
           <span className='fc-event-title'>{eventInfo.event.title}</span>
+          {/* {!canEdit && (
+            <span className='fc-event-lock-icon' title='Không thể chỉnh sửa'>
+              🔒
+            </span>
+          )} */}
         </div>
       );
     },
@@ -720,8 +832,39 @@ const Calendar = () => {
 
   // Kiểm tra quyền chỉnh sửa sự kiện
   const canModifyEvent = useCallback(
-    (event) => event?.organizer?.userId === userDataLocal?._id,
+    (event) => {
+      let userId = userDataLocal?.id || userDataLocal?._id;
+      // Chỉ có thể chỉnh sửa nếu là organizer của sự kiện
+      return event?.organizer?.userId === userId;
+    },
     [userDataLocal]
+  );
+
+  // Kiểm tra quyền chỉnh sửa dựa trên status
+  const canEditEvent = useCallback(
+    (event) => {
+      if (!canModifyEvent(event)) return false;
+
+      const status = event?.status;
+      // Chỉ có thể chỉnh sửa khi status là draft hoặc scheduled
+      return status === 'draft' || status === 'scheduled';
+    },
+    [canModifyEvent]
+  );
+
+  // Kiểm tra quyền xóa dựa trên status
+  const canDeleteEvent = useCallback(
+    (event) => {
+      if (!canModifyEvent(event)) return false;
+
+      const status = event?.status;
+      // Có thể xóa khi status là draft, scheduled, hoặc cancelled
+      // KHÔNG thể xóa khi in-progress hoặc completed
+      return (
+        status === 'draft' || status === 'scheduled' || status === 'cancelled'
+      );
+    },
+    [canModifyEvent]
   );
 
   // Cấu hình FullCalendar
@@ -835,322 +978,483 @@ const Calendar = () => {
   };
 
   return (
-    <div className='calendar-page'>
-      <div className='calendar-overlay' />
-      <div className='calendar-content'>
-        <Container fluid>
-          {/* Main Content */}
-          <Row className='calendar-main-container'>
-            <Col lg={7} className='order-1 order-lg-1'>
-              <motion.div
-                className='calendar-section calendar-container h-100'
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-              >
-                <FullCalendar
-                  ref={calendarRef}
-                  {...calendarOptions}
-                  viewDidMount={(info) => handleViewChange(info.view.type)}
-                />
-              </motion.div>
-            </Col>
-            <Col lg={5} className='order-2 order-lg-2'>
-              <motion.div
-                className='calendar-section schedule-section'
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-              >
-                <div className='d-flex justify-content-between mb-4 gap-5'>
-                  <h3 className='schedule-header'>
-                    <FaCalendarCheck className='me-2' />
-                    {formatEventDate(selectedDate)}
-                  </h3>
-                  <Badge bg='light' text='dark' className='h-100 px-3 py-2'>
-                    {selectedDateEvents.length} sự kiện
-                  </Badge>
-                </div>
-                <div className='event-list'>
-                  <AnimatePresence>
-                    {selectedDateEvents.length > 0 ? (
-                      selectedDateEvents.map((event) => (
-                        <motion.div
-                          key={event.id}
-                          className='event-card'
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{ duration: 0.3 }}
-                          onClick={() => handleEventClick({ event })}
-                        >
-                          <div className='event-card-header'>
-                            <h4 className='event-title'>{event.title}</h4>
-                            <div className='event-badges'>
-                              <div
-                                className={`event-type-badge event-type-${event.extendedProps.type}`}
-                              >
-                                {eventTypes[event.extendedProps.type]?.icon}{' '}
-                                {eventTypes[event.extendedProps.type]?.label}
-                              </div>
-                            </div>
-                          </div>
-                          {event.extendedProps.description && (
-                            <p className='event-description'>
-                              {event.extendedProps.description}
-                            </p>
-                          )}
-                          <div className='event-meta'>
-                            <div className='event-meta-item'>
-                              <FaCalendarAlt size={18} className='ms-1' />
-                              <span>
-                                {formatEventDate(new Date(event.start))}
-                              </span>
-                            </div>
-                            {event.extendedProps.locationName && (
-                              <div className='event-meta-item'>
-                                <span>📍</span>
-                                <span>{event.extendedProps.locationName}</span>
-                                {event.extendedProps.type === 'offline' && (
-                                  <MapLocationButton
-                                    address={event.extendedProps.address}
-                                    locationName={
-                                      event.extendedProps.locationName
-                                    }
-                                    size='xs'
-                                    className='ms-1'
-                                  />
+    <>
+      <style jsx>{`
+        .event-status-badge {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 0.8rem;
+          font-weight: 500;
+          margin-left: 4px;
+        }
+
+        .status-in-progress {
+          background-color: #ffeaa7;
+          color: #d63031;
+          border: 1px solid #fdcb6e;
+        }
+
+        .status-completed {
+          background-color: #55a3ff;
+          color: white;
+          border: 1px solid #4a90e2;
+        }
+
+        .status-cancelled {
+          background-color: #fab1a0;
+          color: #d63031;
+          border: 1px solid #e17055;
+        }
+
+        .status-draft {
+          background-color: #ddd;
+          color: #636e72;
+          border: 1px solid #b2bec3;
+        }
+
+        .status-scheduled {
+          background-color: #74b9ff;
+          color: white;
+          border: 1px solid #0984e3;
+        }
+
+        .event-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          align-items: center;
+        }
+
+        .fc-event-locked {
+          opacity: 0.8;
+          cursor: not-allowed !important;
+        }
+
+        .fc-event-locked:hover {
+          opacity: 0.9;
+        }
+
+        .fc-event-lock-icon {
+          margin-left: 4px;
+          font-size: 0.8em;
+          opacity: 0.8;
+        }
+
+        .event-modal-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+      `}</style>
+      <div className='calendar-page'>
+        <div className='calendar-overlay' />
+        <div className='calendar-content'>
+          <Container fluid>
+            {/* Main Content */}
+            <Row className='calendar-main-container'>
+              <Col lg={7} className='order-1 order-lg-1'>
+                <motion.div
+                  className='calendar-section calendar-container h-100'
+                  initial={{ opacity: 0, x: -50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                >
+                  <FullCalendar
+                    ref={calendarRef}
+                    {...calendarOptions}
+                    viewDidMount={(info) => handleViewChange(info.view.type)}
+                  />
+                </motion.div>
+              </Col>
+              <Col lg={5} className='order-2 order-lg-2'>
+                <motion.div
+                  className='calendar-section schedule-section'
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4 }}
+                >
+                  <div className='d-flex justify-content-between mb-4 gap-5'>
+                    <h3 className='schedule-header'>
+                      <FaCalendarCheck className='me-2' />
+                      {formatEventDate(selectedDate)}
+                    </h3>
+                    <Badge bg='light' text='dark' className='h-100 px-3 py-2'>
+                      {selectedDateEvents.length} sự kiện
+                    </Badge>
+                  </div>
+                  <div className='event-list'>
+                    <AnimatePresence>
+                      {selectedDateEvents.length > 0 ? (
+                        selectedDateEvents.map((event) => (
+                          <motion.div
+                            key={event.id}
+                            className='event-card'
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.3 }}
+                            onClick={() => handleEventClick({ event })}
+                          >
+                            <div className='event-card-header'>
+                              <h4 className='event-title'>{event.title}</h4>
+                              <div className='event-badges'>
+                                <div
+                                  className={`event-type-badge event-type-${event.extendedProps.type}`}
+                                >
+                                  {eventTypes[event.extendedProps.type]?.icon}{' '}
+                                  {eventTypes[event.extendedProps.type]?.label}
+                                </div>
+                                {!event.extendedProps.isOwn && (
+                                  <div className='event-participated-badge'>
+                                    👥 Tham gia
+                                  </div>
                                 )}
-                              </div>
-                            )}
-                            {event.extendedProps.type === 'online' &&
-                              event.extendedProps?.onlineUrl && (
-                                <div className='event-meta-item'>
-                                  <span>🌐</span>
-                                  <span>
-                                    <a
-                                      href={event.extendedProps?.onlineUrl}
-                                      target='_blank'
-                                      rel='noopener noreferrer'
+                                {/* Status indicator */}
+                                {event.extendedProps.status &&
+                                  event.extendedProps.status !==
+                                    'scheduled' && (
+                                    <div
+                                      className={`event-status-badge status-${event.extendedProps.status}`}
                                     >
-                                      Link sự kiện
-                                    </a>
+                                      {event.extendedProps.status ===
+                                        'in-progress' && '🔄 Đang diễn ra'}
+                                      {event.extendedProps.status ===
+                                        'completed' && '✅ Đã xong'}
+                                      {event.extendedProps.status ===
+                                        'cancelled' && '❌ Đã hủy'}
+                                      {event.extendedProps.status === 'draft' &&
+                                        '📝 Nháp'}
+                                    </div>
+                                  )}
+                              </div>
+                            </div>
+                            {event.extendedProps.description && (
+                              <p className='event-description'>
+                                {event.extendedProps.description}
+                              </p>
+                            )}
+                            <div className='event-meta'>
+                              <div className='event-meta-item'>
+                                <FaCalendarAlt size={18} className='ms-1' />
+                                <span>
+                                  {formatEventDate(new Date(event.start))}
+                                </span>
+                              </div>
+                              {event.extendedProps.locationName && (
+                                <div className='event-meta-item'>
+                                  <span>📍</span>
+                                  <span>
+                                    {event.extendedProps.locationName}
                                   </span>
+                                  {event.extendedProps.type === 'offline' && (
+                                    <MapLocationButton
+                                      address={event.extendedProps.address}
+                                      locationName={
+                                        event.extendedProps.locationName
+                                      }
+                                      size='xs'
+                                      className='ms-1'
+                                    />
+                                  )}
                                 </div>
                               )}
-                            {/* <div className='event-meta-item'>
-                              <FaUser />
-                              <span>
-                                {event.extendedProps.organizer?.username ||
-                                  'Không xác định'}
-                              </span>
-                            </div> */}
-                          </div>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <motion.div
-                        className='no-events'
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <FaCalendarAlt size={48} className='mb-3' />
-                        <p>Không có sự kiện nào trong ngày này</p>
-                        <Button
-                          variant='outline-light'
-                          onClick={handleCreateClick}
-                          className='mt-2'
+                              {event.extendedProps.type === 'online' &&
+                                event.extendedProps?.onlineUrl && (
+                                  <div className='event-meta-item'>
+                                    <span>🌐</span>
+                                    <span>
+                                      <a
+                                        href={event.extendedProps?.onlineUrl}
+                                        target='_blank'
+                                        rel='noopener noreferrer'
+                                      >
+                                        Link sự kiện
+                                      </a>
+                                    </span>
+                                  </div>
+                                )}
+                              {/* <div className='event-meta-item'>
+                                <FaUser />
+                                <span>
+                                  {event.extendedProps.organizer?.username ||
+                                    'Không xác định'}
+                                </span>
+                              </div> */}
+                            </div>
+                          </motion.div>
+                        ))
+                      ) : (
+                        <motion.div
+                          className='no-events'
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.5 }}
                         >
-                          <FaPlus className='me-2' />
-                          Tạo sự kiện mới
-                        </Button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            </Col>
-          </Row>
-        </Container>
+                          <FaCalendarAlt size={48} className='mb-3' />
+                          <p>Không có sự kiện nào trong ngày này</p>
+                          <Button
+                            variant='outline-light'
+                            onClick={handleCreateClick}
+                            className='mt-2'
+                          >
+                            <FaPlus className='me-2' />
+                            Tạo sự kiện mới
+                          </Button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              </Col>
+            </Row>
+          </Container>
 
-        {/* Floating Action Button */}
-        <motion.button
-          className='fab-create'
-          onClick={handleCreateClick}
-          whileHover={{ scale: 1.1, rotate: 90 }}
-          whileTap={{ scale: 0.9 }}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 1, type: 'spring', stiffness: 200 }}
-        >
-          <FaPlus />
-        </motion.button>
+          {/* Floating Action Button */}
+          <motion.button
+            className='fab-create'
+            onClick={handleCreateClick}
+            whileHover={{ scale: 1.1, rotate: 90 }}
+            whileTap={{ scale: 0.9 }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+          >
+            <FaPlus />
+          </motion.button>
 
-        {/* Event Detail Modal */}
-        <AnimatePresence>
-          {showEventModal && selectedEvent && (
-            <motion.div
-              className='event-modal-overlay'
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowEventModal(false)}
-            >
+          {/* Event Detail Modal */}
+          <AnimatePresence>
+            {showEventModal && selectedEvent && (
               <motion.div
-                className='event-modal'
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
+                className='event-modal-overlay'
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowEventModal(false)}
               >
-                <div className='event-modal-header'>
-                  <h2 className='event-modal-title'>{selectedEvent.title}</h2>
-                  <button
-                    className='event-modal-close'
-                    onClick={() => setShowEventModal(false)}
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-                <div className='event-modal-content'>
-                  <div className='mb-3'>
-                    <div className='event-badges-container'>
-                      <div
-                        className={`event-type-badge event-type-${selectedEvent.type} d-inline-block mb-2 me-2`}
-                      >
-                        {eventTypes[selectedEvent.type]?.icon}{' '}
-                        {eventTypes[selectedEvent.type]?.label}
+                <motion.div
+                  className='event-modal'
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className='event-modal-header'>
+                    <h2 className='event-modal-title'>{selectedEvent.title}</h2>
+                    <button
+                      className='event-modal-close'
+                      onClick={() => setShowEventModal(false)}
+                    >
+                      <FaTimes />
+                    </button>
+                  </div>
+                  <div className='event-modal-content'>
+                    <div className='mb-3'>
+                      <div className='event-badges-container'>
+                        <div
+                          className={`event-type-badge event-type-${selectedEvent.type} d-inline-block mb-2 me-2`}
+                        >
+                          {eventTypes[selectedEvent.type]?.icon}{' '}
+                          {eventTypes[selectedEvent.type]?.label}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className='event-info'>
-                    <p>
-                      <FaCalendarAlt className='ms-1 me-2' />
-                      Thời gian: {formatEventDate(selectedEvent.start)}
-                      {selectedEvent.end &&
-                        ` đến ${formatEventDate(selectedEvent.end)}`}
-                    </p>
-                    {selectedEvent.locationName && (
+                    <div className='event-info'>
                       <p>
-                        <span className='ms-1 me-2'>📍</span>
-                        Địa điểm: {selectedEvent.locationName}
-                      </p>
-                    )}
-                    {selectedEvent.address && (
-                      <div>
-                        <p className='mb-1'>
-                          <span className='ms-1 me-2'>🏠</span>
-                          Địa chỉ: {getAddressDisplay(selectedEvent.address)}
-                        </p>
-                        {selectedEvent.type === 'offline' && (
-                          <MapLocationButton
-                            address={selectedEvent.address}
-                            locationName={selectedEvent.locationName}
-                            className='mb-2'
-                          />
+                        <FaCalendarAlt className='ms-1 me-3' />
+                        Thời gian:{' '}
+                        {selectedEvent.allDay ? (
+                          <>
+                            {new Intl.DateTimeFormat('vi-VN', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              timeZone: 'Asia/Ho_Chi_Minh',
+                            }).format(selectedEvent.start)}{' '}
+                            <span className=''>(cả ngày)</span>
+                          </>
+                        ) : (
+                          <>
+                            {formatEventDate(selectedEvent.start)}
+                            {selectedEvent.end &&
+                              ` đến ${formatEventDate(selectedEvent.end)}`}
+                          </>
                         )}
-                      </div>
-                    )}
-                    {selectedEvent.type === 'online' &&
-                      selectedEvent?.onlineUrl && (
+                      </p>
+                      {selectedEvent.locationName && (
                         <p>
-                          <span className='ms-1 me-2'>🌐</span>
-                          Link sự kiện:{' '}
-                          <a
-                            href={selectedEvent?.onlineUrl}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                          >
-                            Tham gia
-                          </a>
+                          <span className='me-2'>📍</span>
+                          Địa điểm: {selectedEvent.locationName}
                         </p>
                       )}
-                    {selectedEvent.meetingCode && (
+                      {selectedEvent.address && (
+                        <div>
+                          <p className='mb-1'>
+                            <span className='me-2'>🏠</span>
+                            Địa chỉ chi tiết:{' '}
+                            {getAddressDisplay(selectedEvent.address)}
+                          </p>
+                          {selectedEvent.type === 'offline' && (
+                            <MapLocationButton
+                              address={selectedEvent.address}
+                              locationName={selectedEvent.locationName}
+                              className='mb-2'
+                            />
+                          )}
+                        </div>
+                      )}
+                      {selectedEvent.type === 'online' &&
+                        selectedEvent?.onlineUrl && (
+                          <p>
+                            <span className='me-2'>🌐</span>
+                            Link sự kiện:{' '}
+                            <a
+                              href={selectedEvent?.onlineUrl}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='event-open-meeting-button'
+                              title='Mở link sự kiện'
+                            >
+                              Tham gia
+                            </a>
+                          </p>
+                        )}
+                      {selectedEvent.meetingCode && (
+                        <p>
+                          <span className='ms-1 me-2'>🔑</span>
+                          Mã cuộc họp: {selectedEvent.meetingCode}
+                        </p>
+                      )}
+                      {selectedEvent.description && (
+                        <p>
+                          <span className='me-2'>📝</span>
+                          Mô tả: {selectedEvent.description}
+                        </p>
+                      )}
                       <p>
-                        <span className='ms-1 me-2'>🔑</span>
-                        Mã cuộc họp: {selectedEvent.meetingCode}
+                        <FaUser className='ms-1 me-2' />
+                        Người tạo: {selectedEvent?.organizer.username}
                       </p>
-                    )}
-                    {selectedEvent.description && (
+                      {selectedEvent.participants?.filter(
+                        (p) => p.status === 'accepted'
+                      ).length > 0 && (
+                        <p>
+                          <span className='me-2'>👥</span>
+                          Người tham gia:{' '}
+                          {selectedEvent.participants
+                            .filter((p) => p.status === 'accepted')
+                            .map((p) => p.email || p.name || 'Người dùng')
+                            .join(', ')}
+                        </p>
+                      )}
                       <p>
-                        <span className='ms-1 me-2'>📝</span>
-                        Mô tả: {selectedEvent.description}
+                        <span className='me-2'>📊</span>
+                        Trạng thái:{' '}
+                        <span
+                          className={`event-status-badge status-${selectedEvent.status} ms-1`}
+                        >
+                          {selectedEvent.status === 'in-progress' &&
+                            '🔄 Đang diễn ra'}
+                          {selectedEvent.status === 'completed' && '✅ Đã xong'}
+                          {selectedEvent.status === 'cancelled' && '❌ Đã hủy'}
+                          {selectedEvent.status === 'draft' && '📝 Nháp'}
+                          {selectedEvent.status === 'scheduled' &&
+                            '📅 Chưa diễn ra'}
+                          {![
+                            'in-progress',
+                            'completed',
+                            'cancelled',
+                            'draft',
+                            'scheduled',
+                          ].includes(selectedEvent.status) &&
+                            (statusOptions.find(
+                              (s) => s.value === selectedEvent.status
+                            )?.label ||
+                              selectedEvent.status)}
+                        </span>
                       </p>
-                    )}
-                    <p>
-                      <FaUser className='ms-1 me-2' />
-                      Người tạo:{' '}
-                      {selectedEvent?.organizer.username || 'Không xác định'}
-                    </p>
-                    {selectedEvent.participants?.length > 0 && (
-                      <p>
-                        <span className='ms-1 me-2'>👥</span>
-                        Người tham gia:{' '}
-                        {selectedEvent.participants
-                          .map((p) => p.name || p.userId)
-                          .join(', ')}
-                      </p>
-                    )}
-                    <p>
-                      <span className='ms-1 me-2'>📊</span>
-                      Trạng thái:{' '}
-                      {statusOptions.find(
-                        (s) => s.value === selectedEvent.status
-                      )?.label || selectedEvent.status}
-                    </p>
+                    </div>
                   </div>
-                </div>
-                {canModifyEvent(selectedEvent) && (
-                  <div className='event-modal-actions'>
-                    <Button variant='outline-light' onClick={handleEditClick}>
-                      <FaEdit className='me-2' />
-                      Chỉnh sửa
-                    </Button>
-                    <Button
-                      variant='outline-danger'
-                      onClick={() => setShowDeleteModal(true)}
-                    >
-                      <FaTrash className='me-2' />
-                      Xóa
-                    </Button>
-                  </div>
-                )}
+                  {canModifyEvent(selectedEvent) && (
+                    <div className='event-modal-actions'>
+                      {canEditEvent(selectedEvent) && (
+                        <Button
+                          variant='outline-light'
+                          onClick={handleEditClick}
+                          disabled={isUpdatingEvent}
+                        >
+                          <FaEdit className='me-2' />
+                          Chỉnh sửa
+                        </Button>
+                      )}
+                      {canDeleteEvent(selectedEvent) && (
+                        <Button
+                          variant='outline-danger'
+                          onClick={() => setShowDeleteModal(true)}
+                          disabled={isUpdatingEvent}
+                        >
+                          <FaTrash className='me-2' />
+                          Xóa
+                        </Button>
+                      )}
+                      {/* {!canEditEvent(selectedEvent) &&
+                        !canDeleteEvent(selectedEvent) && (
+                          <div className='text-muted small'>
+                            <span className='me-2'>ℹ️</span>
+                            {selectedEvent.status === 'in-progress' &&
+                              'Sự kiện đang diễn ra không thể chỉnh sửa hoặc xóa'}
+                            {selectedEvent.status === 'completed' &&
+                              'Sự kiện đã hoàn thành không thể chỉnh sửa hoặc xóa'}
+                          </div>
+                        )} */}
+                      {/* {!canEditEvent(selectedEvent) &&
+                        canDeleteEvent(selectedEvent) && (
+                          <div className='text-muted small'>
+                            <span className='me-2'>ℹ️</span>
+                            {selectedEvent.status === 'cancelled' &&
+                              'Sự kiện đã hủy chỉ có thể xóa, không thể chỉnh sửa'}
+                          </div>
+                        )} */}
+                    </div>
+                  )}
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
 
-        {/* Create Modal */}
-        <Modal
-          show={showCreateModal}
-          onHide={() => setShowCreateModal(false)}
-          centered
-          className='custom-modal'
-          backdrop='static'
-          size='lg'
-        >
-          <Modal.Header className='mx-3' closeButton>
-            <Modal.Title>Tạo sự kiện mới</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form onSubmit={handleCreateSubmit}>
-              <Row>
-                <Col>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Tiêu đề *</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={formData.title}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
-                      }
-                      placeholder='Nhập tiêu đề sự kiện...'
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                {/* <Col md={4}>
+          {/* Create Modal */}
+          <Modal
+            show={showCreateModal}
+            onHide={() => setShowCreateModal(false)}
+            centered
+            className='custom-modal'
+            backdrop='static'
+            size='lg'
+          >
+            <Modal.Header className='mx-3' closeButton>
+              <Modal.Title>Tạo sự kiện mới</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Form onSubmit={handleCreateSubmit}>
+                <Row>
+                  <Col>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Tiêu đề *</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={formData.title}
+                        onChange={(e) =>
+                          setFormData({ ...formData, title: e.target.value })
+                        }
+                        placeholder='Nhập tiêu đề sự kiện...'
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                  {/* <Col md={4}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Trạng thái</Form.Label>
                     <Form.Select
@@ -1167,93 +1471,93 @@ const Calendar = () => {
                     </Form.Select>
                   </Form.Group>
                 </Col> */}
-              </Row>
-              <Row>
-                <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Thời gian bắt đầu *</Form.Label>
-                    <Form.Control
-                      type={formData.allDay ? 'date' : 'datetime-local'}
-                      value={
-                        formData.allDay
-                          ? formData.startDate.split('T')[0]
-                          : formData.startDate
-                      }
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          startDate: formData.allDay
-                            ? e.target.value + 'T00:00'
-                            : e.target.value,
-                        })
-                      }
-                      required={!formData.allDay}
-                      disabled={formData.allDay}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Thời gian kết thúc *</Form.Label>
-                    <Form.Control
-                      type={formData.allDay ? 'date' : 'datetime-local'}
-                      value={
-                        formData.allDay
-                          ? formData.endDate.split('T')[0]
-                          : formData.endDate
-                      }
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          endDate: formData.allDay
-                            ? e.target.value + 'T23:59'
-                            : e.target.value,
-                        })
-                      }
-                      required={!formData.allDay}
-                      disabled={formData.allDay}
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Form.Group className='mb-3'>
-                <Form.Check
-                  type='checkbox'
-                  label='Sự kiện cả ngày'
-                  checked={formData.allDay}
-                  onChange={(e) =>
-                    setFormData({ ...formData, allDay: e.target.checked })
-                  }
-                />
-              </Form.Group>
-              <Form.Group className='mb-3'>
-                <Form.Label>Mô tả</Form.Label>
-                <Form.Control
-                  as='textarea'
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder='Mô tả chi tiết về sự kiện...'
-                />
-              </Form.Group>
-              <Form.Group className='mb-3'>
-                <Form.Label>Loại sự kiện</Form.Label>
-                <Form.Select
-                  value={formData.type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, type: e.target.value })
-                  }
-                >
-                  {Object.entries(eventTypes).map(([key, type]) => (
-                    <option key={key} value={key}>
-                      {type.icon} {type.label}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-              {/* {formData.type === 'online' && (
+                </Row>
+                <Row>
+                  <Col md={6}>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Thời gian bắt đầu *</Form.Label>
+                      <Form.Control
+                        type={formData.allDay ? 'date' : 'datetime-local'}
+                        value={
+                          formData.allDay
+                            ? formData.startDate.split('T')[0]
+                            : formData.startDate
+                        }
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            startDate: formData.allDay
+                              ? e.target.value + 'T00:00'
+                              : e.target.value,
+                          })
+                        }
+                        required={!formData.allDay}
+                        disabled={formData.allDay}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Thời gian kết thúc *</Form.Label>
+                      <Form.Control
+                        type={formData.allDay ? 'date' : 'datetime-local'}
+                        value={
+                          formData.allDay
+                            ? formData.endDate.split('T')[0]
+                            : formData.endDate
+                        }
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            endDate: formData.allDay
+                              ? e.target.value + 'T23:59'
+                              : e.target.value,
+                          })
+                        }
+                        required={!formData.allDay}
+                        disabled={formData.allDay}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Form.Group className='mb-3'>
+                  <Form.Check
+                    type='checkbox'
+                    label='Sự kiện cả ngày'
+                    checked={formData.allDay}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allDay: e.target.checked })
+                    }
+                  />
+                </Form.Group>
+                <Form.Group className='mb-3'>
+                  <Form.Label>Mô tả</Form.Label>
+                  <Form.Control
+                    as='textarea'
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    placeholder='Mô tả chi tiết về sự kiện...'
+                  />
+                </Form.Group>
+                <Form.Group className='mb-3'>
+                  <Form.Label>Loại sự kiện</Form.Label>
+                  <Form.Select
+                    value={formData.type}
+                    onChange={(e) =>
+                      setFormData({ ...formData, type: e.target.value })
+                    }
+                  >
+                    {Object.entries(eventTypes).map(([key, type]) => (
+                      <option key={key} value={key}>
+                        {type.icon} {type.label}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+                {/* {formData.type === 'online' && (
                 <>
                   <Form.Group className='mb-3'>
                     <Form.Label>Mật khẩu cuộc họp</Form.Label>
@@ -1271,40 +1575,40 @@ const Calendar = () => {
                   </Form.Group>
                 </>
               )} */}
-              {formData.type === 'offline' && (
-                <>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Tên địa điểm</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={formData.locationName}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          locationName: e.target.value,
-                        })
-                      }
-                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
-                    />
-                  </Form.Group>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Địa chỉ chi tiết</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={formData.address}
-                      onChange={(e) =>
-                        setFormData({ ...formData, address: e.target.value })
-                      }
-                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
-                    />
-                    <Form.Text className='text-muted'>
-                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
-                      trên bản đồ
-                    </Form.Text>
-                  </Form.Group>
-                </>
-              )}
-              {/* <Form.Group className='mb-3'>
+                {formData.type === 'offline' && (
+                  <>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Tên địa điểm</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={formData.locationName}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            locationName: e.target.value,
+                          })
+                        }
+                        placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
+                      />
+                    </Form.Group>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Địa chỉ chi tiết</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={formData.address}
+                        onChange={(e) =>
+                          setFormData({ ...formData, address: e.target.value })
+                        }
+                        placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      />
+                      <Form.Text className='text-muted'>
+                        Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa
+                        độ trên bản đồ
+                      </Form.Text>
+                    </Form.Group>
+                  </>
+                )}
+                {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>
                 <Form.Select
                   value={formData.recurrence}
@@ -1319,80 +1623,101 @@ const Calendar = () => {
                   ))}
                 </Form.Select>
               </Form.Group> */}
-              <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (email người dùng)</Form.Label>
-                <Form.Control
-                  type='text'
-                  value={formData.participants.map((p) => p.userId).join(',')}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      participants: e.target.value
-                        .split(',')
-                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
-                        .filter((p) => p.userId),
-                    })
-                  }
-                  placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
-                />
-                <Form.Text className='text-muted'>
-                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
-                  sau.
-                </Form.Text>
-              </Form.Group>
-              <div className='d-flex justify-content-end gap-2'>
-                <Button
-                  variant='outline-light'
-                  onClick={() => setShowCreateModal(false)}
-                  type='button'
-                >
-                  Hủy
-                </Button>
-                <Button variant='primary' type='submit'>
-                  <FaPlus className='me-2' />
-                  Tạo sự kiện
-                </Button>
-              </div>
-            </Form>
-          </Modal.Body>
-        </Modal>
+                <Form.Group className='mb-3'>
+                  <Form.Label>
+                    Mời người tham gia (email ngăn cách bởi dấu phẩy)
+                  </Form.Label>
+                  <Form.Control
+                    type='text'
+                    value={formData.participantEmails}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        participantEmails: e.target.value,
+                      })
+                    }
+                    placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
+                  />
+                  <Form.Text className='text-muted'>
+                    Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự
+                    động tìm kiếm và gửi lời mời cho những người dùng có email
+                    hợp lệ.
+                  </Form.Text>
+                </Form.Group>
+                <div className='d-flex justify-content-end gap-2'>
+                  <Button
+                    variant='outline-light'
+                    onClick={() => setShowCreateModal(false)}
+                    type='button'
+                    disabled={isCreatingEvent}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    variant='primary'
+                    type='submit'
+                    disabled={isCreatingEvent}
+                  >
+                    {isCreatingEvent ? (
+                      <>
+                        <Spinner
+                          as='span'
+                          animation='border'
+                          size='sm'
+                          role='status'
+                          aria-hidden='true'
+                          className='me-2'
+                        />
+                        Đang tạo...
+                      </>
+                    ) : (
+                      <>
+                        <FaPlus className='me-2' />
+                        Tạo sự kiện
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Form>
+            </Modal.Body>
+          </Modal>
 
-        {/* Edit Modal */}
-        <Modal
-          show={showEditModal}
-          onHide={() => setShowEditModal(false)}
-          centered
-          className='custom-modal'
-          backdrop='static'
-          size='lg'
-        >
-          <Modal.Header closeButton>
-            <Modal.Title>
-              <FaEdit className='me-2' />
-              Chỉnh sửa sự kiện
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Form onSubmit={handleEditSubmit}>
-              <Row>
-                <Col>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Tiêu đề *</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={editFormData.title || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          title: e.target.value,
-                        })
-                      }
-                      placeholder='Nhập tiêu đề sự kiện...'
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                {/* <Col md={4}>
+          {/* Edit Modal */}
+          <Modal
+            show={showEditModal}
+            onHide={() => setShowEditModal(false)}
+            centered
+            className='custom-modal'
+            backdrop='static'
+            size='lg'
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>
+                <FaEdit className='me-2' />
+                Chỉnh sửa sự kiện
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Form onSubmit={handleEditSubmit}>
+                <Row>
+                  <Col>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Tiêu đề *</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={editFormData.title || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            title: e.target.value,
+                          })
+                        }
+                        placeholder='Nhập tiêu đề sự kiện...'
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                  {/* <Col md={4}>
                   <Form.Group className='mb-3'>
                     <Form.Label>Trạng thái</Form.Label>
                     <Form.Select
@@ -1412,99 +1737,99 @@ const Calendar = () => {
                     </Form.Select>
                   </Form.Group>
                 </Col> */}
-              </Row>
-              <Row>
-                <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Thời gian bắt đầu *</Form.Label>
-                    <Form.Control
-                      type={editFormData.allDay ? 'date' : 'datetime-local'}
-                      value={
-                        editFormData.allDay
-                          ? (editFormData.startDate || '').split('T')[0]
-                          : editFormData.startDate || ''
-                      }
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          startDate: editFormData.allDay
-                            ? e.target.value + 'T00:00'
-                            : e.target.value,
-                        })
-                      }
-                      required={!editFormData.allDay}
-                      disabled={editFormData.allDay}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Thời gian kết thúc *</Form.Label>
-                    <Form.Control
-                      type={editFormData.allDay ? 'date' : 'datetime-local'}
-                      value={
-                        editFormData.allDay
-                          ? (editFormData.endDate || '').split('T')[0]
-                          : editFormData.endDate || ''
-                      }
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          endDate: editFormData.allDay
-                            ? e.target.value + 'T23:59'
-                            : e.target.value,
-                        })
-                      }
-                      required={!editFormData.allDay}
-                      disabled={editFormData.allDay}
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Form.Group className='mb-3'>
-                <Form.Check
-                  type='checkbox'
-                  label='Sự kiện cả ngày'
-                  checked={editFormData.allDay || false}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      allDay: e.target.checked,
-                    })
-                  }
-                />
-              </Form.Group>
-              <Form.Group className='mb-3'>
-                <Form.Label>Mô tả</Form.Label>
-                <Form.Control
-                  as='textarea'
-                  rows={3}
-                  value={editFormData.description || ''}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      description: e.target.value,
-                    })
-                  }
-                  placeholder='Mô tả chi tiết về sự kiện...'
-                />
-              </Form.Group>
-              <Form.Group className='mb-3'>
-                <Form.Label>Loại sự kiện</Form.Label>
-                <Form.Select
-                  value={editFormData.type || 'offline'}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, type: e.target.value })
-                  }
-                >
-                  {Object.entries(eventTypes).map(([key, type]) => (
-                    <option key={key} value={key}>
-                      {type.icon} {type.label}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-              {/* {editFormData.type === 'online' && (
+                </Row>
+                <Row>
+                  <Col md={6}>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Thời gian bắt đầu *</Form.Label>
+                      <Form.Control
+                        type={editFormData.allDay ? 'date' : 'datetime-local'}
+                        value={
+                          editFormData.allDay
+                            ? (editFormData.startDate || '').split('T')[0]
+                            : editFormData.startDate || ''
+                        }
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            startDate: editFormData.allDay
+                              ? e.target.value + 'T00:00'
+                              : e.target.value,
+                          })
+                        }
+                        required={!editFormData.allDay}
+                        disabled={editFormData.allDay}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Thời gian kết thúc *</Form.Label>
+                      <Form.Control
+                        type={editFormData.allDay ? 'date' : 'datetime-local'}
+                        value={
+                          editFormData.allDay
+                            ? (editFormData.endDate || '').split('T')[0]
+                            : editFormData.endDate || ''
+                        }
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            endDate: editFormData.allDay
+                              ? e.target.value + 'T23:59'
+                              : e.target.value,
+                          })
+                        }
+                        required={!editFormData.allDay}
+                        disabled={editFormData.allDay}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Form.Group className='mb-3'>
+                  <Form.Check
+                    type='checkbox'
+                    label='Sự kiện cả ngày'
+                    checked={editFormData.allDay || false}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        allDay: e.target.checked,
+                      })
+                    }
+                  />
+                </Form.Group>
+                <Form.Group className='mb-3'>
+                  <Form.Label>Mô tả</Form.Label>
+                  <Form.Control
+                    as='textarea'
+                    rows={3}
+                    value={editFormData.description || ''}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder='Mô tả chi tiết về sự kiện...'
+                  />
+                </Form.Group>
+                <Form.Group className='mb-3'>
+                  <Form.Label>Loại sự kiện</Form.Label>
+                  <Form.Select
+                    value={editFormData.type || 'offline'}
+                    onChange={(e) =>
+                      setEditFormData({ ...editFormData, type: e.target.value })
+                    }
+                  >
+                    {Object.entries(eventTypes).map(([key, type]) => (
+                      <option key={key} value={key}>
+                        {type.icon} {type.label}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+                {/* {editFormData.type === 'online' && (
                 <>
                   <Form.Group className='mb-3'>
                     <Form.Label>Link sự kiện</Form.Label>
@@ -1536,43 +1861,43 @@ const Calendar = () => {
                   </Form.Group>
                 </>
               )} */}
-              {editFormData.type === 'offline' && (
-                <>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Tên địa điểm</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={editFormData.locationName || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          locationName: e.target.value,
-                        })
-                      }
-                      placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
-                    />
-                  </Form.Group>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Địa chỉ chi tiết</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={editFormData.address || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          address: e.target.value,
-                        })
-                      }
-                      placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
-                    />
-                    <Form.Text className='text-muted'>
-                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
-                      trên bản đồ
-                    </Form.Text>
-                  </Form.Group>
-                </>
-              )}
-              {/* <Form.Group className='mb-3'>
+                {editFormData.type === 'offline' && (
+                  <>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Tên địa điểm</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={editFormData.locationName || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            locationName: e.target.value,
+                          })
+                        }
+                        placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
+                      />
+                    </Form.Group>
+                    <Form.Group className='mb-3'>
+                      <Form.Label>Địa chỉ chi tiết</Form.Label>
+                      <Form.Control
+                        type='text'
+                        value={editFormData.address || ''}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            address: e.target.value,
+                          })
+                        }
+                        placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      />
+                      <Form.Text className='text-muted'>
+                        Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa
+                        độ trên bản đồ
+                      </Form.Text>
+                    </Form.Group>
+                  </>
+                )}
+                {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>
                 <Form.Select
                   value={editFormData.recurrence || ''}
@@ -1590,72 +1915,88 @@ const Calendar = () => {
                   ))}
                 </Form.Select>
               </Form.Group> */}
-              <Form.Group className='mb-3'>
-                <Form.Label>Người tham gia (ID người dùng)</Form.Label>
-                <Form.Control
-                  type='text'
-                  value={
-                    editFormData.participants?.map((p) => p.userId).join(',') ||
-                    ''
-                  }
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      participants: e.target.value
-                        .split(',')
-                        .map((id) => ({ userId: id.trim(), status: 'invited' }))
-                        .filter((p) => p.userId),
-                    })
-                  }
-                  placeholder='Nhập ID người tham gia, cách nhau bằng dấu phẩy...'
-                />
-                <Form.Text className='text-muted'>
-                  Tạm thời nhập ID người dùng, sẽ thay bằng tìm kiếm người dùng
-                  sau.
-                </Form.Text>
-              </Form.Group>
-              <div className='d-flex justify-content-end gap-2'>
-                <Button
-                  variant='outline-light'
-                  onClick={() => setShowEditModal(false)}
-                  type='button'
-                >
-                  Hủy
-                </Button>
-                <Button variant='success' type='submit'>
-                  <FaEdit className='me-2' />
-                  Cập nhật
-                </Button>
-              </div>
-            </Form>
-          </Modal.Body>
-        </Modal>
+                <Form.Group className='mb-3'>
+                  <Form.Label>
+                    Thêm người tham gia mới (email ngăn cách bởi dấu phẩy)
+                  </Form.Label>
+                  <Form.Control
+                    type='text'
+                    value={editFormData.participantEmails || ''}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        participantEmails: e.target.value,
+                      })
+                    }
+                    placeholder='Nhập email người tham gia mới để mời thêm...'
+                  />
+                </Form.Group>
+                <div className='d-flex justify-content-end gap-2'>
+                  <Button
+                    variant='outline-light'
+                    onClick={() => setShowEditModal(false)}
+                    type='button'
+                    disabled={isUpdatingEvent}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    variant='success'
+                    type='submit'
+                    disabled={isUpdatingEvent}
+                  >
+                    {isUpdatingEvent ? (
+                      <>
+                        <Spinner
+                          as='span'
+                          animation='border'
+                          size='sm'
+                          role='status'
+                          aria-hidden='true'
+                          className='me-2'
+                        />
+                        Đang cập nhật...
+                      </>
+                    ) : (
+                      <>
+                        <FaEdit className='me-2' />
+                        Cập nhật
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Form>
+            </Modal.Body>
+          </Modal>
 
-        {/* Delete Confirmation Modal */}
-        <Modal
-          show={showDeleteModal}
-          onHide={() => setShowDeleteModal(false)}
-          centered
-          backdrop='static'
-        >
-          <Modal.Header closeButton>
-            <Modal.Title>Xác nhận xóa sự kiện</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>Bạn có chắc chắn muốn xóa sự kiện này không?</Modal.Body>
-          <Modal.Footer>
-            <Button
-              variant='secondary'
-              onClick={() => setShowDeleteModal(false)}
-            >
-              Hủy
-            </Button>
-            <Button variant='danger' onClick={handleDeleteEvent}>
-              Xóa
-            </Button>
-          </Modal.Footer>
-        </Modal>
+          {/* Delete Confirmation Modal */}
+          <Modal
+            show={showDeleteModal}
+            onHide={() => setShowDeleteModal(false)}
+            centered
+            backdrop='static'
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>Xác nhận xóa sự kiện</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              Bạn có chắc chắn muốn xóa sự kiện này không?
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant='secondary'
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Hủy
+              </Button>
+              <Button variant='danger' onClick={handleDeleteEvent}>
+                Xóa
+              </Button>
+            </Modal.Footer>
+          </Modal>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

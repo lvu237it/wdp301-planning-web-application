@@ -2,10 +2,13 @@ const mongoose = require('mongoose');
 // Quản lý thông báo
 const notificationSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'UserId là bắt buộc'],
+    title: {
+      type: String,
+      required: [true, 'Tiêu đề thông báo là bắt buộc'],
+    },
+    content: {
+      type: String,
+      required: [true, 'Nội dung thông báo là bắt buộc'],
     },
     type: {
       type: String,
@@ -26,20 +29,27 @@ const notificationSchema = new mongoose.Schema(
       // ],
       required: [true, 'Loại thông báo là bắt buộc'],
     },
-    notificationType: {
+    audienceType: {
       type: String,
-      enum: ['system', 'email'],
-      default: 'system',
+      enum: ['personal', 'workspace', 'global'],
+      required: true,
     },
-    content: {
-      type: String,
-      required: [true, 'Nội dung thông báo là bắt buộc'],
+    targetUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
-    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace' },
+    targetWorkspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
     taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
     messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
-    isRead: { type: Boolean, default: false },
+    // isRead: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },
@@ -48,9 +58,12 @@ const notificationSchema = new mongoose.Schema(
   }
 );
 
-notificationSchema.index({ userId: 1, workspaceId: 1, timestamp: -1 });
-notificationSchema.index({ userId: 1, isRead: 1 });
+notificationSchema.index({ targetUserId: 1 });
+notificationSchema.index({ targetWorkspaceId: 1 });
+notificationSchema.index({ audienceType: 1 });
 notificationSchema.index({ eventId: 1 });
 notificationSchema.index({ taskId: 1 });
 notificationSchema.index({ messageId: 1 });
+notificationSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model('Notification', notificationSchema);

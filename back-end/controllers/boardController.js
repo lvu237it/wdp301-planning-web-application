@@ -91,82 +91,76 @@ const List                 = require('../models/listModel');
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getAllBoards = async (req, res) => {
   try {
-    // 1. Bảo đảm đây là route đã qua `protect`, nên req.user luôn có
     const userId = req.user._id;
 
-    // 2. Lấy workspace IDs user đang tham gia
+    // 1. Lấy list workspaceId mà user thuộc về (membership của workspace)
     const userWorkspaceDocs = await WorkspaceMembership.find({
       userId,
       invitationStatus: 'accepted',
       isDeleted: false,
     }).select('workspaceId');
-    const workspaceIds = userWorkspaceDocs.map(d => d.workspaceId);
 
-    // 3. Lấy board IDs user đã được chấp nhận
+    const workspaceIds = userWorkspaceDocs.map((doc) => doc.workspaceId);
+
+    // 2. Lấy list boardId mà user đã được chấp nhận (boardMembership)
     const userBoardDocs = await BoardMembership.find({
       userId,
       applicationStatus: 'accepted',
       isDeleted: false,
     }).select('boardId');
-    const boardIds = userBoardDocs.map(d => d.boardId);
 
-    // 4. Query boards theo điều kiện
-    let boards = await Board.find({
+    const boardIds = userBoardDocs.map((doc) => doc.boardId);
+
+    // 3. Lấy danh sách board theo điều kiện
+    const boards = await Board.find({
       isDeleted: false,
       $or: [
-        { workspaceId: { $in: workspaceIds }, visibility: 'public' },
-        { _id: { $in: boardIds } },
+        {
+          workspaceId: { $in: workspaceIds },
+          visibility: 'public',
+        },
+        {
+          _id: { $in: boardIds },
+        },
       ],
     })
       .populate('creator', 'username email')
       .populate('workspaceId', 'name')
-      .lean();
+      .lean(); // Trả về plain JS object để dễ xử lý members
 
-    const boardIdsFetched = boards.map(b => b._id);
+    const boardIdsFetched = boards.map((b) => b._id);
 
-    // 5. Lấy membership của các boards này
+    // 4. Lấy tất cả các membership thuộc các board này
     const boardMemberships = await BoardMembership.find({
       boardId: { $in: boardIdsFetched },
       isDeleted: false,
     })
-      .populate('userId', 'username email avatar')
+      .populate('userId', 'username email avatar') // Lấy thông tin người dùng
       .lean();
 
-    // Gom nhóm members theo boardId
+    // 5. Gộp dữ liệu membership vào từng board
     const membersByBoardId = {};
-    boardMemberships.forEach(m => {
-      const bid = m.boardId.toString();
-      membersByBoardId[bid] = membersByBoardId[bid]||[];
-      membersByBoardId[bid].push({
-        _id: m.userId._id,
-        username: m.userId.username,
-        email: m.userId.email,
-        avatar: m.userId.avatar,
-        role: m.role,
-        applicationStatus: m.applicationStatus,
+    for (const member of boardMemberships) {
+      const boardIdStr = member.boardId.toString();
+      if (!membersByBoardId[boardIdStr]) {
+        membersByBoardId[boardIdStr] = [];
+      }
+      membersByBoardId[boardIdStr].push({
+        _id: member.userId._id,
+        username: member.userId.username,
+        email: member.userId.email,
+        avatar: member.userId.avatar || null,
+        role: member.role,
+        applicationStatus: member.applicationStatus,
       });
-    });
-    const boardsWithMembers = boards.map(b => ({
-      ...b,
-      members: membersByBoardId[b._id.toString()]||[]
+    }
+
+    const boardsWithMembers = boards.map((board) => ({
+      ...board,
+      members: membersByBoardId[board._id.toString()] || [],
     }));
 
-    // 6. Đếm số lists cho mỗi board
-    const listCountsRaw = await List.aggregate([
-      { $match: { boardId: { $in: boardIdsFetched }, isDeleted: false } },
-      { $group: { _id: '$boardId', count: { $sum: 1 } } }
-    ]);
-    const countMap = {};
-    listCountsRaw.forEach(item => {
-      countMap[item._id.toString()] = item.count;
-    });
-    const boardsWithCounts = boardsWithMembers.map(b => ({
-      ...b,
-      listsCount: countMap[b._id.toString()] || 0
-    }));
-
-    // 7. Trả về
-    return res.status(200).json({ boards: boardsWithCounts });
+    return res.status(200).json({ boards: boardsWithMembers });
   } catch (err) {
     console.error('Lỗi getAllBoards:', err);
     return res.status(500).json({
@@ -175,7 +169,6 @@ exports.getAllBoards = async (req, res) => {
     });
   }
 };
-
 
 // tạo Board
 exports.createBoard = async (req, res) => {

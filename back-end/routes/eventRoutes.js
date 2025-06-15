@@ -9,6 +9,11 @@ router.post(
   eventController.createEventForCalendar //ok
 );
 router.get('/', auth.protect, eventController.getAllEvents); //ok
+router.get(
+  '/participated',
+  auth.protect,
+  eventController.getParticipatedEvents
+); // Lấy sự kiện đã tham gia
 
 router.post(
   '/:id/invite',
@@ -16,6 +21,11 @@ router.post(
   eventController.inviteToBecomeParticipant
 ); //ok
 router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
+router.patch(
+  '/:id/update-status-by-time',
+  auth.protect,
+  eventController.updateEventStatusByTime
+); // Cập nhật trạng thái dựa trên thời gian
 router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',

@@ -5,9 +5,8 @@ import { useCommon } from '../contexts/CommonContext';
 import { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
-const Home = () => {
+function Home() {
   const {
-    createInitialCalendar,
     getCalendarUser,
     userDataLocal,
     accessToken,
@@ -15,17 +14,36 @@ const Home = () => {
     setShowGoogleAuthModal,
     handleGoogleAuth,
     isGoogleAuthenticated,
+    isCheckingGoogleAuth,
     navigate,
+    checkGoogleAuth,
   } = useCommon();
 
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (accessToken && userDataLocal && !isGoogleAuthenticated) {
-      createInitialCalendar();
       getCalendarUser();
     }
   }, [accessToken, userDataLocal, isGoogleAuthenticated]);
+
+  // Debug effect to track modal state
+  useEffect(() => {
+    console.log('🏠 Home component modal state:', {
+      showGoogleAuthModal,
+      isCheckingGoogleAuth,
+      userDataLocal: !!userDataLocal,
+      accessToken: !!accessToken,
+      googleId: userDataLocal?.googleId,
+      modalShouldShow: showGoogleAuthModal && !isCheckingGoogleAuth,
+    });
+  }, [showGoogleAuthModal, isCheckingGoogleAuth, userDataLocal, accessToken]);
+
+  useEffect(() => {
+    if (!isGoogleAuthenticated) {
+      checkGoogleAuth();
+    }
+  }, []);
 
   const handleConfirmGoogleAuth = async () => {
     setIsLoading(true);
@@ -47,14 +65,28 @@ const Home = () => {
         </main>
       </div>
 
-      {showGoogleAuthModal && (
+      {/* Loading overlay khi đang kiểm tra Google Auth */}
+      {isCheckingGoogleAuth && (
+        <div className='google-modal-overlay'>
+          <div className='google-modal-content'>
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <Spinner animation='border' variant='primary' />
+              <p style={{ marginTop: '1rem', color: '#666' }}>
+                Đang kiểm tra trạng thái xác thực...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGoogleAuthModal && !isCheckingGoogleAuth && (
         <div className='google-modal-overlay'>
           <div className='google-modal-content'>
             <h2>Bạn cần xác thực Google để tiếp tục</h2>
             <p>
-              Để sử dụng đầy đủ 1 số các tính năng và đồng bộ dữ liệu của bạn
-              với tài khoản Google cá nhân, bạn cần cấp quyền cho ứng dụng. Bạn
-              có muốn tiếp tục?
+              Để sử dụng đầy đủ một số tính năng và đồng bộ dữ liệu của bạn với
+              tài khoản Google cá nhân, bạn cần cấp quyền cho ứng dụng. Bạn có
+              muốn tiếp tục không?
             </p>
             <button
               onClick={handleConfirmGoogleAuth}
@@ -82,6 +114,6 @@ const Home = () => {
       )}
     </div>
   );
-};
+}
 
 export default Home;

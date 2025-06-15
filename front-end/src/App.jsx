@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import GoogleCallback from './pages/auth/GoogleCallback';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Home from './components/Home';
 import Dashboard from './pages/dashboard/Dashboard';
@@ -15,7 +16,7 @@ function App() {
       {/* Public routes */}
       <Route path='/login' element={<Login />} />
       <Route path='/register' element={<Register />} />
-
+      <Route path='/google-callback' element={<GoogleCallback />} />{' '}
       {/* Protected routes */}
       <Route
         path='/'
@@ -33,7 +34,6 @@ function App() {
         <Route path='calendar' element={<Calendar />} />
         <Route path='profile' element={<Profile />} />
       </Route>
-
       {/* Catch all route - 404 */}
       <Route
         path='*'
