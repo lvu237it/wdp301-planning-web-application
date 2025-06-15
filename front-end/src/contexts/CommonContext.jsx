@@ -13,7 +13,7 @@ import { formatDateAMPMForVN } from '../utils/dateUtils';
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
 
-const CommonContext = createContext();
+export const CommonContext = createContext();
 
 export const useCommon = () => useContext(CommonContext);
 
@@ -263,6 +263,58 @@ export const Common = ({ children }) => {
         });
         console.log('✅ Socket initialization completed');
 
+		try {
+			const response = await axios.post(
+				`https://api.cloudinary.com/v1_1/${
+					import.meta.env.VITE_CLOUDINARY_NAME
+				}/image/upload`,
+				formData
+			);
+			console.log('VITE_CLOUDINARY_NAME', import.meta.env.VITE_CLOUDINARY_NAME);
+			console.log('response', response);
+			console.log('response.data', response.data);
+			console.log('response.data.secureurl', response.data.secure_url);
+			if (response.status === 200) {
+				console.log('oke upload thành công');
+				return response.data.secure_url; // Trả về URL ảnh đã upload
+			}
+		} catch (error) {
+			console.error('Error uploading to Cloudinary:', error);
+			throw new Error('Upload to Cloudinary failed');
+		}
+	
+	useEffect(() => {
+  const fetchWorkspaces = async () => {
+  setLoadingWorkspaces(true);
+  setWorkspacesError(null);
+
+  if (!accessToken) {
+    setWorkspaces([]);
+    setLoadingWorkspaces(false);
+    return;
+  }
+
+  try {
+    const res = await axios.get(
+      `${apiBaseUrl}/workspace`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        withCredentials: true,
+      }
+    );
+    // API trả { status, results, data:[...] }
+    const raw = res.data.data || [];
+    setWorkspaces(raw);
+  } catch (err) {
+    setWorkspacesError(err.response?.data?.message || err.message);
+  } finally {
+    setLoadingWorkspaces(false);
+  }
+};
+
+
+  fetchWorkspaces();
+}, [apiBaseUrl, accessToken]);
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
           try {
@@ -315,6 +367,39 @@ export const Common = ({ children }) => {
         }
       }
     }, 2000);
+
+	const fetchBoards = async (workspaceId) => {
+  setLoading(true);
+  setError(null);
+
+  try {
+    const res = await axios.get(
+      `${apiBaseUrl}/workspace/${workspaceId}/board`,
+      {
+        headers: { 
+          Authorization: `Bearer ${accessToken}` 
+        },
+        withCredentials: true   // ← gửi cookie kèm request
+      }
+    );
+
+    // lấy mảng boards từ payload
+    const raw = res.data.boards || [];
+    // chuẩn hóa các trường luôn luôn có mảng và có listsCount
+    const norm = raw.map((board) => ({
+      ...board,
+      members:   board.members   || [],
+      tasks:     board.tasks     || [],
+      listsCount: board.listsCount || 0,
+    }));
+
+    setBoards(norm);
+  } catch (err) {
+    setError(err.response?.data?.message || err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
