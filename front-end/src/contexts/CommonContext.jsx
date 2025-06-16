@@ -55,12 +55,11 @@ export const Common = ({ children }) => {
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
-  //workspace
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
   // state workspace
   const [workspaces, setWorkspaces] = useState([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
   const [workspacesError, setWorkspacesError] = useState(null);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
 
   // state boards
   const [boards, setBoards] = useState([]);
@@ -282,39 +281,7 @@ export const Common = ({ children }) => {
 			console.error('Error uploading to Cloudinary:', error);
 			throw new Error('Upload to Cloudinary failed');
 		}
-	
-	useEffect(() => {
-  const fetchWorkspaces = async () => {
-  setLoadingWorkspaces(true);
-  setWorkspacesError(null);
 
-  if (!accessToken) {
-    setWorkspaces([]);
-    setLoadingWorkspaces(false);
-    return;
-  }
-
-  try {
-    const res = await axios.get(
-      `${apiBaseUrl}/workspace`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        withCredentials: true,
-      }
-    );
-    // API trả { status, results, data:[...] }
-    const raw = res.data.data || [];
-    setWorkspaces(raw);
-  } catch (err) {
-    setWorkspacesError(err.response?.data?.message || err.message);
-  } finally {
-    setLoadingWorkspaces(false);
-  }
-};
-
-
-  fetchWorkspaces();
-}, [apiBaseUrl, accessToken]);
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
           try {
@@ -916,33 +883,70 @@ export const Common = ({ children }) => {
     }
   };
 
-  // 1. Effect để fetch workspaces
-  useEffect(() => {
-    const fetchWorkspaces = async () => {
-      if (!accessToken) {
-        setLoadingWorkspaces(false);
-        return;
-      }
-      try {
-        const res = await axios.get(`${apiBaseUrl}/workspace`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        // Giả sử API trả { workspaces: [...] }
-        setWorkspaces(res.data.data || []);
-      } catch (err) {
-        setWorkspacesError(err.response?.data?.message || err.message);
-      } finally {
-        setLoadingWorkspaces(false);
-      }
-    };
-
-    fetchWorkspaces();
-  }, [apiBaseUrl, accessToken]);
-
-  // 2. Hàm hỗ trợ navigate tới form tạo workspace
-  const navigateToCreateWorkspace = () => {
-    navigate('/workspace/create');
+    /**
+   * Fetch workspaces for current user
+   */
+const fetchWorkspaces = async () => {
+    setLoadingWorkspaces(true);
+    setWorkspacesError(null);
+    try {
+      if (!accessToken) { setWorkspaces([]); return; }
+      const res = await axios.get(`${apiBaseUrl}/workspace`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setWorkspaces(res.data.data || []);
+    } catch (err) {
+      setWorkspacesError(err.response?.data?.message || err.message);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
   };
+
+    // Initial fetch workspaces
+  useEffect(() => {
+    if (accessToken) fetchWorkspaces();
+  }, [accessToken]);
+
+  /**
+   * Create a new workspace and update context
+   */
+  const createWorkspace = async ({ name, description }) => {
+    const res = await axios.post(
+      `${apiBaseUrl}/workspace/create`,
+      { name, description },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 201) {
+      throw new Error(res.data.message || 'Tạo workspace thất bại');
+    }
++   // refetch toàn bộ để đảm bảo members đã populate
+    await fetchWorkspaces();
+    return res.data.workspace;
+  };
+
+  // **Update workspace**:
+  const updateWorkspace = async (workspaceId, updates) => {
+    console.log('updateWorkspace', workspaceId, updates);
+    
+    const res = await axios.put(
+      `${apiBaseUrl}/workspace/${workspaceId}`, 
+      updates,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 200) {
+      throw new Error(res.data.message || 'Cập nhật workspace thất bại');
+    }
+
+    const updated = res.data.workspace;
+    // cập nhật lại state workspaces: map qua array, thay đúng item
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws._id === workspaceId ? updated : ws))
+    );
+     // refetch toàn bộ để đảm bảo members đã populate
+    await fetchWorkspaces();
+    return res.data.workspace;
+  };
+
 
   const fetchBoards = async (workspaceId) => {
     setLoading(true);
@@ -1172,11 +1176,12 @@ export const Common = ({ children }) => {
         updateEventStatusByTime,
         formatDateAMPMForVN,
         workspaces,
+        createWorkspace,
+        updateWorkspace,
         loadingWorkspaces,
         workspacesError,
         currentWorkspaceId,
         setCurrentWorkspaceId,
-        navigateToCreateWorkspace,
         boards,
         fetchBoards,
         loadingBoards,

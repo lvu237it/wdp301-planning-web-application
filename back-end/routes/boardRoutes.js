@@ -8,7 +8,7 @@ const {
   isAdminWorkspace,
 } = require('../utils/auth');
 
-router.get('/', protect, boardController.getAllBoards);
+router.get('/', protect, boardController.getBoardsByWorkspace);
 
 // 1. Tạo Board (chỉ cần verifyToken, không cần check role)
 router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
