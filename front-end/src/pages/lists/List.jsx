@@ -1,8 +1,8 @@
 // src/components/lists/List.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import '../../styles/board.css';
-import { useCommon } from '../../contexts/CommonContext';
-
+import React, { useState, useEffect, useRef } from "react";
+import "../../styles/board.css";
+import { useCommon } from "../../contexts/CommonContext";
+import TaskModal from "../tasks/Task";
 const List = ({ boardId }) => {
   const {
     accessToken,
@@ -15,58 +15,39 @@ const List = ({ boardId }) => {
   const [lists, setLists] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [editTitle, setEditTitle] = useState('');
+  const [editTitle, setEditTitle] = useState("");
   const [addingListAt, setAddingListAt] = useState(null);
-  const [newListTitle, setNewListTitle] = useState('');
+  const [newListTitle, setNewListTitle] = useState("");
   const [addingTaskTo, setAddingTaskTo] = useState(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null); 
   const menuRefs = useRef({});
-console.log(currentWorkspaceId);
+  console.log(currentWorkspaceId);
 
-  // Đóng dropdown khi click ngoài
   useEffect(() => {
-    const handler = e => {
-      Object.entries(menuRefs.current).forEach(([id, ref]) => {
-        if (ref && !ref.contains(e.target) && menuOpenId === id) {
-          setMenuOpenId(null);
-        }
-      });
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpenId]);
+    console.log("selectedTask changed:", selectedTask);
+  }, [selectedTask]);
 
-  // 1 lần: fetch Lists + Tasks của board
   useEffect(() => {
     if (!boardId) return;
     (async () => {
       try {
-        // Fetch lists
-        const r1 = await fetch(
-          `${apiBaseUrl}/list?boardId=${boardId}`,
-          {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }
-        );
+        const r1 = await fetch(`${apiBaseUrl}/list?boardId=${boardId}`, {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const j1 = await r1.json();
-        if (!r1.ok) throw new Error(j1.message || 'Không lấy được lists');
+        if (!r1.ok) throw new Error(j1.message || "Không lấy được lists");
         const rawLists = j1.data || [];
 
-        // Fetch tasks của board
-        const r2 = await fetch(
-          `${apiBaseUrl}/task/get-by-board/${boardId}`,
-          {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }
-        );
+        const r2 = await fetch(`${apiBaseUrl}/task/get-by-board/${boardId}`, {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const j2 = await r2.json();
-        if (!r2.ok) throw new Error(j2.message || 'Không lấy được tasks');
+        if (!r2.ok) throw new Error(j2.message || "Không lấy được tasks");
         const rawTasks = j2.data || [];
 
-        // Gom nhóm tasks theo listId
         const tasksByList = rawTasks.reduce((acc, t) => {
           const lid = t.listId.toString();
           if (!acc[lid]) acc[lid] = [];
@@ -74,13 +55,12 @@ console.log(currentWorkspaceId);
           return acc;
         }, {});
 
-        // Gán tasks vào từng list
-        const withTasks = rawLists.map(l => ({
-          ...l,
-          tasks: tasksByList[l._id.toString()] || []
-        }));
-
-        setLists(withTasks);
+        setLists(
+          rawLists.map((l) => ({
+            ...l,
+            tasks: tasksByList[l._id.toString()] || [],
+          }))
+        );
       } catch (err) {
         console.error(err);
       }
@@ -88,22 +68,19 @@ console.log(currentWorkspaceId);
   }, [boardId, apiBaseUrl, accessToken]);
 
   // Tạo list mới
-  const createList = async position => {
+  const createList = async (position) => {
     const title = newListTitle.trim();
     if (!title) return;
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/list/createList`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({ title, boardId, position })
-        }
-      );
+      const res = await fetch(`${apiBaseUrl}/list/createList`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ title, boardId, position }),
+      });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
 
@@ -112,33 +89,30 @@ console.log(currentWorkspaceId);
       arr.splice(position, 0, { ...js.data, tasks: [] });
       setLists(arr);
       setAddingListAt(null);
-      setNewListTitle('');
+      setNewListTitle("");
     } catch (err) {
       alert(err.message);
     }
   };
 
   // Lưu title list sau khi edit
-  const saveListTitle = async id => {
+  const saveListTitle = async (id) => {
     const title = editTitle.trim();
     if (!title) return;
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/list/updateList/${id}`,
-        {
-          method: 'PUT',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({ title })
-        }
-      );
+      const res = await fetch(`${apiBaseUrl}/list/updateList/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ title }),
+      });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
 
-      setLists(lists.map(l => l._id === id ? js.data : l));
+      setLists(lists.map((l) => (l._id === id ? js.data : l)));
       setEditingId(null);
       setMenuOpenId(null);
     } catch (err) {
@@ -147,34 +121,31 @@ console.log(currentWorkspaceId);
   };
 
   // Xóa list
-  const deleteList = async id => {
-    if (!window.confirm('Bạn có chắc muốn xóa list này?')) return;
+  const deleteList = async (id) => {
+    if (!window.confirm("Bạn có chắc muốn xóa list này?")) return;
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/list/deleteList/${id}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      );
+      const res = await fetch(`${apiBaseUrl}/list/deleteList/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
-      setLists(lists.filter(l => l._id !== id));
+      setLists(lists.filter((l) => l._id !== id));
     } catch (err) {
       alert(err.message);
     }
   };
 
   // Tạo task mới
-  const createTask = async listId => {
+  const createTask = async (listId) => {
     const title = newTaskTitle.trim();
     if (!title) return;
-console.log(currentWorkspaceId);
+    console.log(currentWorkspaceId);
 
     const payload = {
       title,
-      description: '',
+      description: "",
       calendarId: calendarUser?._id,
       workspaceId: currentWorkspaceId || null,
       boardId,
@@ -187,43 +158,86 @@ console.log(currentWorkspaceId);
       reminderSettings: [],
       checklist: [],
       labels: [],
-      documents: []
+      documents: [],
     };
 
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/task/createTask`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`
-          },
-          body: JSON.stringify(payload)
-        }
-      );
+      const res = await fetch(`${apiBaseUrl}/task/createTask`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
 
-      // push task mới vào đúng list trong state
-      setLists(lists.map(l => {
-        if (l._id === listId) {
-          return { 
-            ...l, 
-            tasks: [...(l.tasks || []), js.data] 
-          };
-        }
-        return l;
-      }));
+      setLists(
+        lists.map((l) => {
+          if (l._id === listId) {
+            return {
+              ...l,
+              tasks: [...(l.tasks || []), js.data],
+            };
+          }
+          return l;
+        })
+      );
       setAddingTaskTo(null);
-      setNewTaskTitle('');
+      setNewTaskTitle("");
       setMenuOpenId(null);
     } catch (err) {
       alert(err.message);
     }
   };
 
+  // hàm update task
+   const handleTaskUpdated = updatedTask => {
+    setLists(lists.map(l =>
+      l._id === updatedTask.listId
+        ? {
+            ...l,
+            tasks: l.tasks.map(t =>
+              t._id === updatedTask._id ? updatedTask : t
+            ),
+          }
+        : l
+    ));
+    setSelectedTask(updatedTask);
+  };
+
+  // hàm xóa task
+  const deleteTask = async (taskId, listId) => {
+    if (!window.confirm("Bạn có chắc muốn xóa task này không?")) return;
+    try {
+      const res = await fetch(`${apiBaseUrl}/task/deleteTask/${taskId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const js = await res.json();
+      if (!res.ok) throw new Error(js.message);
+
+      // Cập nhật state: loại bỏ task đã xóa
+      setLists(
+        lists.map((l) => {
+          if (l._id === listId) {
+            return {
+              ...l,
+              tasks: l.tasks.filter((t) => t._id !== taskId),
+            };
+          }
+          return l;
+        })
+      );
+    } catch (err) {
+      alert(err.message);
+    }
+  };
   return (
     <div className="list-container">
       {lists.map((list, idx) => (
@@ -233,37 +247,50 @@ console.log(currentWorkspaceId);
               <input
                 className="add-list-input"
                 value={editTitle}
-                onChange={e => setEditTitle(e.target.value)}
-                onKeyDown={e => e.key==='Enter' && saveListTitle(list._id)}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveListTitle(list._id)}
                 autoFocus
               />
             ) : (
               <>
                 <span className="list-title">{list.title}</span>
-                <span className="task-count">{(list.tasks||[]).length}</span>
+                <span className="task-count">{(list.tasks || []).length}</span>
                 <div
                   className="list-menu-container"
-                  ref={el=>menuRefs.current[list._id]=el}
+                  ref={(el) => (menuRefs.current[list._id] = el)}
                 >
                   <i
                     className="fas fa-ellipsis-h list-menu-btn"
-                    onClick={()=>setMenuOpenId(o=>o===list._id?null:list._id)}
+                    onClick={() =>
+                      setMenuOpenId((o) => (o === list._id ? null : list._id))
+                    }
                   />
-                  {menuOpenId===list._id && (
+                  {menuOpenId === list._id && (
                     <ul className="list-menu-dropdown">
-                      <li onClick={()=>{
-                        setEditingId(list._id);
-                        setEditTitle(list.title);
-                        setMenuOpenId(null);
-                      }}>Sửa List</li>
-                      <li onClick={()=>deleteList(list._id)} className="delete">
+                      <li
+                        onClick={() => {
+                          setEditingId(list._id);
+                          setEditTitle(list.title);
+                          setMenuOpenId(null);
+                        }}
+                      >
+                        Sửa List
+                      </li>
+                      <li
+                        onClick={() => deleteList(list._id)}
+                        className="delete"
+                      >
                         Xóa List
                       </li>
-                      <li onClick={()=>{
-                        setAddingTaskTo(list._id);
-                        setNewTaskTitle('');
-                        setMenuOpenId(null);
-                      }}>Tạo Task</li>
+                      <li
+                        onClick={() => {
+                          setAddingTaskTo(list._id);
+                          setNewTaskTitle("");
+                          setMenuOpenId(null);
+                        }}
+                      >
+                        Tạo Task
+                      </li>
                     </ul>
                   )}
                 </div>
@@ -272,25 +299,44 @@ console.log(currentWorkspaceId);
           </div>
 
           <div className="list-tasks">
-            {(list.tasks||[]).map(task=>(
-              <div key={task._id} className="task-card">{task.title}</div>
+            {(list.tasks || []).map((task) => (
+              <div key={task._id} className="task-row">
+                <div
+                  className="task-card"
+                  onClick={() =>
+                    setSelectedTask({ ...task, listTitle: list.title })
+                  }
+                >
+                  <span className="task-title">{task.title}</span>
+                </div>
+                <i
+                  className="fas fa-times delete-task-btn"
+                  onClick={() => deleteTask(task._id, list._id)}
+                />
+              </div>
             ))}
 
-            {addingTaskTo===list._id && (
+            {addingTaskTo === list._id && (
               <div className="add-card-form">
                 <input
                   className="add-card-input"
                   value={newTaskTitle}
-                  onChange={e=>setNewTaskTitle(e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&createTask(list._id)}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && createTask(list._id)}
                   placeholder="Nhập tên task..."
                   autoFocus
                 />
                 <div className="add-card-actions">
-                  <button className="btn-add" onClick={()=>createTask(list._id)}>
+                  <button
+                    className="btn-add"
+                    onClick={() => createTask(list._id)}
+                  >
                     Thêm
                   </button>
-                  <button className="btn-cancel" onClick={()=>setAddingTaskTo(null)}>
+                  <button
+                    className="btn-cancel"
+                    onClick={() => setAddingTaskTo(null)}
+                  >
                     ✕
                   </button>
                 </div>
@@ -302,34 +348,53 @@ console.log(currentWorkspaceId);
 
       {/* nút thêm list cuối */}
       <div className="list-card add-new-list">
-        {addingListAt!==null ? (
+        {addingListAt !== null ? (
           <div className="add-list-form">
             <input
               className="add-list-input"
               value={newListTitle}
-              onChange={e=>setNewListTitle(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&createList(addingListAt)}
+              onChange={(e) => setNewListTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createList(addingListAt)}
               placeholder="Nhập tên danh sách..."
               autoFocus
             />
             <div className="add-list-actions">
-              <button className="btn-add" onClick={()=>createList(addingListAt)}>
+              <button
+                className="btn-add"
+                onClick={() => createList(addingListAt)}
+              >
                 Thêm danh sách
               </button>
-              <button className="btn-cancel" onClick={()=>setAddingListAt(null)}>✕</button>
+              <button
+                className="btn-cancel"
+                onClick={() => setAddingListAt(null)}
+              >
+                ✕
+              </button>
             </div>
           </div>
         ) : (
           <div
             className="add-card-button"
-            onClick={()=>{ setAddingListAt(lists.length); setNewListTitle(''); }}
+            onClick={() => {
+              setAddingListAt(lists.length);
+              setNewListTitle("");
+            }}
           >
             <i className="fas fa-plus"></i> Thêm danh sách khác
           </div>
         )}
       </div>
+     
+      <TaskModal
+        isOpen={!!selectedTask}
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onUpdate={handleTaskUpdated}   
+      />
     </div>
   );
 };
 
 export default List;
+

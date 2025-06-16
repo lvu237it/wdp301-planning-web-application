@@ -312,7 +312,6 @@ exports.updateTask = async (req, res) => {
 exports.deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         status: 'fail',
@@ -320,6 +319,7 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
+    // 1. Tìm task để lấy listId trước khi xóa
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
@@ -328,11 +328,23 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
+    const { listId } = task;
+
+    // 2. Xóa task (hard delete)
     await Task.deleteOne({ _id: id });
+    // Nếu bạn muốn soft-delete, thay bằng:
+    // await Task.findByIdAndUpdate(id, { isDeleted: true, deletedAt: Date.now() });
+
+    // 3. Cập nhật lại mảng tasks trong List: pull id của task vừa xóa
+    await List.findByIdAndUpdate(
+      listId,
+      { $pull: { tasks: task._id } },
+      { new: true }
+    );
 
     res.status(200).json({
       status: 'success',
-      message: 'Xóa task thành công',
+      message: 'Xóa task thành công và cập nhật List.tasks',
     });
   } catch (error) {
     console.error('Error while deleting task:', error);
