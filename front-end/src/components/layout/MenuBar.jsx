@@ -37,7 +37,7 @@ const MenuBar = () => {
       <nav className='menu-items'>
         {menuItems.map((item) => (
           <Link
-            key={item.path}
+            key={item.id}
             to={item.path}
             className={`menu-item ${
               // active khi đúng path
