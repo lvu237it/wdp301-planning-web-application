@@ -1,0 +1,308 @@
+/* Profile page styles */
+
+/* Profile header */
+.profile-content {
+  padding: 0 0 20px 0;
+}
+
+.profile-header {
+  position: relative;
+  margin-bottom: 30px;
+}
+
+.profile-cover {
+  height: 200px;
+  background: linear-gradient(135deg, #00b894, #00cec9);
+  border-radius: 0 0 20px 20px;
+  position: relative;
+}
+
+.btn-edit-cover {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-edit-cover:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.profile-info {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 30px;
+  margin-top: -60px;
+  position: relative;
+}
+
+.profile-avatar {
+  position: relative;
+  margin-right: 30px;
+}
+
+.profile-avatar img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 5px solid white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.btn-edit-avatar {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-edit-avatar:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.profile-details {
+  flex: 1;
+}
+
+.profile-details h1 {
+  font-size: 24px;
+  color: #2d3436;
+  margin-bottom: 5px;
+}
+
+.profile-title {
+  color: #636e72;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.profile-location {
+  color: #636e72;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-edit-profile {
+  background-color: #00b894;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.3s ease;
+  margin-bottom: 10px;
+}
+
+.btn-edit-profile:hover {
+  background-color: #00a884;
+}
+
+/* Profile grid */
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 0 20px;
+}
+
+.profile-card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px;
+  border-bottom: 1px solid #f5f6fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header h2 {
+  font-size: 18px;
+  color: #2d3436;
+  margin: 0;
+}
+
+.btn-edit {
+  background: none;
+  border: none;
+  color: #636e72;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.btn-edit:hover {
+  color: #00b894;
+}
+
+.card-content {
+  padding: 20px;
+}
+
+/* Skills section */
+.skills-grid {
+  display: grid;
+  gap: 15px;
+}
+
+.skill-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skill-name {
+  color: #2d3436;
+  font-weight: 500;
+}
+
+.skill-level {
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.skill-level.expert {
+  background-color: #00b894;
+  color: white;
+}
+
+.skill-level.intermediate {
+  background-color: #0984e3;
+  color: white;
+}
+
+.skill-level.beginner {
+  background-color: #fdcb6e;
+  color: white;
+}
+
+/* Experience section */
+.experience-item {
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f5f6fa;
+  margin-bottom: 20px;
+}
+
+.experience-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.experience-header {
+  margin-bottom: 10px;
+}
+
+.experience-header h3 {
+  font-size: 16px;
+  color: #2d3436;
+  margin-bottom: 5px;
+}
+
+.company {
+  color: #00b894;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.duration {
+  color: #636e72;
+  font-size: 14px;
+}
+
+/* Activity section */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.activity-icon {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.activity-icon.completed {
+  background-color: #00b894;
+}
+
+.activity-icon.comment {
+  background-color: #0984e3;
+}
+
+.activity-icon.joined {
+  background-color: #fdcb6e;
+}
+
+.activity-details p {
+  color: #2d3436;
+  margin-bottom: 5px;
+}
+
+.activity-time {
+  color: #636e72;
+  font-size: 12px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .profile-info {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .profile-avatar {
+    margin-right: 0;
+    margin-bottom: 20px;
+  }
+
+  .profile-details {
+    margin-bottom: 20px;
+  }
+
+  .profile-location {
+    justify-content: center;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}

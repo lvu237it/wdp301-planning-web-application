@@ -1,7 +1,7 @@
-const crypto = require('crypto');
-const mongoose = require('mongoose');
-const validator = require('validator');
-const bcrypt = require('bcryptjs');
+const crypto = require("crypto");
+const mongoose = require("mongoose");
+const validator = require("validator");
+const bcrypt = require("bcryptjs");
 // Quản lý thông tin người dùng
 const userSchema = new mongoose.Schema(
   {
@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
-      validate: [validator.isEmail, 'Vui lòng cung cấp email hợp lệ'],
+      validate: [validator.isEmail, "Vui lòng cung cấp email hợp lệ"],
     },
     password: {
       type: String,
@@ -33,8 +33,8 @@ const userSchema = new mongoose.Schema(
     avatar: String,
     role: {
       type: String,
-      enum: ['userSystem', 'adminSystem'],
-      default: 'userSystem',
+      enum: ["userSystem", "adminSystem"],
+      default: "userSystem",
     },
     skills: [
       {
@@ -43,16 +43,22 @@ const userSchema = new mongoose.Schema(
         lowercase: true,
       },
     ],
+    about: {
+      type: String,
+    },
+    experience: {
+      type: String,
+    },
     yearOfExperience: {
       type: Number,
-      min: [0, 'Năm kinh nghiệm không thể nhỏ hơn 0'],
+      min: [0, "Năm kinh nghiệm không thể nhỏ hơn 0"],
       default: 0,
     },
     availability: {
       status: {
         type: String,
-        enum: ['available', 'busy'],
-        default: 'available',
+        enum: ["available", "busy"],
+        default: "available",
       },
       willingToJoin: {
         type: Boolean,
@@ -62,18 +68,18 @@ const userSchema = new mongoose.Schema(
     expectedWorkDuration: {
       min: {
         type: Number,
-        min: [0, 'Thời gian làm việc tối thiểu không thể nhỏ hơn 0'],
+        min: [0, "Thời gian làm việc tối thiểu không thể nhỏ hơn 0"],
         default: 0,
       },
       max: {
         type: Number,
-        min: [0, 'Thời gian làm việc tối đa không thể nhỏ hơn 0'],
+        min: [0, "Thời gian làm việc tối đa không thể nhỏ hơn 0"],
         default: 0,
       },
       unit: {
         type: String,
-        enum: ['hours', 'days', 'weeks', 'months'],
-        default: 'hours',
+        enum: ["hours", "days", "weeks", "months"],
+        default: "hours",
       },
     },
     isDeleted: {
@@ -94,9 +100,9 @@ const userSchema = new mongoose.Schema(
 
 //Mã hoá mật khẩu trước khi save vào database
 //Nếu không có password thì bỏ qua bước mã hoá - khi đăng nhập bằng OAuth
-userSchema.pre('save', async function (next) {
+userSchema.pre("save", async function (next) {
   //Only run this function if password was actually modified
-  if (!this.isModified('password') || !this.password) {
+  if (!this.isModified("password") || !this.password) {
     //neu password chua duoc sua doi thi chuyen sang middleware tiep theo
     return next();
   }
@@ -109,8 +115,8 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-userSchema.pre('save', function (next) {
-  if (!this.isModified('password') || this.isNew) {
+userSchema.pre("save", function (next) {
+  if (!this.isModified("password") || this.isNew) {
     return next();
     //Nếu ko thay đổi mật khẩu thì sẽ không thay đổi thông tin của passwordChangedAt
   }
@@ -146,8 +152,8 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
       10
     );
     console.log(
-      'thoi gian thay doi pass: ' + changedTimestamp,
-      'thoi gian expire jwt: ' + JWTTimestamp
+      "thoi gian thay doi pass: " + changedTimestamp,
+      "thoi gian expire jwt: " + JWTTimestamp
     );
     return changedTimestamp > JWTTimestamp;
     //Nếu thời gian thay đổi mật khẩu lớn hơn thời gian phát hành JWT,
@@ -160,13 +166,13 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
 
 userSchema.methods.createPasswordResetToken = function () {
   // Tạo resetToken (cái cần gửi tới user) để reset password
-  const resetToken = crypto.randomBytes(32).toString('hex'); //32 characters
+  const resetToken = crypto.randomBytes(32).toString("hex"); //32 characters
   //Sau đó hash token đó và lưu resetToken đã được hash, vào csdl để khi user nhấn vào đường dẫn của resetToken
   //Thì sẽ lấy hashed token trong csdl ra để đối chiếu với resetToken
   this.passwordResetToken = crypto
-    .createHash('sha256')
+    .createHash("sha256")
     .update(resetToken)
-    .digest('hex');
+    .digest("hex");
   console.log({ resetToken }, this.passwordResetToken);
 
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
@@ -178,8 +184,8 @@ userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ skills: 1 });
 userSchema.index({ yearOfExperience: 1 });
-userSchema.index({ 'availability.status': 1 });
+userSchema.index({ "availability.status": 1 });
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model("User", userSchema);
 
 module.exports = User;
