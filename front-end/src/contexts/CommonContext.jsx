@@ -44,8 +44,6 @@ export const Common = ({ children }) => {
   const isTablet = useMediaQuery({ minWidth: 769, maxWidth: 1024 });
   const isDesktop = useMediaQuery({ minWidth: 1025 });
 
-  // const { from } = location.state || { from: '/' }; // Nếu không có thông tin from thì mặc định về trang chủ
-
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
@@ -262,25 +260,28 @@ export const Common = ({ children }) => {
         });
         console.log('✅ Socket initialization completed');
 
-		try {
-			const response = await axios.post(
-				`https://api.cloudinary.com/v1_1/${
-					import.meta.env.VITE_CLOUDINARY_NAME
-				}/image/upload`,
-				formData
-			);
-			console.log('VITE_CLOUDINARY_NAME', import.meta.env.VITE_CLOUDINARY_NAME);
-			console.log('response', response);
-			console.log('response.data', response.data);
-			console.log('response.data.secureurl', response.data.secure_url);
-			if (response.status === 200) {
-				console.log('oke upload thành công');
-				return response.data.secure_url; // Trả về URL ảnh đã upload
-			}
-		} catch (error) {
-			console.error('Error uploading to Cloudinary:', error);
-			throw new Error('Upload to Cloudinary failed');
-		}
+        try {
+          const response = await axios.post(
+            `https://api.cloudinary.com/v1_1/${
+              import.meta.env.VITE_CLOUDINARY_NAME
+            }/image/upload`,
+            formData
+          );
+          console.log(
+            'VITE_CLOUDINARY_NAME',
+            import.meta.env.VITE_CLOUDINARY_NAME
+          );
+          console.log('response', response);
+          console.log('response.data', response.data);
+          console.log('response.data.secureurl', response.data.secure_url);
+          if (response.status === 200) {
+            console.log('oke upload thành công');
+            return response.data.secure_url; // Trả về URL ảnh đã upload
+          }
+        } catch (error) {
+          console.error('Error uploading to Cloudinary:', error);
+          throw new Error('Upload to Cloudinary failed');
+        }
 
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
@@ -335,38 +336,38 @@ export const Common = ({ children }) => {
       }
     }, 2000);
 
-	const fetchBoards = async (workspaceId) => {
-  setLoading(true);
-  setError(null);
+    const fetchBoards = async (workspaceId) => {
+      setLoading(true);
+      setError(null);
 
-  try {
-    const res = await axios.get(
-      `${apiBaseUrl}/workspace/${workspaceId}/board`,
-      {
-        headers: { 
-          Authorization: `Bearer ${accessToken}` 
-        },
-        withCredentials: true   // ← gửi cookie kèm request
+      try {
+        const res = await axios.get(
+          `${apiBaseUrl}/workspace/${workspaceId}/board`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            withCredentials: true, // ← gửi cookie kèm request
+          }
+        );
+
+        // lấy mảng boards từ payload
+        const raw = res.data.boards || [];
+        // chuẩn hóa các trường luôn luôn có mảng và có listsCount
+        const norm = raw.map((board) => ({
+          ...board,
+          members: board.members || [],
+          tasks: board.tasks || [],
+          listsCount: board.listsCount || 0,
+        }));
+
+        setBoards(norm);
+      } catch (err) {
+        setError(err.response?.data?.message || err.message);
+      } finally {
+        setLoading(false);
       }
-    );
-
-    // lấy mảng boards từ payload
-    const raw = res.data.boards || [];
-    // chuẩn hóa các trường luôn luôn có mảng và có listsCount
-    const norm = raw.map((board) => ({
-      ...board,
-      members:   board.members   || [],
-      tasks:     board.tasks     || [],
-      listsCount: board.listsCount || 0,
-    }));
-
-    setBoards(norm);
-  } catch (err) {
-    setError(err.response?.data?.message || err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+    };
 
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
@@ -392,64 +393,6 @@ export const Common = ({ children }) => {
       return false;
     }
   };
-
-  //Đăng ký truyền thống
-  // const register = async (username, email, password, passwordConfirm) => {
-  //   try {
-  //     const response = await axios.post(
-  //       `${apiBaseUrl}/signup`,
-  //       {
-  //         username,
-  //         email,
-  //         password,
-  //         passwordConfirm,
-  //       },
-  //       { timeout: 15000 }
-  //     );
-
-  //     if (response.data.status === 'success') {
-  //       const { token, data } = response.data;
-
-  //       // Save to localStorage
-  //       localStorage.setItem('accessToken', token);
-  //       localStorage.setItem('userData', JSON.stringify(data.user));
-
-  //       // Update state
-  //       setAccessToken(token);
-  //       setUserDataLocal(data.user);
-  //       setIsAuthenticated(true);
-
-  //       // Initialize socket connection
-  //       if (data.user._id) {
-  //         console.log('🔌 Initializing socket for user:', data.user._id);
-  //         try {
-  //           await initSocketClient(data.user._id, apiBaseUrl, () => {
-  //             console.log('🎯 Socket connected callback triggered');
-  //             socketInitialized.current = true;
-  //             setupSocketListeners();
-  //           });
-  //           console.log('✅ Socket initialization completed');
-  //         } catch (error) {
-  //           console.error('❌ Socket initialization failed:', error);
-  //           // Continue anyway, socket is not critical for basic functionality
-  //         }
-  //       }
-
-  //       // Check auth - Fetch data
-  //       await checkGoogleAuth();
-  //       await fetchNotifications();
-  //       await getCalendarUser();
-
-  //       toast.success('Registration successful!');
-  //       navigate('/');
-  //       return true;
-  //     }
-  //   } catch (error) {
-  //     console.error('Registration error:', error);
-  //     toast.error(error.response?.data?.message || 'Registration failed');
-  //     return false;
-  //   }
-  // };
 
   // Đăng ký truyền thống
   const register = async (username, email, password, passwordConfirm) => {
@@ -482,33 +425,6 @@ export const Common = ({ children }) => {
     }
   };
 
-  // const logout = () => {
-  //   // Clear localStorage
-  //   localStorage.removeItem('accessToken');
-  //   localStorage.removeItem('userData');
-  //   localStorage.removeItem('notifications');
-
-  //   // Clear state
-  //   setAccessToken(null);
-  //   setUserDataLocal(null);
-  //   setIsAuthenticated(false);
-  //   setNotifications([]);
-  //   setCalendarUser(null);
-  //   setIsGoogleAuthenticated(false);
-  //   setShowGoogleAuthModal(false);
-  //   setIsCheckingGoogleAuth(false);
-
-  //   // Disconnect socket if initialized
-  //   disconnectSocket();
-  //   socketInitialized.current = false;
-  //   setSocketConnected(false);
-
-  //   // Navigate to login
-  //   navigate('/login');
-  // };
-
-  // Fetch notifications
-
   const logout = async () => {
     try {
       await axios.get(`${apiBaseUrl}/logout`, {
@@ -539,6 +455,68 @@ export const Common = ({ children }) => {
     navigate('/login');
   };
 
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    if (!accessToken) {
+      console.log('⚠️ No access token, skipping fetchUserProfile');
+      return null;
+    }
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/users/profile`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        const user = response.data.data.user;
+        setUserDataLocal(user);
+        localStorage.setItem('userData', JSON.stringify(user));
+        return user;
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch profile');
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      toast.error(error.response?.data?.message || 'Failed to fetch profile');
+      return null;
+    }
+  };
+
+  // Update user profile
+  const updateUserProfile = async (profileData) => {
+    if (!accessToken) {
+      console.log('⚠️ No access token, skipping updateUserProfile');
+      return false;
+    }
+
+    try {
+      const response = await axios.put(
+        `${apiBaseUrl}/users/update`,
+        profileData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        const updatedUser = response.data.data.user;
+        setUserDataLocal(updatedUser);
+        localStorage.setItem('userData', JSON.stringify(updatedUser));
+        toast.success('Profile updated successfully!');
+        return true;
+      } else {
+        throw new Error(response.data.message || 'Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      toast.error(error.response?.data?.message || 'Failed to update profile');
+      return false;
+    }
+  };
+
+  // Fetch notifications
   const fetchNotifications = async () => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) return;
@@ -883,14 +861,17 @@ export const Common = ({ children }) => {
     }
   };
 
-    /**
+  /**
    * Fetch workspaces for current user
    */
-const fetchWorkspaces = async () => {
+  const fetchWorkspaces = async () => {
     setLoadingWorkspaces(true);
     setWorkspacesError(null);
     try {
-      if (!accessToken) { setWorkspaces([]); return; }
+      if (!accessToken) {
+        setWorkspaces([]);
+        return;
+      }
       const res = await axios.get(`${apiBaseUrl}/workspace`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -902,7 +883,7 @@ const fetchWorkspaces = async () => {
     }
   };
 
-    // Initial fetch workspaces
+  // Initial fetch workspaces
   useEffect(() => {
     if (accessToken) fetchWorkspaces();
   }, [accessToken]);
@@ -919,17 +900,19 @@ const fetchWorkspaces = async () => {
     if (res.status !== 201) {
       throw new Error(res.data.message || 'Tạo workspace thất bại');
     }
-+   // refetch toàn bộ để đảm bảo members đã populate
-    await fetchWorkspaces();
+    +(
+      // refetch toàn bộ để đảm bảo members đã populate
+      (await fetchWorkspaces())
+    );
     return res.data.workspace;
   };
 
   // **Update workspace**:
   const updateWorkspace = async (workspaceId, updates) => {
     console.log('updateWorkspace', workspaceId, updates);
-    
+
     const res = await axios.put(
-      `${apiBaseUrl}/workspace/${workspaceId}`, 
+      `${apiBaseUrl}/workspace/${workspaceId}`,
       updates,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
@@ -942,11 +925,10 @@ const fetchWorkspaces = async () => {
     setWorkspaces((prev) =>
       prev.map((ws) => (ws._id === workspaceId ? updated : ws))
     );
-     // refetch toàn bộ để đảm bảo members đã populate
+    // refetch toàn bộ để đảm bảo members đã populate
     await fetchWorkspaces();
     return res.data.workspace;
   };
-
 
   const fetchBoards = async (workspaceId) => {
     setLoading(true);
@@ -1116,16 +1098,6 @@ const fetchWorkspaces = async () => {
   ]);
 
   // Xử lý query parameter khi quay lại từ Google OAuth
-  // useEffect(() => {
-  //   const query = new URLSearchParams(location.search);
-  //   const error = query.get('error');
-
-  //   if (error === 'google_auth_failed') {
-  //     toast.error('Google login failed. Please try again.');
-  //     navigate('/login', { replace: true });
-  //   }
-  // }, [location, navigate]);
-
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     const error = query.get('error');
@@ -1188,6 +1160,8 @@ const fetchWorkspaces = async () => {
         boardsError,
         socketConnected,
         setupSocketListeners,
+        fetchUserProfile,
+        updateUserProfile,
       }}
     >
       <Toaster

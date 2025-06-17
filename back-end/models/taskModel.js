@@ -37,12 +37,12 @@ const taskSchema = new mongoose.Schema(
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Người được giao nhiệm vụ là bắt buộc'],
+      // required: [, 'Người được giao nhiệm vụ là bắt buộc'],
     },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Người giao nhiệm vụ là bắt buộc'],
+      // required: [true, 'Người giao nhiệm vụ là bắt buộc'],
     },
     deadline: {
       type: Date,
