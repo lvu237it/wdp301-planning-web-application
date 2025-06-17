@@ -104,8 +104,16 @@ const eventSchema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         status: {
           type: String,
-          enum: ['pending', 'accepted', 'declined', 'rejected'],
+          enum: ['pending', 'accepted', 'declined', 'removed', 'cancelled'],
           default: 'pending',
+        },
+        cancelReason: {
+          type: String,
+          required: false,
+        },
+        cancelledAt: {
+          type: Date,
+          required: false,
         },
       },
     ],

@@ -26,11 +26,17 @@ router.patch(
   auth.protect,
   eventController.updateEventStatusByTime
 ); // Cập nhật trạng thái dựa trên thời gian
+router.patch(
+  '/:id/cancel-invitation-and-give-reason',
+  auth.protect,
+  eventController.cancelAnInvitationWhenAcceptBefore
+);
+
 router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',
   auth.protect,
-  eventController.updateParticipantStatus //ok
+  eventController.acceptOrDeclineParticipantStatus //ok
 );
 router.delete(
   '/:id/participants/:userId/remove',
