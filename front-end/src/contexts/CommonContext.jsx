@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import axios from 'axios';
-import { useMediaQuery } from 'react-responsive';
-import { Toaster, toast } from 'sonner';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { createContext, useContext, useEffect, useState, useRef } from "react";
+import axios from "axios";
+import { useMediaQuery } from "react-responsive";
+import { Toaster, toast } from "sonner";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   initSocketClient,
   getSocket,
   disconnectSocket,
-} from '../utils/socketClient';
-import { formatDateAMPMForVN } from '../utils/dateUtils';
+} from "../utils/socketClient";
+import { formatDateAMPMForVN } from "../utils/dateUtils";
 
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
@@ -24,17 +24,17 @@ export const Common = ({ children }) => {
   const [socketConnected, setSocketConnected] = useState(false);
 
   const [accessToken, setAccessToken] = useState(
-    () => localStorage.getItem('accessToken') || null
+    () => localStorage.getItem("accessToken") || null
   );
   const [userDataLocal, setUserDataLocal] = useState(() => {
-    return JSON.parse(localStorage.getItem('userData')) || null;
+    return JSON.parse(localStorage.getItem("userData")) || null;
   });
   const [notifications, setNotifications] = useState(() => {
     try {
-      const storedNotifications = localStorage.getItem('notifications');
+      const storedNotifications = localStorage.getItem("notifications");
       return storedNotifications ? JSON.parse(storedNotifications) : [];
     } catch (error) {
-      console.error('Error parsing notifications from localStorage:', error);
+      console.error("Error parsing notifications from localStorage:", error);
       return [];
     }
   });
@@ -43,8 +43,6 @@ export const Common = ({ children }) => {
   const isMobile = useMediaQuery({ maxWidth: 768 });
   const isTablet = useMediaQuery({ minWidth: 769, maxWidth: 1024 });
   const isDesktop = useMediaQuery({ minWidth: 1025 });
-
-  // const { from } = location.state || { from: '/' }; // Nếu không có thông tin from thì mặc định về trang chủ
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
@@ -69,7 +67,7 @@ export const Common = ({ children }) => {
 
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem('accessToken') && !!localStorage.getItem('userData')
+    !!localStorage.getItem("accessToken") && !!localStorage.getItem("userData")
   );
 
   // Tạo ref để track đã thực hiện redirect hay chưa
@@ -82,12 +80,12 @@ export const Common = ({ children }) => {
     if (
       isAuthenticated &&
       userDataLocal &&
-      !location.pathname.includes('/google-callback') &&
+      !location.pathname.includes("/google-callback") &&
       !hasRedirected.current &&
       !isProcessingAuth.current
     ) {
       hasRedirected.current = true;
-      navigate('/');
+      navigate("/");
     }
   }, [isAuthenticated, userDataLocal]);
 
@@ -105,7 +103,7 @@ export const Common = ({ children }) => {
 
     // Kiểm tra nếu userDataLocal chưa được set và không phải force call
     if (!force && !userDataLocal) {
-      console.log('⏳ userDataLocal not set yet, skipping checkGoogleAuth');
+      console.log("⏳ userDataLocal not set yet, skipping checkGoogleAuth");
       return;
     }
 
@@ -119,12 +117,12 @@ export const Common = ({ children }) => {
         }
       );
 
-      console.log('🔍 Google auth check response:', response.data);
+      console.log("🔍 Google auth check response:", response.data);
 
-      if (response.data.status === 'success') {
+      if (response.data.status === "success") {
         if (response.data.hasValidTokens) {
           // User có tất cả token Google hợp lệ
-          console.log('✅ User has all valid Google tokens');
+          console.log("✅ User has all valid Google tokens");
           setIsGoogleAuthenticated(true);
           setShowGoogleAuthModal(false);
         } else if (
@@ -134,69 +132,69 @@ export const Common = ({ children }) => {
           // User có token Google nhưng cần refresh hoặc thêm scopes
           // Đánh dấu là authenticated và không hiện modal vì user đã từng auth Google
           console.log(
-            '🔄 User has Google tokens but needs refresh/additional scopes'
+            "🔄 User has Google tokens but needs refresh/additional scopes"
           );
           setIsGoogleAuthenticated(true);
           setShowGoogleAuthModal(false);
         } else {
           // Trường hợp có response success nhưng không có valid tokens
-          console.log('⚠️ Success response but no valid tokens');
+          console.log("⚠️ Success response but no valid tokens");
           setIsGoogleAuthenticated(false);
 
           // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
           const hasExistingTokens = response.data.existingTokens > 0;
           if (!userDataLocal?.googleId && !hasExistingTokens) {
             console.log(
-              '🔑 Showing Google auth modal - no tokens and not Google user'
+              "🔑 Showing Google auth modal - no tokens and not Google user"
             );
             setShowGoogleAuthModal(true);
           } else {
-            console.log('🤝 Not showing auth modal - user has Google history');
+            console.log("🤝 Not showing auth modal - user has Google history");
             setShowGoogleAuthModal(false);
           }
         }
       } else {
         // Response status không phải success
-        console.log('❌ Google auth check failed:', response.data.message);
+        console.log("❌ Google auth check failed:", response.data.message);
         setIsGoogleAuthenticated(false);
 
         // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
         const hasExistingTokens = response.data.existingTokens > 0;
         if (!userDataLocal?.googleId && !hasExistingTokens) {
           console.log(
-            '🔑 Showing Google auth modal - check failed and no Google history'
+            "🔑 Showing Google auth modal - check failed and no Google history"
           );
           setShowGoogleAuthModal(true);
         } else {
           console.log(
-            '🤝 Not showing auth modal - user has Google account or tokens'
+            "🤝 Not showing auth modal - user has Google account or tokens"
           );
           setShowGoogleAuthModal(false);
         }
       }
     } catch (error) {
-      console.error('❌ Error checking Google auth:', error);
+      console.error("❌ Error checking Google auth:", error);
       setIsGoogleAuthenticated(false);
 
       // Xử lý các trường hợp lỗi
       if (error.response?.status === 401) {
         // 401 có thể có nghĩa là user chưa có token hoặc token hết hạn
-        console.log('🔐 401 error - checking for existing tokens');
+        console.log("🔐 401 error - checking for existing tokens");
         const errorData = error.response?.data;
         const hasExistingTokens = errorData?.existingTokens > 0;
 
         if (!userDataLocal?.googleId && !hasExistingTokens) {
           console.log(
-            '🔑 Showing Google auth modal - 401 and no Google history'
+            "🔑 Showing Google auth modal - 401 and no Google history"
           );
           setShowGoogleAuthModal(true);
         } else {
-          console.log('🤝 Not showing auth modal - user has Google account');
+          console.log("🤝 Not showing auth modal - user has Google account");
           setShowGoogleAuthModal(false);
         }
       } else {
         // Lỗi khác (network, server error)
-        console.log('🚫 Other error, not showing auth modal');
+        console.log("🚫 Other error, not showing auth modal");
         setShowGoogleAuthModal(false);
       }
     } finally {
@@ -219,11 +217,11 @@ export const Common = ({ children }) => {
         const { accessToken, user } = response.data;
         return await handleLoginSuccess(accessToken, user);
       } else {
-        throw new Error(response.data.message || 'Login failed');
+        throw new Error(response.data.message || "Login failed");
       }
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed');
+      console.error("Login error:", error);
+      toast.error(error.response?.data?.message || "Login failed");
       return false;
     }
   };
@@ -237,8 +235,8 @@ export const Common = ({ children }) => {
     // Đánh dấu đang xử lý auth để tránh conflicts
     isProcessingAuth.current = true;
 
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('userData', JSON.stringify(user));
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("userData", JSON.stringify(user));
 
     setAccessToken(accessToken);
     setUserDataLocal(user);
@@ -248,10 +246,10 @@ export const Common = ({ children }) => {
 
     // Khởi tạo socket với callback cải thiện
     if (userId && !socketInitialized.current) {
-      console.log('🔌 Initializing socket for user:', userId);
+      console.log("🔌 Initializing socket for user:", userId);
       try {
         await initSocketClient(userId, apiBaseUrl, () => {
-          console.log('🎯 Socket connected callback triggered');
+          console.log("🎯 Socket connected callback triggered");
           socketInitialized.current = true;
 
           // Thiết lập socket listeners ngay khi callback được gọi
@@ -259,9 +257,9 @@ export const Common = ({ children }) => {
 
           // Set connected state ngay lập tức
           setSocketConnected(true);
-          console.log('✅ Socket connection status set to true');
+          console.log("✅ Socket connection status set to true");
         });
-        console.log('✅ Socket initialization completed');
+        console.log("✅ Socket initialization completed");
 
 		try {
 			const response = await axios.post(
@@ -320,28 +318,28 @@ export const Common = ({ children }) => {
           try {
             const socket = getSocket();
             if (socket && socket.connected) {
-              console.log('🔗 Secondary socket verification: connected');
+              console.log("🔗 Secondary socket verification: connected");
               setSocketConnected(true);
             } else {
-              console.log('⚠️ Secondary socket verification: not connected');
+              console.log("⚠️ Secondary socket verification: not connected");
               setSocketConnected(false);
             }
           } catch (error) {
-            console.error('❌ Error in secondary socket check:', error);
+            console.error("❌ Error in secondary socket check:", error);
           }
         }, 1000);
       } catch (error) {
-        console.error('❌ Socket initialization failed:', error);
+        console.error("❌ Socket initialization failed:", error);
         setSocketConnected(false);
       }
     }
 
     // Gọi checkGoogleAuth ngay lập tức để modal hiển thị ngay
-    console.log('🔍 Calling checkGoogleAuth immediately after login');
+    console.log("🔍 Calling checkGoogleAuth immediately after login");
     try {
       await checkGoogleAuth(true); // Force check even if userDataLocal might not be fully updated in state yet
     } catch (error) {
-      console.error('Error checking Google auth immediately:', error);
+      console.error("Error checking Google auth immediately:", error);
     }
 
     // Tải các dữ liệu khác trong background
@@ -349,7 +347,7 @@ export const Common = ({ children }) => {
       try {
         await Promise.all([fetchNotifications(), getCalendarUser()]);
       } catch (error) {
-        console.error('Error loading background data:', error);
+        console.error("Error loading background data:", error);
       }
     }, 100);
 
@@ -359,10 +357,10 @@ export const Common = ({ children }) => {
         try {
           const socket = getSocket();
           const isConnected = socket && socket.connected;
-          console.log('🔗 Final socket status verification:', isConnected);
+          console.log("🔗 Final socket status verification:", isConnected);
           setSocketConnected(isConnected);
         } catch (error) {
-          console.error('❌ Error in final socket verification:', error);
+          console.error("❌ Error in final socket verification:", error);
           setSocketConnected(false);
         }
       }
@@ -403,8 +401,8 @@ export const Common = ({ children }) => {
 
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
-      toast.success('Login successful!');
-      navigate('/');
+      toast.success("Login successful!");
+      navigate("/");
     }
 
     // Reset processing flag sau khi hoàn thành
@@ -420,69 +418,11 @@ export const Common = ({ children }) => {
       // Chuyển hướng đến backend để bắt đầu Google OAuth
       window.location.href = `${apiBaseUrl}/google/login`;
     } catch (error) {
-      console.error('Google login error:', error);
-      toast.error('Failed to initiate Google login');
+      console.error("Google login error:", error);
+      toast.error("Failed to initiate Google login");
       return false;
     }
   };
-
-  //Đăng ký truyền thống
-  // const register = async (username, email, password, passwordConfirm) => {
-  //   try {
-  //     const response = await axios.post(
-  //       `${apiBaseUrl}/signup`,
-  //       {
-  //         username,
-  //         email,
-  //         password,
-  //         passwordConfirm,
-  //       },
-  //       { timeout: 15000 }
-  //     );
-
-  //     if (response.data.status === 'success') {
-  //       const { token, data } = response.data;
-
-  //       // Save to localStorage
-  //       localStorage.setItem('accessToken', token);
-  //       localStorage.setItem('userData', JSON.stringify(data.user));
-
-  //       // Update state
-  //       setAccessToken(token);
-  //       setUserDataLocal(data.user);
-  //       setIsAuthenticated(true);
-
-  //       // Initialize socket connection
-  //       if (data.user._id) {
-  //         console.log('🔌 Initializing socket for user:', data.user._id);
-  //         try {
-  //           await initSocketClient(data.user._id, apiBaseUrl, () => {
-  //             console.log('🎯 Socket connected callback triggered');
-  //             socketInitialized.current = true;
-  //             setupSocketListeners();
-  //           });
-  //           console.log('✅ Socket initialization completed');
-  //         } catch (error) {
-  //           console.error('❌ Socket initialization failed:', error);
-  //           // Continue anyway, socket is not critical for basic functionality
-  //         }
-  //       }
-
-  //       // Check auth - Fetch data
-  //       await checkGoogleAuth();
-  //       await fetchNotifications();
-  //       await getCalendarUser();
-
-  //       toast.success('Registration successful!');
-  //       navigate('/');
-  //       return true;
-  //     }
-  //   } catch (error) {
-  //     console.error('Registration error:', error);
-  //     toast.error(error.response?.data?.message || 'Registration failed');
-  //     return false;
-  //   }
-  // };
 
   // Đăng ký truyền thống
   const register = async (username, email, password, passwordConfirm) => {
@@ -501,46 +441,19 @@ export const Common = ({ children }) => {
         }
       );
 
-      console.log('🔍 Registration response:', response.data);
-      console.log('response.data.status', response.data.status);
+      console.log("🔍 Registration response:", response.data);
+      console.log("response.data.status", response.data.status);
 
-      if (response.data.status === 'success') {
+      if (response.data.status === "success") {
         const { token, data } = response.data;
         return await handleLoginSuccess(token, data.user);
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      toast.error(error.response?.data?.message || 'Registration failed');
+      console.error("Registration error:", error);
+      toast.error(error.response?.data?.message || "Registration failed");
       return false;
     }
   };
-
-  // const logout = () => {
-  //   // Clear localStorage
-  //   localStorage.removeItem('accessToken');
-  //   localStorage.removeItem('userData');
-  //   localStorage.removeItem('notifications');
-
-  //   // Clear state
-  //   setAccessToken(null);
-  //   setUserDataLocal(null);
-  //   setIsAuthenticated(false);
-  //   setNotifications([]);
-  //   setCalendarUser(null);
-  //   setIsGoogleAuthenticated(false);
-  //   setShowGoogleAuthModal(false);
-  //   setIsCheckingGoogleAuth(false);
-
-  //   // Disconnect socket if initialized
-  //   disconnectSocket();
-  //   socketInitialized.current = false;
-  //   setSocketConnected(false);
-
-  //   // Navigate to login
-  //   navigate('/login');
-  // };
-
-  // Fetch notifications
 
   const logout = async () => {
     try {
@@ -549,12 +462,12 @@ export const Common = ({ children }) => {
         withCredentials: true, // Include cookies
       });
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
 
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('notifications');
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("userData");
+    localStorage.removeItem("notifications");
 
     setAccessToken(null);
     setUserDataLocal(null);
@@ -569,9 +482,71 @@ export const Common = ({ children }) => {
     socketInitialized.current = false;
     setSocketConnected(false);
 
-    navigate('/login');
+    navigate("/login");
   };
 
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    if (!accessToken) {
+      console.log("⚠️ No access token, skipping fetchUserProfile");
+      return null;
+    }
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/users/profile`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === "success") {
+        const user = response.data.data.user;
+        setUserDataLocal(user);
+        localStorage.setItem("userData", JSON.stringify(user));
+        return user;
+      } else {
+        throw new Error(response.data.message || "Failed to fetch profile");
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      toast.error(error.response?.data?.message || "Failed to fetch profile");
+      return null;
+    }
+  };
+
+  // Update user profile
+  const updateUserProfile = async (profileData) => {
+    if (!accessToken) {
+      console.log("⚠️ No access token, skipping updateUserProfile");
+      return false;
+    }
+
+    try {
+      const response = await axios.put(
+        `${apiBaseUrl}/users/update`,
+        profileData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === "success") {
+        const updatedUser = response.data.data.user;
+        setUserDataLocal(updatedUser);
+        localStorage.setItem("userData", JSON.stringify(updatedUser));
+        toast.success("Profile updated successfully!");
+        return true;
+      } else {
+        throw new Error(response.data.message || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      toast.error(error.response?.data?.message || "Failed to update profile");
+      return false;
+    }
+  };
+
+  // Fetch notifications
   const fetchNotifications = async () => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) return;
@@ -582,15 +557,15 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === 'success') {
+      if (response.data.status === "success") {
         const notifs = response.data.data?.notifications || [];
         setNotifications(notifs);
-        localStorage.setItem('notifications', JSON.stringify(notifs));
+        localStorage.setItem("notifications", JSON.stringify(notifs));
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error("Error fetching notifications:", error);
       setNotifications([]);
-      localStorage.removeItem('notifications');
+      localStorage.removeItem("notifications");
       // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
     }
   };
@@ -604,7 +579,7 @@ export const Common = ({ children }) => {
       (n) => n.notificationId === notificationId
     );
     if (notification && notification.isRead) {
-      console.log('📖 Notification already marked as read, skipping request');
+      console.log("📖 Notification already marked as read, skipping request");
       return;
     }
 
@@ -620,20 +595,20 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === 'success') {
-        console.log('✅ Notification marked as read successfully');
+      if (response.data.status === "success") {
+        console.log("✅ Notification marked as read successfully");
         setNotifications((prev) => {
           const updated = prev.map((n) =>
             n.notificationId === notificationId
               ? { ...n, isRead: true, readAt: formatDateAMPMForVN(new Date()) }
               : n
           );
-          localStorage.setItem('notifications', JSON.stringify(updated));
+          localStorage.setItem("notifications", JSON.stringify(updated));
           return updated;
         });
       }
     } catch (error) {
-      console.error('❌ Error marking notification as read:', error);
+      console.error("❌ Error marking notification as read:", error);
       // toast.error(
       //   error.response?.data?.message ||
       //     'Không thể đánh dấu thông báo là đã đọc'
@@ -661,17 +636,17 @@ export const Common = ({ children }) => {
         await markNotificationAsRead(notificationId);
 
         toast.success(
-          status === 'accepted'
-            ? 'Đã chấp nhận lời mời tham gia sự kiện'
-            : 'Đã từ chối lời mời tham gia sự kiện'
+          status === "accepted"
+            ? "Đã chấp nhận lời mời tham gia sự kiện"
+            : "Đã từ chối lời mời tham gia sự kiện"
         );
         return true;
       }
     } catch (error) {
-      console.error('❌ Error responding to event invitation:', error);
+      console.error("❌ Error responding to event invitation:", error);
       toast.error(
         error.response?.data?.message ||
-          'Không thể phản hồi lời mời tham gia sự kiện'
+          "Không thể phản hồi lời mời tham gia sự kiện"
       );
       return false;
     }
@@ -695,7 +670,7 @@ export const Common = ({ children }) => {
         return response.data.data;
       }
     } catch (error) {
-      console.error('❌ Error updating event status by time:', error);
+      console.error("❌ Error updating event status by time:", error);
       // Không hiển thị toast error vì đây là background process
       return null;
     }
@@ -705,20 +680,20 @@ export const Common = ({ children }) => {
   const setupSocketListeners = () => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!userId) {
-      console.log('⚠️ No user ID available for socket listeners');
+      console.log("⚠️ No user ID available for socket listeners");
       return;
     }
 
     try {
       const socket = getSocket();
-      console.log('🔧 Setting up socket listeners for user:', userId);
+      console.log("🔧 Setting up socket listeners for user:", userId);
 
       // Remove existing listeners first to avoid duplicates
-      socket.off('new_notification');
-      socket.off('notification_updated');
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('test_pong');
+      socket.off("new_notification");
+      socket.off("notification_updated");
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("test_pong");
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
@@ -728,16 +703,16 @@ export const Common = ({ children }) => {
             ...prev,
           ];
           localStorage.setItem(
-            'notifications',
+            "notifications",
             JSON.stringify(newNotifications)
           );
           return newNotifications;
         });
 
         if (
-          notification.type === 'event_invitation' ||
-          notification.type === 'event_update' ||
-          notification.type === 'event_status_update'
+          notification.type === "event_invitation" ||
+          notification.type === "event_update" ||
+          notification.type === "event_status_update"
         ) {
           {
             toast.info(notification.title, {
@@ -753,9 +728,9 @@ export const Common = ({ children }) => {
         }
 
         // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
-        if (notification.type === 'event_update') {
+        if (notification.type === "event_update") {
           window.dispatchEvent(
-            new CustomEvent('eventUpdated', {
+            new CustomEvent("eventUpdated", {
               detail: { eventId: notification.eventId },
             })
           );
@@ -774,48 +749,48 @@ export const Common = ({ children }) => {
                 }
               : n
           );
-          localStorage.setItem('notifications', JSON.stringify(updated));
+          localStorage.setItem("notifications", JSON.stringify(updated));
           return updated;
         });
       };
 
       // Listen for actual socket connection events
-      socket.on('connect', () => {
-        console.log('🔗 Socket connected event received');
+      socket.on("connect", () => {
+        console.log("🔗 Socket connected event received");
         setSocketConnected(true);
       });
 
-      socket.on('disconnect', () => {
-        console.log('❌ Socket disconnected event received');
+      socket.on("disconnect", () => {
+        console.log("❌ Socket disconnected event received");
         setSocketConnected(false);
       });
 
       // Test pong listener để verify connection
-      socket.on('test_pong', (data) => {
-        console.log('🏓 Received test pong from backend:', data);
+      socket.on("test_pong", (data) => {
+        console.log("🏓 Received test pong from backend:", data);
         // Đảm bảo connection status được update khi nhận được pong
         setSocketConnected(true);
       });
 
       // Đăng ký listeners
-      socket.on('new_notification', handleNewNotification);
-      socket.on('notification_updated', handleNotificationUpdate);
+      socket.on("new_notification", handleNewNotification);
+      socket.on("notification_updated", handleNotificationUpdate);
 
       // Check if socket is already connected
       if (socket.connected) {
-        console.log('🔗 Socket already connected during setup');
+        console.log("🔗 Socket already connected during setup");
         setSocketConnected(true);
       }
 
       // Test ping để verify connection
-      socket.emit('test_ping', {
-        message: 'Hello from frontend',
+      socket.emit("test_ping", {
+        message: "Hello from frontend",
         userId: userId,
       });
 
-      console.log('✅ Socket listeners registered successfully');
+      console.log("✅ Socket listeners registered successfully");
     } catch (error) {
-      console.error('❌ Error setting up socket listeners:', error);
+      console.error("❌ Error setting up socket listeners:", error);
       setSocketConnected(false);
     }
   };
@@ -826,9 +801,9 @@ export const Common = ({ children }) => {
       const response = await axios.post(
         `${apiBaseUrl}/calendar`,
         {
-          name: 'Personal Working Calendar',
-          description: 'A calendar for each user in system',
-          ownerType: 'user',
+          name: "Personal Working Calendar",
+          description: "A calendar for each user in system",
+          ownerType: "user",
         },
         {
           headers: {
@@ -856,7 +831,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error(
-        'Lỗi khi lấy lịch user:',
+        "Lỗi khi lấy lịch user:",
         error.response?.data?.message || error.message
       );
       if (error.response?.status === 404) {
@@ -864,7 +839,7 @@ export const Common = ({ children }) => {
         const created = await createInitialCalendar();
         if (!created) {
           // toast.error('Không thể tạo lịch cá nhân');
-          console.error('Không thể tạo lịch cá nhân');
+          console.error("Không thể tạo lịch cá nhân");
         }
       }
     }
@@ -878,20 +853,20 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === 'success') {
+      if (response.data.status === "success") {
         window.location.href = response.data.data.authUrl; // Redirect đến Google
       }
     } catch (error) {
-      toast.error('Lỗi khi khởi tạo xác thực Google');
+      toast.error("Lỗi khi khởi tạo xác thực Google");
     }
   };
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     formData.append(
-      'upload_preset',
-      'sdn302-recipes-sharing-web-single-image-for-recipe'
+      "upload_preset",
+      "sdn302-recipes-sharing-web-single-image-for-recipe"
     );
 
     try {
@@ -902,17 +877,17 @@ export const Common = ({ children }) => {
         formData,
         { timeout: 10000 }
       );
-      console.log('VITE_CLOUDINARY_NAME', import.meta.env.VITE_CLOUDINARY_NAME);
-      console.log('response', response);
-      console.log('response.data', response.data);
-      console.log('response.data.secureurl', response.data.secure_url);
+      console.log("VITE_CLOUDINARY_NAME", import.meta.env.VITE_CLOUDINARY_NAME);
+      console.log("response", response);
+      console.log("response.data", response.data);
+      console.log("response.data.secureurl", response.data.secure_url);
       if (response.status === 200) {
-        console.log('oke upload thành công');
+        console.log("oke upload thành công");
         return response.data.secure_url; // Trả về URL ảnh đã upload
       }
     } catch (error) {
-      console.error('Error uploading to Cloudinary:', error);
-      throw new Error('Upload to Cloudinary failed');
+      console.error("Error uploading to Cloudinary:", error);
+      throw new Error("Upload to Cloudinary failed");
     }
   };
 
@@ -941,7 +916,7 @@ export const Common = ({ children }) => {
 
   // 2. Hàm hỗ trợ navigate tới form tạo workspace
   const navigateToCreateWorkspace = () => {
-    navigate('/workspace/create');
+    navigate("/workspace/create");
   };
 
   const fetchBoards = async (workspaceId) => {
@@ -976,7 +951,7 @@ export const Common = ({ children }) => {
       socketInitialized.current &&
       !socketConnected
     ) {
-      console.log('🔄 Setting up socket listeners for existing connection');
+      console.log("🔄 Setting up socket listeners for existing connection");
       setupSocketListeners();
     }
   }, [isAuthenticated, userDataLocal, socketConnected]);
@@ -984,9 +959,9 @@ export const Common = ({ children }) => {
   // Lưu thông báo vào localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('notifications', JSON.stringify(notifications));
+      localStorage.setItem("notifications", JSON.stringify(notifications));
     } catch (error) {
-      console.error('Error saving notifications to localStorage:', error);
+      console.error("Error saving notifications to localStorage:", error);
     }
   }, [notifications]);
 
@@ -1008,16 +983,16 @@ export const Common = ({ children }) => {
 
           // Log detailed status for debugging
           if (isConnected) {
-            console.log('✅ Socket status updated to connected');
+            console.log("✅ Socket status updated to connected");
           } else {
-            console.log('❌ Socket status updated to disconnected');
+            console.log("❌ Socket status updated to disconnected");
           }
         }
       } catch (error) {
         // Socket not initialized yet, set to false
         if (socketConnected) {
           console.log(
-            '⚠️ Socket not accessible, setting status to disconnected'
+            "⚠️ Socket not accessible, setting status to disconnected"
           );
           setSocketConnected(false);
         }
@@ -1042,17 +1017,17 @@ export const Common = ({ children }) => {
       !socketInitialized.current &&
       !isProcessingAuth.current
     ) {
-      console.log('🔄 Reinitializing socket after page reload');
+      console.log("🔄 Reinitializing socket after page reload");
       const initSocket = async () => {
         try {
           await initSocketClient(userId, apiBaseUrl, () => {
-            console.log('🎯 Socket reconnected callback triggered');
+            console.log("🎯 Socket reconnected callback triggered");
             socketInitialized.current = true;
             setupSocketListeners();
           });
-          console.log('✅ Socket reinitialization completed');
+          console.log("✅ Socket reinitialization completed");
         } catch (error) {
-          console.error('❌ Socket reinitialization failed:', error);
+          console.error("❌ Socket reinitialization failed:", error);
         }
       };
       initSocket();
@@ -1076,7 +1051,7 @@ export const Common = ({ children }) => {
             getCalendarUser(),
           ]);
         } catch (error) {
-          console.error('Error loading initial data:', error);
+          console.error("Error loading initial data:", error);
         }
       };
 
@@ -1095,7 +1070,7 @@ export const Common = ({ children }) => {
       !isGoogleAuthenticated &&
       !showGoogleAuthModal
     ) {
-      console.log('🔄 Fallback: Checking Google auth for modal display');
+      console.log("🔄 Fallback: Checking Google auth for modal display");
       const timer = setTimeout(() => {
         checkGoogleAuth();
       }, 2000); // Delay for fallback check
@@ -1112,27 +1087,17 @@ export const Common = ({ children }) => {
   ]);
 
   // Xử lý query parameter khi quay lại từ Google OAuth
-  // useEffect(() => {
-  //   const query = new URLSearchParams(location.search);
-  //   const error = query.get('error');
-
-  //   if (error === 'google_auth_failed') {
-  //     toast.error('Google login failed. Please try again.');
-  //     navigate('/login', { replace: true });
-  //   }
-  // }, [location, navigate]);
-
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    const error = query.get('error');
-    const message = query.get('message');
+    const error = query.get("error");
+    const message = query.get("message");
 
-    if (error === 'google_auth_failed') {
+    if (error === "google_auth_failed") {
       toast.error(
-        message || 'Email tài khoản đã tồn tại.'
+        message || "Email tài khoản đã tồn tại."
         // Vui lòng đăng nhập thủ công và kết nối với tài khoản Google của bạn.
       );
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   }, [location, navigate]);
 
@@ -1183,11 +1148,13 @@ export const Common = ({ children }) => {
         boardsError,
         socketConnected,
         setupSocketListeners,
+        fetchUserProfile,
+        updateUserProfile,
       }}
     >
       <Toaster
         richColors
-        position='top-center'
+        position="top-center"
         expand={true}
         visibleToasts={3}
         toastOptions={{
