@@ -437,9 +437,9 @@ const Header = () => {
             <div className='avatar-popover'>
               {isAuthenticated && userDataLocal ? (
                 <>
-                  <div className='popover-item' onClick={handleProfileClick}>
+                  {/* <div className='popover-item' onClick={handleProfileClick}>
                     Profile
-                  </div>
+                  </div> */}
                   <div className='popover-item' onClick={handleLogoutClick}>
                     Logout
                   </div>

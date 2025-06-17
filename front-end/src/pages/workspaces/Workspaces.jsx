@@ -1,5 +1,4 @@
-// src/pages/workspaces/Workspaces.jsx
-
+import React, { useState } from 'react';
 import {
 	Container,
 	Row,
@@ -14,23 +13,26 @@ import {
 import { MdPeople, MdDashboard } from 'react-icons/md';
 import { useCommon } from '../../contexts/CommonContext';
 import { useNavigate } from 'react-router-dom';
+import CreateWorkspaceModal from './CreateWorkspaceModal';
+import UpdateWorkspaceModal from './UpdateWorkspaceModal';
+import InviteMemberModal from './InviteMemberWorkspace';
 
 const Workspaces = () => {
 	const {
 		workspaces,
 		loadingWorkspaces,
 		workspacesError,
-		navigateToCreateWorkspace,
 		setCurrentWorkspaceId,
 	} = useCommon();
 	const navigate = useNavigate();
+	const [showCreate, setShowCreate] = useState(false);
+	const [editingWs, setEditingWs] = useState(null);
+	const [inviteWsId, setInviteWsId] = useState(null);
 
 	if (loadingWorkspaces) {
 		return (
 			<Container className='py-4 text-center'>
-				<Spinner animation='border' role='status'>
-					<span className='visually-hidden'>Loading...</span>
-				</Spinner>
+				<Spinner animation='border' role='status' />
 			</Container>
 		);
 	}
@@ -47,31 +49,58 @@ const Workspaces = () => {
 		<Container className='py-4'>
 			<div className='d-flex justify-content-between align-items-center mb-4'>
 				<h1 className='mb-0'>My Workspaces</h1>
-				<Button variant='success' onClick={navigateToCreateWorkspace}>
+				<Button variant='success' onClick={() => setShowCreate(true)}>
 					+ New Workspace
 				</Button>
 			</div>
 
-			<Row>
+			{/* Modal create */}
+			<CreateWorkspaceModal
+				show={showCreate}
+				onHide={() => setShowCreate(false)}
+			/>
+
+			{/* Modal edit */}
+			{editingWs && (
+				<UpdateWorkspaceModal
+					show={!!editingWs}
+					workspace={editingWs}
+					onHide={() => setEditingWs(null)}
+				/>
+			)}
+
+			{/* Modal invite */}
+			{inviteWsId && (
+				<InviteMemberModal
+					show={!!inviteWsId}
+					workspaceId={inviteWsId}
+					onHide={() => setInviteWsId(null)}
+				/>
+			)}
+
+			{workspaces.length === 0 && (
+				<Alert variant='info'>
+					Bạn chưa có workspace nào. Hãy tạo mới ngay!
+				</Alert>
+			)}
+
+			<Row xs={1} md={2} lg={3} className='g-4 align-items-stretch'>
 				{workspaces.map((ws) => {
-					const totalMembers = ws.members.length;
+					const members = Array.isArray(ws.members) ? ws.members : [];
+					const totalMembers = members.length;
+					const displayMembers = members.slice(0, 3);
 					const moreCount = totalMembers > 3 ? totalMembers - 3 : 0;
-					const displayMembers = ws.members.slice(0, 3);
+					const boardCount = ws.countBoard ?? 0;
 
 					return (
 						<Col
 							key={ws._id}
-							md={6}
-							lg={4}
-							className='mb-4'
 							style={{ cursor: 'pointer' }}
 							onClick={() => {
-								// 1) lưu workspaceId
 								setCurrentWorkspaceId(ws._id);
-								// 2) chuyển sang boards
 								navigate(`/workspace/${ws._id}/boards`);
 							}}>
-							<Card className='h-100 shadow-sm'>
+							<Card className='h-100 shadow-sm d-flex flex-column'>
 								<Card.Body className='d-flex flex-column'>
 									<div className='d-flex justify-content-between align-items-start'>
 										<div>
@@ -88,16 +117,17 @@ const Workspaces = () => {
 											<MdPeople className='me-1' /> {totalMembers} Members
 										</div>
 										<div className='d-flex align-items-center'>
-											<MdDashboard className='me-1' /> {ws.boardsCount ?? 0}{' '}
-											Boards
+											<MdDashboard className='me-1' /> {boardCount} Boards
 										</div>
 									</div>
 
 									<div className='d-flex mb-3'>
 										{displayMembers.map((m, idx) => {
-											const avatar = m.userId.avatar;
-											const initial = m.userId.username.charAt(0).toUpperCase();
-
+											const user = m.userId || null;
+											const avatar = user.avatar || null;
+											const initial = (user.username || '')
+												.charAt(0)
+												.toUpperCase();
 											return avatar ? (
 												<Image
 													key={idx}
@@ -126,15 +156,29 @@ const Workspaces = () => {
 										)}
 									</div>
 
-									<div className='mt-auto'>
-										<Button
-											variant='outline-primary'
-											onClick={() => {
-												/* Invite logic */
-											}}>
-											Invite
-										</Button>
-									</div>
+									<Row className='mt-auto' >
+										<Col className='text-center'>
+											<Button
+												variant='outline-primary'
+												onClick={(e) => {
+													e.stopPropagation();
+													setEditingWs(ws); // mở modal edit
+												}}>
+												Edit
+											</Button>
+										</Col>
+
+										<Col className='text-center'>
+											<Button
+												variant='outline-secondary'
+												onClick={(e) => {
+													e.stopPropagation();
+													setInviteWsId(ws._id); // ← mở modal invite
+												}}>
+												Invite
+											</Button>
+										</Col>
+									</Row>
 								</Card.Body>
 							</Card>
 						</Col>
