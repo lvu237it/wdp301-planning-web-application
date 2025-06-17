@@ -587,14 +587,19 @@ export const Common = ({ children }) => {
   };
 
   // Respond to event invitation
-  const respondToEventInvitation = async (eventId, status, notificationId) => {
+  const respondToEventInvitation = async (
+    eventId,
+    status,
+    notificationId,
+    forceAccept = false
+  ) => {
     let userId = userDataLocal?.id || userDataLocal?._id;
-    if (!accessToken || !eventId || !userId) return false;
+    if (!accessToken || !eventId || !userId) return { success: false };
 
     try {
       const response = await axios.patch(
         `${apiBaseUrl}/event/${eventId}/participants/${userId}/update-status`,
-        { status },
+        { status, forceAccept },
         {
           headers: { Authorization: `Bearer ${accessToken}` },
           timeout: 10000,
@@ -610,15 +615,25 @@ export const Common = ({ children }) => {
             ? 'Đã chấp nhận lời mời tham gia sự kiện'
             : 'Đã từ chối lời mời tham gia sự kiện'
         );
-        return true;
+        return { success: true };
       }
     } catch (error) {
       console.error('❌ Error responding to event invitation:', error);
+
+      // Handle conflict case
+      if (error.response?.status === 409 && error.response?.data?.hasConflict) {
+        return {
+          success: false,
+          hasConflict: true,
+          conflictData: error.response.data,
+        };
+      }
+
       toast.error(
         error.response?.data?.message ||
           'Không thể phản hồi lời mời tham gia sự kiện'
       );
-      return false;
+      return { success: false };
     }
   };
 
@@ -1112,6 +1127,42 @@ export const Common = ({ children }) => {
     }
   }, [location, navigate]);
 
+  // Cancel event participation with reason
+  const cancelEventParticipation = async (eventId, reason) => {
+    if (!accessToken || !eventId || !reason) return false;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/${eventId}/cancel-invitation-and-give-reason`,
+        { reason },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        toast.success('Đã hủy tham gia sự kiện thành công');
+
+        // Trigger calendar refresh
+        window.dispatchEvent(
+          new CustomEvent('eventUpdated', {
+            detail: { eventId: eventId },
+          })
+        );
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error canceling event participation:', error);
+      toast.error(
+        error.response?.data?.message || 'Không thể hủy tham gia sự kiện'
+      );
+      return false;
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1162,6 +1213,7 @@ export const Common = ({ children }) => {
         setupSocketListeners,
         fetchUserProfile,
         updateUserProfile,
+        cancelEventParticipation,
       }}
     >
       <Toaster

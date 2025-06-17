@@ -13,7 +13,7 @@ import { useCommon } from '../../contexts/CommonContext';
 
 const MenuBar = () => {
   const location = useLocation();
-  const { currentWorkspaceId } = useCommon();
+  const { currentWorkspaceId, navigate } = useCommon();
 
   // nếu đã chọn workspace, link đến /workspace/:id/boards
   // ngược lại fallback về /workspaces để người dùng chọn trước
@@ -32,8 +32,14 @@ const MenuBar = () => {
 
   return (
     <div className='menu-bar'>
-      <div className='logo-container'>
-        <img src={logo} alt='PlanPro Logo' className='logo' />
+      <div className='logo-container w-100'>
+        <img
+          src={logo}
+          style={{ width: 180 }}
+          alt='PlanPro Logo'
+          className='logo'
+          onClick={() => navigate('/')}
+        />
       </div>
       <nav className='menu-items'>
         {menuItems.map((item) => (

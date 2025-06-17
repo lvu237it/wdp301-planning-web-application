@@ -80,7 +80,8 @@ body {
 }
 
 .logo {
-  max-width: 120px;
+  cursor: pointer;
+  max-width: 200px;
   height: auto;
 }
 
@@ -1603,4 +1604,157 @@ body {
   background: rgba(0, 123, 255, 0.2);
   border-color: #007bff;
   transform: scale(1.05);
+}
+
+/* Cancel Participation Modal */
+.cancel-participation-modal .modal-content {
+  background-color: var(--bs-body-bg);
+  border-radius: 12px;
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.cancel-participation-modal .modal-header {
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 1rem 1.5rem;
+}
+
+.cancel-participation-modal .modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--bs-danger);
+}
+
+.cancel-participation-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.cancel-participation-modal textarea.form-control {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.cancel-participation-modal .modal-footer {
+  border-top: 1px solid var(--bs-border-color);
+  padding: 1rem 1.5rem;
+}
+
+.cancel-participation-modal .btn-danger:disabled {
+  background-color: var(--bs-danger);
+  opacity: 0.65;
+}
+
+/* Responsive styles */
+@media (max-width: 576px) {
+  .cancel-participation-modal .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  .cancel-participation-modal .modal-content {
+    border-radius: 8px;
+  }
+
+  .cancel-participation-modal .modal-header,
+  .cancel-participation-modal .modal-body,
+  .cancel-participation-modal .modal-footer {
+    padding: 1rem;
+  }
+}
+
+/* Cancel participation button in event modal */
+.btn-outline-warning.cancel-participation-btn {
+  border-color: #fd7e14;
+  color: #fd7e14;
+  transition: all 0.3s ease;
+}
+
+.btn-outline-warning.cancel-participation-btn:hover {
+  background-color: #fd7e14;
+  border-color: #fd7e14;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(253, 126, 20, 0.3);
+}
+
+.btn-outline-warning.cancel-participation-btn i {
+  transition: transform 0.2s ease;
+}
+
+.btn-outline-warning.cancel-participation-btn:hover i {
+  transform: scale(1.1);
+}
+
+/* Event Conflict Modal Styles */
+.conflict-modal .modal-content {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, #fef9e7 0%, #fcf3cf 100%);
+}
+
+.conflict-modal .modal-header {
+  border-bottom: 1px solidrgb(173, 111, 11);
+  background: linear-gradient(135deg, #f8c471 0%, #f4d03f 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.conflict-modal .modal-title {
+  font-weight: 600;
+  color: #b7950b;
+}
+
+.conflict-modal .modal-body {
+  padding: 20px;
+}
+
+.conflict-modal .alert-warning {
+  background-color: rgba(243, 156, 18, 0.1);
+  border-color: #f39c12;
+  color: #b7950b;
+  font-weight: 500;
+}
+
+.conflict-modal .bg-danger-subtle {
+  background-color: rgba(220, 53, 69, 0.1) !important;
+  border-color: #dc3545 !important;
+}
+
+.conflict-modal .alert-info {
+  background-color: rgba(23, 162, 184, 0.1);
+  border-color: #17a2b8;
+  color: #0c5460;
+}
+
+.conflict-modal .modal-footer {
+  border-top: 1px solid #f39c12;
+  padding: 15px 20px;
+}
+
+.conflict-modal .btn-warning {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  border: none;
+  font-weight: 500;
+  box-shadow: 0 4px 8px rgba(243, 156, 18, 0.3);
+}
+
+.conflict-modal .btn-warning:hover {
+  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(243, 156, 18, 0.4);
+}
+
+@media (max-width: 576px) {
+  .conflict-modal .modal-dialog {
+    margin: 10px;
+  }
+
+  .conflict-modal .modal-content {
+    border-radius: 8px;
+  }
+
+  .conflict-modal .modal-header,
+  .conflict-modal .modal-body,
+  .conflict-modal .modal-footer {
+    padding: 15px;
+  }
 }

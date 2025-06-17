@@ -75,15 +75,34 @@ const Header = () => {
     );
 
     try {
-      const success = await respondToEventInvitation(
+      const result = await respondToEventInvitation(
         eventId,
         status,
         notificationId
       );
 
-      if (success) {
+      if (result.success) {
         // Fetch lại notifications mới nhất sau khi respond thành công
         await fetchNotifications();
+      } else if (result.hasConflict && status === 'accepted') {
+        // Show conflict modal for acceptance
+        setLoadingNotifications((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(notificationId);
+          return newMap;
+        });
+
+        // Dispatch event for Calendar to handle conflict modal
+        window.dispatchEvent(
+          new CustomEvent('eventConflict', {
+            detail: {
+              eventId,
+              notificationId,
+              conflictData: result.conflictData,
+            },
+          })
+        );
+        return; // Exit early to prevent removal from loading map again
       }
     } finally {
       // Remove notification khỏi loading map

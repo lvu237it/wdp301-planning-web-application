@@ -259,6 +259,7 @@ exports.createEventForCalendar = async (req, res) => {
       color,
       allDay,
       participantEmails, // New field for emails
+      forceCreate, // New field to bypass conflict check
     } = req.body;
     const { calendarId } = req.params;
     const organizer = req.user._id;
@@ -437,6 +438,60 @@ exports.createEventForCalendar = async (req, res) => {
       });
     }
 
+    // Kiểm tra xung đột thời gian khi tạo sự kiện mới
+    if (!forceCreate) {
+      try {
+        // Tìm tất cả sự kiện mà organizer đã tham gia (đã chấp nhận) trong cùng khoảng thời gian
+        const conflictingEvents = await Event.find({
+          isDeleted: false,
+          status: { $nin: ['completed', 'cancelled'] }, // Loại trừ sự kiện đã hoàn thành hoặc đã hủy
+          participants: {
+            $elemMatch: {
+              userId: organizer,
+              status: 'accepted',
+            },
+          },
+          $or: [
+            // Sự kiện mới bắt đầu trong khoảng thời gian của sự kiện hiện có
+            {
+              startDate: { $lt: end },
+              endDate: { $gt: start },
+            },
+          ],
+        })
+          .populate('calendarId', 'name')
+          .select('title startDate endDate calendarId');
+
+        if (conflictingEvents.length > 0) {
+          // Có xung đột thời gian
+          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+            id: conflictEvent._id,
+            title: conflictEvent.title,
+            startDate: conflictEvent.startDate,
+            endDate: conflictEvent.endDate,
+            // calendarName:
+            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
+          }));
+
+          return res.status(409).json({
+            message:
+              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+            status: 409,
+            hasConflict: true,
+            conflictingEvents: conflictDetails,
+            newEvent: {
+              title: title,
+              startDate: startDate,
+              endDate: endDate,
+            },
+          });
+        }
+      } catch (conflictError) {
+        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+        // Không làm gián đoạn quá trình tạo event nếu có lỗi kiểm tra xung đột
+      }
+    }
+
     // Xử lý địa chỉ và geocoding
     const processedAddress = await processAddressData(
       locationName,
@@ -568,9 +623,7 @@ exports.createEventForCalendar = async (req, res) => {
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
             title: 'Lời mời tham gia sự kiện',
-            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${
-              organizerUser.username || organizerUser.email
-            }.`,
+            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
             type: 'event_invitation',
             targetUserId: participant.userId,
             createdBy: organizer,
@@ -647,7 +700,7 @@ exports.getEventById = async (req, res) => {
       .populate('workspaceId', 'name');
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -933,7 +986,7 @@ exports.updateEvent = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1165,6 +1218,7 @@ exports.updateEvent = async (req, res) => {
             console.log(
               `Mời lại người dùng ${user.email} (từ declined -> pending)`
             );
+            console.log('req.user', req.user);
           } else if (existingParticipant.status === 'accepted') {
             // Nếu đã chấp nhận, giữ nguyên status
             console.log(
@@ -1223,9 +1277,7 @@ exports.updateEvent = async (req, res) => {
 
             // Gửi thông báo cho từng participant
             for (const participantId of notificationTargetIds) {
-              const notificationContent = `Bạn được mời tham gia sự kiện "${
-                event.title
-              }" bởi ${organizerUser.username || organizerUser.email}.`;
+              const notificationContent = `Bạn được mời tham gia sự kiện "${event.title}" bởi ${organizerUser.username}.`;
 
               await NotificationService.createPersonalNotification({
                 title: 'Lời mời tham gia sự kiện',
@@ -1292,9 +1344,7 @@ exports.updateEvent = async (req, res) => {
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
             title: 'Sự kiện đã được cập nhật',
-            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${
-              organizerUser.username || organizerUser.email
-            }.`,
+            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${organizerUser.username}.`,
             type: 'event_update',
             targetUserId: participant.userId,
             createdBy: req.user._id,
@@ -1432,7 +1482,7 @@ exports.inviteToBecomeParticipant = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1564,10 +1614,11 @@ exports.inviteToBecomeParticipant = async (req, res) => {
   }
 };
 
-exports.updateParticipantStatus = async (req, res) => {
+//Accept - Decline an invitation to an event
+exports.acceptOrDeclineParticipantStatus = async (req, res) => {
   try {
     const { id, userId } = req.params;
-    const { status } = req.body;
+    const { status, forceAccept } = req.body;
 
     //Kiểm tra sự kiện có tồn tại không
     if (!id || !userId) {
@@ -1598,7 +1649,7 @@ exports.updateParticipantStatus = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1618,6 +1669,63 @@ exports.updateParticipantStatus = async (req, res) => {
         status: 404,
       });
     }
+
+    // Kiểm tra xung đột thời gian khi chấp nhận sự kiện
+    if (status === 'accepted' && !forceAccept) {
+      try {
+        // Tìm tất cả sự kiện mà user đã tham gia (đã chấp nhận) trong cùng khoảng thời gian
+        const conflictingEvents = await Event.find({
+          _id: { $ne: event._id }, // Loại trừ sự kiện hiện tại
+          isDeleted: false,
+          status: { $nin: ['completed', 'cancelled'] }, // Loại trừ sự kiện đã hoàn thành hoặc đã hủy
+          participants: {
+            $elemMatch: {
+              userId: userId,
+              status: 'accepted',
+            },
+          },
+          $or: [
+            // Sự kiện mới bắt đầu trong khoảng thời gian của sự kiện hiện có
+            {
+              startDate: { $lt: event.endDate },
+              endDate: { $gt: event.startDate },
+            },
+          ],
+        })
+          .populate('calendarId', 'name')
+          .select('title startDate endDate calendarId');
+
+        if (conflictingEvents.length > 0) {
+          // Có xung đột thời gian
+          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+            id: conflictEvent._id,
+            title: conflictEvent.title,
+            startDate: conflictEvent.startDate,
+            endDate: conflictEvent.endDate,
+            // calendarName:
+            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
+          }));
+
+          return res.status(409).json({
+            message:
+              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+            status: 409,
+            hasConflict: true,
+            conflictingEvents: conflictDetails,
+            currentEvent: {
+              id: event._id,
+              title: event.title,
+              startDate: event.startDate,
+              endDate: event.endDate,
+            },
+          });
+        }
+      } catch (conflictError) {
+        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+        // Không làm gián đoạn quá trình chấp nhận nếu có lỗi kiểm tra xung đột
+      }
+    }
+
     // Cập nhật trạng thái người tham gia
     event.participants[participantIndex].status = status;
     await event.save();
@@ -1645,7 +1753,11 @@ exports.updateParticipantStatus = async (req, res) => {
       let statusText = '';
       switch (status) {
         case 'accepted':
+          // statusText = forceAccept
+          //   ? 'đã chấp nhận (dù có xung đột thời gian)'
+          //   : 'đã chấp nhận';
           statusText = 'đã chấp nhận';
+
           break;
         case 'declined':
           statusText = 'đã từ chối';
@@ -1659,9 +1771,7 @@ exports.updateParticipantStatus = async (req, res) => {
 
       await NotificationService.createPersonalNotification({
         title: 'Phản hồi lời mời tham gia sự kiện',
-        content: `${
-          participantUser.username || participantUser.email
-        } ${statusText} tham gia sự kiện "${event.title}".`,
+        content: `${participantUser.username} ${statusText} tham gia sự kiện "${event.title}".`,
         type: 'event_status_update',
         targetUserId: event.organizer,
         createdBy: req.user._id,
@@ -1695,6 +1805,7 @@ exports.updateParticipantStatus = async (req, res) => {
   }
 };
 
+// Organizer removes a participant from an event
 exports.removeParticipant = async (req, res) => {
   try {
     const { id, userId } = req.params;
@@ -1711,7 +1822,7 @@ exports.removeParticipant = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1744,7 +1855,7 @@ exports.removeParticipant = async (req, res) => {
       participants: [
         {
           userId: removedParticipant.userId,
-          status: 'rejected',
+          status: 'removed',
         },
       ],
     });
@@ -1756,6 +1867,181 @@ exports.removeParticipant = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi xóa người tham gia:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+//Cancel an invitation and give a reason
+exports.cancelAnInvitationWhenAcceptBefore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user._id;
+
+    // Validate required fields
+    if (!id || !reason) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện hoặc lý do hủy tham gia',
+        status: 400,
+      });
+    }
+
+    // Find the event
+    const event = await Event.findById(id);
+    if (!event || event.isDeleted) {
+      return res.status(404).json({
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
+        status: 404,
+      });
+    }
+
+    // Check if user is a participant and has previously accepted
+    const participantIndex = event.participants.findIndex(
+      (p) =>
+        p.userId.toString() === userId.toString() && p.status === 'accepted'
+    );
+
+    if (participantIndex === -1) {
+      return res.status(403).json({
+        message:
+          'Bạn không phải là người tham gia đã chấp nhận của sự kiện này',
+        status: 403,
+      });
+    }
+
+    // Check if event is not completed or cancelled
+    if (['completed', 'cancelled'].includes(event.status)) {
+      return res.status(400).json({
+        message: 'Không thể hủy tham gia sự kiện đã hoàn thành hoặc đã hủy',
+        status: 400,
+      });
+    }
+
+    // Check if event hasn't started yet
+    const now = new Date();
+    const eventStart = new Date(event.startDate);
+    if (now >= eventStart) {
+      return res.status(400).json({
+        message: 'Không thể hủy tham gia sự kiện đã bắt đầu',
+        status: 400,
+      });
+    }
+
+    // Update participant status to declined and save reason
+    event.participants[participantIndex].status = 'declined';
+    event.participants[participantIndex].cancelReason = reason;
+    event.participants[participantIndex].cancelledAt = new Date();
+
+    await event.save();
+
+    // Create event history record
+    await EventHistory.create({
+      eventId: event._id,
+      action: 'cancel_participation',
+      participants: [
+        {
+          userId: userId,
+          status: 'declined',
+          reason: reason,
+        },
+      ],
+    });
+
+    // Send notification to event organizer and other accepted participants
+    try {
+      const participantUser = await User.findById(userId, 'username email');
+      const formattedEventStartDate = formatDateToTimeZone(
+        event.startDate,
+        event.timeZone || 'Asia/Ho_Chi_Minh'
+      );
+
+      // Get all accepted participants except the one who is cancelling
+      const acceptedParticipants = event.participants.filter(
+        (p) =>
+          p.status === 'accepted' && p.userId.toString() !== userId.toString()
+      );
+
+      // First, notify the organizer with a special message
+      await NotificationService.createPersonalNotification({
+        title: 'Đã có người huỷ tham gia sự kiện',
+        content: `${participantUser.username} đã hủy tham gia sự kiện "${
+          event.title
+        }" với lý do: ${reason.substring(0, 100)}...`,
+        type: 'event_cancellation',
+        targetUserId: event.organizer,
+        createdBy: userId,
+        relatedUserId: userId,
+        eventId: event._id,
+      });
+
+      // Then, notify all other accepted participants
+      for (const participant of acceptedParticipants) {
+        // Skip if participant is the organizer (already notified)
+        if (participant.userId.toString() === event.organizer.toString()) {
+          continue;
+        }
+
+        await NotificationService.createPersonalNotification({
+          title: 'Thông báo về sự kiện',
+          content: `${participantUser.username} đã huỷ tham gia sự kiện "${event.title}"`,
+          type: 'event_participant_cancelled',
+          targetUserId: participant.userId,
+          createdBy: userId,
+          relatedUserId: userId,
+          eventId: event._id,
+        });
+      }
+
+      console.log(
+        `Đã gửi thông báo hủy tham gia sự kiện cho organizer ${event.organizer} và ${acceptedParticipants.length} người tham gia khác`
+      );
+    } catch (notificationError) {
+      console.error(
+        'Lỗi khi gửi thông báo hủy tham gia sự kiện:',
+        notificationError
+      );
+      // Don't throw error, continue with the cancellation process
+    }
+
+    // If event has Google Calendar sync, update it
+    if (event.googleEventId) {
+      try {
+        await updateGoogleCalendarEvent(event.organizer, event.googleEventId, {
+          title: event.title,
+          description: event.description,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          allDay: event.allDay,
+          type: event.type,
+          locationName: event.locationName,
+          address: event.address,
+          onlineUrl: event.onlineUrl,
+          timeZone: event.timeZone,
+          participants: event.participants,
+        });
+        console.log('Event updated on Google Calendar successfully');
+      } catch (error) {
+        console.warn('Failed to update Google Calendar event:', error.message);
+      }
+    }
+
+    res.status(200).json({
+      message: 'Hủy tham gia sự kiện thành công',
+      status: 200,
+      data: {
+        eventId: event._id,
+        userId: userId,
+        status: 'declined',
+        reason: reason,
+        cancelledAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi khi hủy tham gia sự kiện:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
@@ -1779,7 +2065,7 @@ exports.getEventHistory = async (req, res) => {
       .populate('participants.userId', 'name email'); // Populate participants để kiểm tra quyền
     if (!event) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1868,7 +2154,7 @@ exports.sendEventReminder = async (req, res) => {
     const event = await Event.findById(id).populate('participants.userId');
     if (!event) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1970,7 +2256,7 @@ exports.updateEventStatusByTime = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }

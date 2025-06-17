@@ -19,7 +19,7 @@ const calendarSchema = new mongoose.Schema(
     },
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: [true, 'Lịch cần thuộc về 1 người dùng hoặc nhóm cụ thể'],
+      required: [true, 'Lịch cần thuộc về 1 người dùng hoặc workspace cụ thể'],
       refPath: 'ownerType',
     },
     events: [

@@ -117,6 +117,8 @@ const Calendar = () => {
     calendarUser,
     getCalendarUser,
     updateEventStatusByTime,
+    cancelEventParticipation,
+    respondToEventInvitation,
   } = useCommon();
 
   // Thêm ref cho FullCalendar
@@ -151,6 +153,17 @@ const Calendar = () => {
   const [dateRange, setDateRange] = useState({ start: null, end: null });
   const [isUpdatingEvent, setIsUpdatingEvent] = useState(false);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedEventForCancel, setSelectedEventForCancel] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictEventData, setConflictEventData] = useState(null);
+  const [showCreateConflictModal, setShowCreateConflictModal] = useState(false);
+  const [createConflictData, setCreateConflictData] = useState(null);
+
+  // Get current user ID
+  const currentUserId = userDataLocal?._id || userDataLocal?.id;
 
   // Định nghĩa eventTypes
   const eventTypes = useMemo(
@@ -328,9 +341,21 @@ const Calendar = () => {
       }
     };
 
+    const handleEventConflict = (e) => {
+      const { eventId, notificationId, conflictData } = e.detail;
+      setConflictEventData({
+        eventId,
+        notificationId,
+        ...conflictData,
+      });
+      setShowConflictModal(true);
+    };
+
     window.addEventListener('eventUpdated', handleEventUpdated);
+    window.addEventListener('eventConflict', handleEventConflict);
     return () => {
       window.removeEventListener('eventUpdated', handleEventUpdated);
+      window.removeEventListener('eventConflict', handleEventConflict);
     };
   }, [debouncedFetchEvents, dateRange, searchTerm]);
 
@@ -586,7 +611,7 @@ const Calendar = () => {
 
   // Xử lý tạo sự kiện
   const handleCreateSubmit = useCallback(
-    async (e) => {
+    async (e, forceCreate = false) => {
       e.preventDefault();
       if (!formData.title.trim()) {
         toast.error('Vui lòng nhập tiêu đề sự kiện');
@@ -627,6 +652,7 @@ const Calendar = () => {
           recurrence: formData.recurrence
             ? { type: formData.recurrence, interval: 1 }
             : undefined,
+          forceCreate: forceCreate, // Thêm flag để bypass conflict check
         };
 
         const response = await axios.post(
@@ -638,6 +664,8 @@ const Calendar = () => {
         if (response.data.status === 201) {
           toast.success('Thêm sự kiện thành công');
           setShowCreateModal(false);
+          setShowCreateConflictModal(false); // Đóng conflict modal nếu đang mở
+          setCreateConflictData(null); // Clear conflict data
           debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
           setFormData({
             title: '',
@@ -658,6 +686,20 @@ const Calendar = () => {
           'Lỗi tạo sự kiện:',
           error.response?.data || error.message
         );
+
+        // Handle conflict case
+        if (
+          error.response?.status === 409 &&
+          error.response?.data?.hasConflict
+        ) {
+          setCreateConflictData({
+            ...error.response.data,
+            formData: formData, // Store form data to reuse when forcing create
+          });
+          setShowCreateConflictModal(true);
+          return; // Don't show error toast, show conflict modal instead
+        }
+
         toast.error(error.response?.data?.message || 'Không thể thêm sự kiện');
       } finally {
         setIsCreatingEvent(false);
@@ -974,6 +1016,213 @@ const Calendar = () => {
         <span style={{ marginRight: '4px' }}>🗺️</span>
         Xem trên bản đồ
       </Button>
+    );
+  };
+
+  // Handler for opening cancel modal
+  const handleOpenCancelModal = (event) => {
+    setSelectedEventForCancel(event);
+    setShowCancelModal(true);
+  };
+
+  // Handler for closing cancel modal
+  const handleCloseCancelModal = () => {
+    setSelectedEventForCancel(null);
+    setShowCancelModal(false);
+    setCancelReason('');
+    setIsSubmitting(false);
+  };
+
+  // Handler for submitting cancellation
+  const handleSubmitCancellation = async () => {
+    if (!selectedEventForCancel || !cancelReason.trim()) {
+      toast.error('Vui lòng nhập lý do hủy tham gia');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const success = await cancelEventParticipation(
+      selectedEventForCancel.id,
+      cancelReason.trim()
+    );
+
+    if (success) {
+      handleCloseCancelModal();
+      // Calendar will auto-refresh due to eventUpdated event
+    }
+    setIsSubmitting(false);
+    setShowEventModal(false);
+    setSelectedEventForCancel(null);
+    setCancelReason('');
+  };
+
+  // Handler for accepting event with conflict
+  const handleAcceptWithConflict = async () => {
+    if (!conflictEventData) return;
+
+    setIsSubmitting(true);
+    try {
+      const result = await respondToEventInvitation(
+        conflictEventData.eventId,
+        'accepted',
+        conflictEventData.notificationId,
+        true // forceAccept
+      );
+
+      if (result.success) {
+        setShowConflictModal(false);
+        setConflictEventData(null);
+        // Refresh events
+        if (dateRange.start && dateRange.end) {
+          debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+        }
+      }
+    } catch (error) {
+      console.error('Error accepting event with conflict:', error);
+      toast.error('Không thể chấp nhận lời mời');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler for closing conflict modal
+  const handleCloseConflictModal = () => {
+    setShowConflictModal(false);
+    setConflictEventData(null);
+  };
+
+  // Handler for creating event with conflict
+  const handleCreateWithConflict = async () => {
+    if (!createConflictData?.formData) return;
+
+    // Create a synthetic event to pass to handleCreateSubmit
+    const syntheticEvent = { preventDefault: () => {} };
+
+    try {
+      setIsCreatingEvent(true);
+      let userId = userDataLocal?.id || userDataLocal?._id;
+
+      const payload = {
+        calendarId: calendarUser._id,
+        title: createConflictData.formData.title,
+        description: createConflictData.formData.description || undefined,
+        startDate: fromLocalDateTime(createConflictData.formData.startDate),
+        endDate: fromLocalDateTime(createConflictData.formData.endDate),
+        type: createConflictData.formData.type,
+        organizer: userId,
+        locationName: createConflictData.formData.locationName || undefined,
+        address: createConflictData.formData.address || undefined,
+        status: 'scheduled',
+        participantEmails: createConflictData.formData.participantEmails
+          ? createConflictData.formData.participantEmails
+              .split(',')
+              .map((email) => email.trim())
+              .filter((email) => email.length > 0)
+          : undefined,
+        allDay: createConflictData.formData.allDay,
+        recurrence: createConflictData.formData.recurrence
+          ? { type: createConflictData.formData.recurrence, interval: 1 }
+          : undefined,
+        forceCreate: true, // Force create despite conflict
+      };
+
+      const response = await axios.post(
+        `${apiBaseUrl}/event/create-event-for-calendar/${calendarUser._id}`,
+        payload,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (response.data.status === 201) {
+        toast.success('Thêm sự kiện thành công');
+        setShowCreateModal(false);
+        setShowCreateConflictModal(false);
+        setCreateConflictData(null);
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+        setFormData({
+          title: '',
+          description: '',
+          startDate: toLocalDateTime(new Date()),
+          endDate: toLocalDateTime(new Date()),
+          type: 'offline',
+          locationName: '',
+          address: '',
+          status: 'scheduled',
+          participantEmails: '',
+          allDay: false,
+          recurrence: '',
+        });
+      }
+    } catch (error) {
+      console.error('Lỗi tạo sự kiện với xung đột:', error);
+      toast.error('Không thể tạo sự kiện');
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
+  // Handler for closing create conflict modal
+  const handleCloseCreateConflictModal = () => {
+    setShowCreateConflictModal(false);
+    setCreateConflictData(null);
+  };
+
+  // Add Cancel Participation Modal
+  const renderCancelModal = () => {
+    return (
+      <Modal
+        show={showCancelModal}
+        onHide={handleCloseCancelModal}
+        centered
+        className='cancel-participation-modal'
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Hủy tham gia sự kiện</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group>
+              <Form.Control
+                as='textarea'
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder='Vui lòng nhập lý do hủy tham gia...'
+                disabled={isSubmitting}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant='secondary'
+            onClick={handleCloseCancelModal}
+            disabled={isSubmitting}
+          >
+            Đóng
+          </Button>
+          <Button
+            variant='danger'
+            onClick={handleSubmitCancellation}
+            disabled={isSubmitting || !cancelReason.trim()}
+          >
+            {isSubmitting ? (
+              <>
+                <Spinner
+                  as='span'
+                  animation='border'
+                  size='sm'
+                  role='status'
+                  aria-hidden='true'
+                  className='me-2'
+                />
+                Đang xử lý...
+              </>
+            ) : (
+              'Xác nhận hủy'
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     );
   };
 
@@ -1350,6 +1599,7 @@ const Calendar = () => {
                             .join(', ')}
                         </p>
                       )}
+
                       <p>
                         <span className='me-2'>📊</span>
                         Trạng thái:{' '}
@@ -1378,7 +1628,13 @@ const Calendar = () => {
                       </p>
                     </div>
                   </div>
-                  {canModifyEvent(selectedEvent) && (
+                  {(canModifyEvent(selectedEvent) ||
+                    selectedEvent.participants?.some(
+                      (p) =>
+                        p.userId === currentUserId &&
+                        p.status === 'accepted' &&
+                        selectedEvent.organizer?.userId !== currentUserId
+                    )) && (
                     <div className='event-modal-actions'>
                       {canEditEvent(selectedEvent) && (
                         <Button
@@ -1400,24 +1656,24 @@ const Calendar = () => {
                           Xóa
                         </Button>
                       )}
-                      {/* {!canEditEvent(selectedEvent) &&
-                        !canDeleteEvent(selectedEvent) && (
-                          <div className='text-muted small'>
-                            <span className='me-2'>ℹ️</span>
-                            {selectedEvent.status === 'in-progress' &&
-                              'Sự kiện đang diễn ra không thể chỉnh sửa hoặc xóa'}
-                            {selectedEvent.status === 'completed' &&
-                              'Sự kiện đã hoàn thành không thể chỉnh sửa hoặc xóa'}
-                          </div>
-                        )} */}
-                      {/* {!canEditEvent(selectedEvent) &&
-                        canDeleteEvent(selectedEvent) && (
-                          <div className='text-muted small'>
-                            <span className='me-2'>ℹ️</span>
-                            {selectedEvent.status === 'cancelled' &&
-                              'Sự kiện đã hủy chỉ có thể xóa, không thể chỉnh sửa'}
-                          </div>
-                        )} */}
+                      {/* Cancel participation button for accepted participants who are not organizers */}
+                      {selectedEvent.participants?.some(
+                        (p) =>
+                          p.userId === currentUserId &&
+                          p.status === 'accepted' &&
+                          selectedEvent.organizer?.userId !== currentUserId &&
+                          selectedEvent.status === 'scheduled'
+                      ) && (
+                        <Button
+                          variant='outline-warning'
+                          onClick={() => handleOpenCancelModal(selectedEvent)}
+                          disabled={isUpdatingEvent}
+                          className='cancel-participation-btn'
+                        >
+                          <i className='bi bi-x-circle'></i>
+                          Hủy tham gia
+                        </Button>
+                      )}
                     </div>
                   )}
                 </motion.div>
@@ -1991,6 +2247,213 @@ const Calendar = () => {
               </Button>
               <Button variant='danger' onClick={handleDeleteEvent}>
                 Xóa
+              </Button>
+            </Modal.Footer>
+          </Modal>
+
+          {/* Cancel Participation Modal */}
+          {renderCancelModal()}
+
+          {/* Conflict Modal */}
+          <Modal
+            show={showConflictModal}
+            onHide={handleCloseConflictModal}
+            centered
+            className='conflict-modal'
+            backdrop='static'
+          >
+            <Modal.Header closeButton>
+              <Modal.Title className='text-black'>
+                ⚠️ Xung đột giữa các cuộc hẹn
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              {conflictEventData && (
+                <div>
+                  <div className='alert alert-warning'>
+                    <strong>{conflictEventData.message}</strong>
+                  </div>
+
+                  <div className='mb-3'>
+                    <h6>Cuộc hẹn bạn muốn tham gia:</h6>
+                    <div className='border rounded p-2 bg-light'>
+                      <strong>{conflictEventData.currentEvent?.title}</strong>
+                      <br />
+                      <small className='text-muted'>
+                        {formatEventDate(
+                          new Date(conflictEventData.currentEvent?.startDate)
+                        )}{' '}
+                        -{' '}
+                        {formatEventDate(
+                          new Date(conflictEventData.currentEvent?.endDate)
+                        )}
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className='mb-3'>
+                    <h6>Cuộc hẹn đang có:</h6>
+                    {conflictEventData.conflictingEvents?.map(
+                      (event, index) => (
+                        <div
+                          key={event.id}
+                          className='border rounded p-2 mb-2 bg-danger-subtle'
+                        >
+                          <strong>{event.title}</strong>
+                          <br />
+                          <small className='text-muted'>
+                            {formatEventDate(new Date(event.startDate))} -{' '}
+                            {formatEventDate(new Date(event.endDate))}
+                          </small>
+                          {/* <br />
+                          <small className='text-info'>
+                            📅 {event.calendarName}
+                          </small> */}
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div className='alert alert-info'>
+                    <small>
+                      <i className='bi bi-info-circle'></i> Bạn vẫn có thể chấp
+                      nhận tham gia sự kiện này, nhưng hãy đảm bảo bạn có thể
+                      sắp xếp thời gian phù hợp.
+                    </small>
+                  </div>
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant='secondary'
+                onClick={handleCloseConflictModal}
+                disabled={isSubmitting}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant='warning'
+                onClick={handleAcceptWithConflict}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner
+                      as='span'
+                      animation='border'
+                      size='sm'
+                      role='status'
+                      aria-hidden='true'
+                      className='me-2'
+                    />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  'Vẫn tham gia'
+                )}
+              </Button>
+            </Modal.Footer>
+          </Modal>
+
+          {/* Create Event Conflict Modal */}
+          <Modal
+            show={showCreateConflictModal}
+            onHide={handleCloseCreateConflictModal}
+            centered
+            className='conflict-modal'
+            backdrop='static'
+          >
+            <Modal.Header closeButton>
+              <Modal.Title className='text-black'>
+                ⚠️ Xung đột giữa các cuộc hẹn
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              {createConflictData && (
+                <div>
+                  <div className='alert alert-warning'>
+                    <strong>{createConflictData.message}</strong>
+                  </div>
+
+                  <div className='mb-3'>
+                    <h6>Cuộc hẹn bạn muốn tạo:</h6>
+                    <div className='border rounded p-2 bg-light'>
+                      <strong>{createConflictData.newEvent?.title}</strong>
+                      <br />
+                      <small className='text-muted'>
+                        {formatEventDate(
+                          new Date(createConflictData.newEvent?.startDate)
+                        )}{' '}
+                        -{' '}
+                        {formatEventDate(
+                          new Date(createConflictData.newEvent?.endDate)
+                        )}
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className='mb-3'>
+                    <h6>Cuộc hẹn đang có:</h6>
+                    {createConflictData.conflictingEvents?.map(
+                      (event, index) => (
+                        <div
+                          key={event.id}
+                          className='border rounded p-2 mb-2 bg-danger-subtle'
+                        >
+                          <strong>{event.title}</strong>
+                          <br />
+                          <small className='text-muted'>
+                            {formatEventDate(new Date(event.startDate))} -{' '}
+                            {formatEventDate(new Date(event.endDate))}
+                          </small>
+                          {/* <br />
+                          <small className='text-info'>
+                            📅 {event.calendarName}
+                          </small> */}
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  <div className='alert alert-info'>
+                    <small>
+                      <i className='bi bi-info-circle'></i> Bạn vẫn có thể tạo
+                      sự kiện này, nhưng hãy đảm bảo bạn có thể sắp xếp thời
+                      gian phù hợp.
+                    </small>
+                  </div>
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant='secondary'
+                onClick={handleCloseCreateConflictModal}
+                disabled={isCreatingEvent}
+              >
+                Hủy bỏ
+              </Button>
+              <Button
+                variant='warning'
+                onClick={handleCreateWithConflict}
+                disabled={isCreatingEvent}
+              >
+                {isCreatingEvent ? (
+                  <>
+                    <Spinner
+                      as='span'
+                      animation='border'
+                      size='sm'
+                      role='status'
+                      aria-hidden='true'
+                      className='me-2'
+                    />
+                    Đang tạo...
+                  </>
+                ) : (
+                  'Vẫn tạo sự kiện'
+                )}
               </Button>
             </Modal.Footer>
           </Modal>
