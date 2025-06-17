@@ -43,6 +43,12 @@ const userSchema = new mongoose.Schema(
         lowercase: true,
       },
     ],
+    about: {
+      type: String,
+    },
+    experience: {
+      type: String,
+    },
     yearOfExperience: {
       type: Number,
       min: [0, 'Năm kinh nghiệm không thể nhỏ hơn 0'],

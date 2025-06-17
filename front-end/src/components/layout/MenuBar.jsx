@@ -7,7 +7,8 @@ import {
   FaCalendarAlt,
   FaUser,
 } from 'react-icons/fa';
-import logo from '/images/PlanPro-removebg-preview.png';
+// import logo from '/images/PlanPro-removebg-preview.png';
+import logo from '/images/logo-removebackground.PNG';
 import { useCommon } from '../../contexts/CommonContext';
 
 const MenuBar = () => {
