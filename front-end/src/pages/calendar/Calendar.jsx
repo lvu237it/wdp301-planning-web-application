@@ -2280,12 +2280,33 @@ const Calendar = () => {
                       <strong>{conflictEventData.currentEvent?.title}</strong>
                       <br />
                       <small className='text-muted'>
-                        {formatEventDate(
-                          new Date(conflictEventData.currentEvent?.startDate)
-                        )}{' '}
-                        -{' '}
-                        {formatEventDate(
-                          new Date(conflictEventData.currentEvent?.endDate)
+                        {conflictEventData.currentEvent?.allDay ? (
+                          <>
+                            {new Intl.DateTimeFormat('vi-VN', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              timeZone: 'Asia/Ho_Chi_Minh',
+                            }).format(
+                              new Date(
+                                conflictEventData.currentEvent?.startDate
+                              )
+                            )}{' '}
+                            <span className='text-info'>(cả ngày)</span>
+                          </>
+                        ) : (
+                          <>
+                            {formatEventDate(
+                              new Date(
+                                conflictEventData.currentEvent?.startDate
+                              )
+                            )}{' '}
+                            -{' '}
+                            {formatEventDate(
+                              new Date(conflictEventData.currentEvent?.endDate)
+                            )}
+                          </>
                         )}
                       </small>
                     </div>
@@ -2302,8 +2323,23 @@ const Calendar = () => {
                           <strong>{event.title}</strong>
                           <br />
                           <small className='text-muted'>
-                            {formatEventDate(new Date(event.startDate))} -{' '}
-                            {formatEventDate(new Date(event.endDate))}
+                            {event.allDay ? (
+                              <>
+                                {new Intl.DateTimeFormat('vi-VN', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  timeZone: 'Asia/Ho_Chi_Minh',
+                                }).format(new Date(event.startDate))}{' '}
+                                <span className='text-info'>(cả ngày)</span>
+                              </>
+                            ) : (
+                              <>
+                                {formatEventDate(new Date(event.startDate))} -{' '}
+                                {formatEventDate(new Date(event.endDate))}
+                              </>
+                            )}
                           </small>
                           {/* <br />
                           <small className='text-info'>
@@ -2382,12 +2418,29 @@ const Calendar = () => {
                       <strong>{createConflictData.newEvent?.title}</strong>
                       <br />
                       <small className='text-muted'>
-                        {formatEventDate(
-                          new Date(createConflictData.newEvent?.startDate)
-                        )}{' '}
-                        -{' '}
-                        {formatEventDate(
-                          new Date(createConflictData.newEvent?.endDate)
+                        {createConflictData.newEvent?.allDay ? (
+                          <>
+                            {new Intl.DateTimeFormat('vi-VN', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              timeZone: 'Asia/Ho_Chi_Minh',
+                            }).format(
+                              new Date(createConflictData.newEvent?.startDate)
+                            )}{' '}
+                            <span className='text-info'>(cả ngày)</span>
+                          </>
+                        ) : (
+                          <>
+                            {formatEventDate(
+                              new Date(createConflictData.newEvent?.startDate)
+                            )}{' '}
+                            -{' '}
+                            {formatEventDate(
+                              new Date(createConflictData.newEvent?.endDate)
+                            )}
+                          </>
                         )}
                       </small>
                     </div>
@@ -2404,8 +2457,23 @@ const Calendar = () => {
                           <strong>{event.title}</strong>
                           <br />
                           <small className='text-muted'>
-                            {formatEventDate(new Date(event.startDate))} -{' '}
-                            {formatEventDate(new Date(event.endDate))}
+                            {event.allDay ? (
+                              <>
+                                {new Intl.DateTimeFormat('vi-VN', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  timeZone: 'Asia/Ho_Chi_Minh',
+                                }).format(new Date(event.startDate))}{' '}
+                                <span className='text-info'>(cả ngày)</span>
+                              </>
+                            ) : (
+                              <>
+                                {formatEventDate(new Date(event.startDate))} -{' '}
+                                {formatEventDate(new Date(event.endDate))}
+                              </>
+                            )}
                           </small>
                           {/* <br />
                           <small className='text-info'>

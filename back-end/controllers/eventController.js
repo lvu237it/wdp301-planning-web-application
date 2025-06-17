@@ -441,26 +441,159 @@ exports.createEventForCalendar = async (req, res) => {
     // Kiểm tra xung đột thời gian khi tạo sự kiện mới
     if (!forceCreate) {
       try {
-        // Tìm tất cả sự kiện mà organizer đã tham gia (đã chấp nhận) trong cùng khoảng thời gian
-        const conflictingEvents = await Event.find({
-          isDeleted: false,
-          status: { $nin: ['completed', 'cancelled'] }, // Loại trừ sự kiện đã hoàn thành hoặc đã hủy
-          participants: {
-            $elemMatch: {
-              userId: organizer,
-              status: 'accepted',
+        let conflictQuery;
+
+        if (allDay) {
+          // Nếu sự kiện mới là allDay, check xem trong ngày đó có sự kiện nào khác không
+          // Chuẩn hóa ngày để so sánh (00:00:00 đến 23:59:59)
+          const dayStart = new Date(start);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(start);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
             },
-          },
-          $or: [
-            // Sự kiện mới bắt đầu trong khoảng thời gian của sự kiện hiện có
-            {
-              startDate: { $lt: end },
-              endDate: { $gt: start },
+            $or: [
+              // Case 1: Sự kiện hiện có cũng là allDay và cùng ngày
+              {
+                allDay: true,
+                $expr: {
+                  $eq: [
+                    {
+                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+                    },
+                    {
+                      $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: start,
+                      },
+                    },
+                  ],
+                },
+              },
+              // Case 2: Sự kiện hiện có không phải allDay nhưng có overlap với ngày này
+              {
+                allDay: { $ne: true },
+                $and: [
+                  { startDate: { $lte: dayEnd } },
+                  { endDate: { $gte: dayStart } },
+                ],
+              },
+            ],
+          };
+        } else {
+          // Nếu sự kiện mới không phải allDay, check overlap với tất cả sự kiện
+          const startDay = new Date(start);
+          startDay.setHours(0, 0, 0, 0);
+          const startDayEnd = new Date(start);
+          startDayEnd.setHours(23, 59, 59, 999);
+
+          const endDay = new Date(end);
+          endDay.setHours(0, 0, 0, 0);
+          const endDayEnd = new Date(end);
+          endDayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
             },
-          ],
-        })
+            $or: [
+              // Case 1: Sự kiện hiện có là allDay và overlap với ngày của sự kiện mới
+              {
+                allDay: true,
+                $or: [
+                  // AllDay event trong ngày bắt đầu của sự kiện mới
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: start,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  // AllDay event trong ngày kết thúc của sự kiện mới (nếu khác ngày bắt đầu)
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: end,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              // Case 2: Sự kiện hiện có không phải allDay và có overlap time
+              {
+                allDay: { $ne: true },
+                startDate: { $lt: end },
+                endDate: { $gt: start },
+              },
+            ],
+          };
+        }
+
+        console.log('CREATE EVENT - Checking conflict for:', {
+          organizer,
+          allDay,
+          startDate,
+          endDate,
+        });
+        console.log(
+          'CREATE EVENT - Conflict query:',
+          JSON.stringify(conflictQuery, null, 2)
+        );
+
+        const conflictingEvents = await Event.find(conflictQuery)
           .populate('calendarId', 'name')
-          .select('title startDate endDate calendarId');
+          .select('title startDate endDate calendarId allDay');
+
+        console.log(
+          'CREATE EVENT - Found conflicting events:',
+          conflictingEvents.length
+        );
+        if (conflictingEvents.length > 0) {
+          console.log(
+            'CREATE EVENT - Conflicting events details:',
+            conflictingEvents.map((e) => ({
+              title: e.title,
+              allDay: e.allDay,
+              startDate: e.startDate,
+              endDate: e.endDate,
+            }))
+          );
+        }
 
         if (conflictingEvents.length > 0) {
           // Có xung đột thời gian
@@ -469,6 +602,7 @@ exports.createEventForCalendar = async (req, res) => {
             title: conflictEvent.title,
             startDate: conflictEvent.startDate,
             endDate: conflictEvent.endDate,
+            allDay: conflictEvent.allDay,
             // calendarName:
             //   conflictEvent.calendarId?.name || 'Lịch không xác định',
           }));
@@ -483,6 +617,7 @@ exports.createEventForCalendar = async (req, res) => {
               title: title,
               startDate: startDate,
               endDate: endDate,
+              allDay: allDay,
             },
           });
         }
@@ -1673,27 +1808,163 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
     // Kiểm tra xung đột thời gian khi chấp nhận sự kiện
     if (status === 'accepted' && !forceAccept) {
       try {
-        // Tìm tất cả sự kiện mà user đã tham gia (đã chấp nhận) trong cùng khoảng thời gian
-        const conflictingEvents = await Event.find({
-          _id: { $ne: event._id }, // Loại trừ sự kiện hiện tại
-          isDeleted: false,
-          status: { $nin: ['completed', 'cancelled'] }, // Loại trừ sự kiện đã hoàn thành hoặc đã hủy
-          participants: {
-            $elemMatch: {
-              userId: userId,
-              status: 'accepted',
+        let conflictQuery;
+
+        if (event.allDay) {
+          // Nếu sự kiện hiện tại là allDay, check xem trong ngày đó có sự kiện nào khác không
+          const dayStart = new Date(event.startDate);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(event.startDate);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
             },
+            $or: [
+              // Case 1: Sự kiện khác cũng là allDay và cùng ngày
+              {
+                allDay: true,
+                $expr: {
+                  $eq: [
+                    {
+                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+                    },
+                    {
+                      $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: event.startDate,
+                      },
+                    },
+                  ],
+                },
+              },
+              // Case 2: Sự kiện khác không phải allDay nhưng có overlap với ngày này
+              {
+                allDay: { $ne: true },
+                $and: [
+                  { startDate: { $lte: dayEnd } },
+                  { endDate: { $gte: dayStart } },
+                ],
+              },
+            ],
+          };
+        } else {
+          // Nếu sự kiện hiện tại không phải allDay, check overlap với tất cả sự kiện
+          const startDay = new Date(event.startDate);
+          startDay.setHours(0, 0, 0, 0);
+          const startDayEnd = new Date(event.startDate);
+          startDayEnd.setHours(23, 59, 59, 999);
+
+          const endDay = new Date(event.endDate);
+          endDay.setHours(0, 0, 0, 0);
+          const endDayEnd = new Date(event.endDate);
+          endDayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              // Case 1: Sự kiện khác là allDay và overlap với ngày của sự kiện hiện tại
+              {
+                allDay: true,
+                $or: [
+                  // AllDay event trong ngày bắt đầu của sự kiện hiện tại
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: event.startDate,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  // AllDay event trong ngày kết thúc của sự kiện hiện tại (nếu khác ngày bắt đầu)
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: event.endDate,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              // Case 2: Sự kiện khác không phải allDay và có overlap time
+              {
+                allDay: { $ne: true },
+                startDate: { $lt: event.endDate },
+                endDate: { $gt: event.startDate },
+              },
+            ],
+          };
+        }
+
+        console.log('ACCEPT EVENT - Checking conflict for:', {
+          userId,
+          currentEvent: {
+            id: event._id,
+            allDay: event.allDay,
+            startDate: event.startDate,
+            endDate: event.endDate,
           },
-          $or: [
-            // Sự kiện mới bắt đầu trong khoảng thời gian của sự kiện hiện có
-            {
-              startDate: { $lt: event.endDate },
-              endDate: { $gt: event.startDate },
-            },
-          ],
-        })
+        });
+        console.log(
+          'ACCEPT EVENT - Conflict query:',
+          JSON.stringify(conflictQuery, null, 2)
+        );
+
+        const conflictingEvents = await Event.find(conflictQuery)
           .populate('calendarId', 'name')
-          .select('title startDate endDate calendarId');
+          .select('title startDate endDate calendarId allDay');
+
+        console.log(
+          'ACCEPT EVENT - Found conflicting events:',
+          conflictingEvents.length
+        );
+        if (conflictingEvents.length > 0) {
+          console.log(
+            'ACCEPT EVENT - Conflicting events details:',
+            conflictingEvents.map((e) => ({
+              title: e.title,
+              allDay: e.allDay,
+              startDate: e.startDate,
+              endDate: e.endDate,
+            }))
+          );
+        }
 
         if (conflictingEvents.length > 0) {
           // Có xung đột thời gian
@@ -1702,6 +1973,7 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
             title: conflictEvent.title,
             startDate: conflictEvent.startDate,
             endDate: conflictEvent.endDate,
+            allDay: conflictEvent.allDay,
             // calendarName:
             //   conflictEvent.calendarId?.name || 'Lịch không xác định',
           }));
@@ -1717,6 +1989,7 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
               title: event.title,
               startDate: event.startDate,
               endDate: event.endDate,
+              allDay: event.allDay,
             },
           });
         }
