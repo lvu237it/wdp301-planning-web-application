@@ -945,6 +945,37 @@ export const Common = ({ children }) => {
     return res.data.workspace;
   };
 
+    // **Close workspace**:  
+    const closeWorkspace = async (workspaceId) => {
+    const res = await axios.patch(
+      `${apiBaseUrl}/workspace/${workspaceId}/close`, // đường dẫn route BE bạn đã định nghĩa
+      {},
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 200) {
+      throw new Error(res.data.message || 'Đóng workspace thất bại');
+    }
+    // Loại bỏ workspace đã đóng khỏi state
+    setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
+    toast.success('Workspace đã được đóng thành công');
+    return res.data.workspace;
+  };
+
+  //Delete workspace vĩnh viễn
+  const deleteWorkspace = async (workspaceId) => {
+    const res = await axios.delete(
+      `${apiBaseUrl}/workspace/${workspaceId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 200) {
+      throw new Error(res.data.message || 'Xóa workspace thất bại');
+    }
+    // remove khỏi state
+    setWorkspaces(prev => prev.filter(ws => ws._id !== workspaceId));
+    toast.success('Workspace đã bị xóa vĩnh viễn');
+    return true;
+  };
+
   const fetchBoards = async (workspaceId) => {
     setLoading(true);
     setError(null);
@@ -1200,6 +1231,8 @@ export const Common = ({ children }) => {
         formatDateAMPMForVN,
         workspaces,
         createWorkspace,
+        closeWorkspace,
+        deleteWorkspace,
         updateWorkspace,
         loadingWorkspaces,
         workspacesError,

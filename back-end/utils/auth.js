@@ -22,10 +22,10 @@ exports.protect = async (req, res, next) => {
 
 // creator của workspace
 exports.isCreator = async (req, res, next) => {
-  const { id } = req.params;
+  const workspaceId = req.params.workspaceId;
   const userId = req.user._id;
 
-  const workspace = await Workspace.findById(id);
+  const workspace = await Workspace.findById(workspaceId);
   if (!workspace) {
     return res
       .status(404)
