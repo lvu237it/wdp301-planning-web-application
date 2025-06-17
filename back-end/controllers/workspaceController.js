@@ -311,7 +311,7 @@ exports.inviteMember = async (req, res) => {
                 © ${new Date().getFullYear()} WebPlanPro. Đã đăng ký bản quyền.
               </p>
               <p style="margin:5px 0 0;">
-                Địa chỉ: WebPlanPro, Hà Nội, Việt Nam
+                Địa chỉ: WebPlanPro, Thạch Thất, Hà Nội, Việt Nam
               </p>
             </td>
           </tr>
