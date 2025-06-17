@@ -13,7 +13,7 @@ import { formatDateAMPMForVN } from "../utils/dateUtils";
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
 
-const CommonContext = createContext();
+export const CommonContext = createContext();
 
 export const useCommon = () => useContext(CommonContext);
 
@@ -53,12 +53,11 @@ export const Common = ({ children }) => {
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
-  //workspace
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
   // state workspace
   const [workspaces, setWorkspaces] = useState([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
   const [workspacesError, setWorkspacesError] = useState(null);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(null);
 
   // state boards
   const [boards, setBoards] = useState([]);
@@ -261,6 +260,29 @@ export const Common = ({ children }) => {
         });
         console.log("✅ Socket initialization completed");
 
+        try {
+          const response = await axios.post(
+            `https://api.cloudinary.com/v1_1/${
+              import.meta.env.VITE_CLOUDINARY_NAME
+            }/image/upload`,
+            formData
+          );
+          console.log(
+            "VITE_CLOUDINARY_NAME",
+            import.meta.env.VITE_CLOUDINARY_NAME
+          );
+          console.log("response", response);
+          console.log("response.data", response.data);
+          console.log("response.data.secureurl", response.data.secure_url);
+          if (response.status === 200) {
+            console.log("oke upload thành công");
+            return response.data.secure_url; // Trả về URL ảnh đã upload
+          }
+        } catch (error) {
+          console.error("Error uploading to Cloudinary:", error);
+          throw new Error("Upload to Cloudinary failed");
+        }
+
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
           try {
@@ -313,6 +335,39 @@ export const Common = ({ children }) => {
         }
       }
     }, 2000);
+
+    const fetchBoards = async (workspaceId) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await axios.get(
+          `${apiBaseUrl}/workspace/${workspaceId}/board`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            withCredentials: true, // ← gửi cookie kèm request
+          }
+        );
+
+        // lấy mảng boards từ payload
+        const raw = res.data.boards || [];
+        // chuẩn hóa các trường luôn luôn có mảng và có listsCount
+        const norm = raw.map((board) => ({
+          ...board,
+          members: board.members || [],
+          tasks: board.tasks || [],
+          listsCount: board.listsCount || 0,
+        }));
+
+        setBoards(norm);
+      } catch (err) {
+        setError(err.response?.data?.message || err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
@@ -806,32 +861,73 @@ export const Common = ({ children }) => {
     }
   };
 
-  // 1. Effect để fetch workspaces
-  useEffect(() => {
-    const fetchWorkspaces = async () => {
+  /**
+   * Fetch workspaces for current user
+   */
+  const fetchWorkspaces = async () => {
+    setLoadingWorkspaces(true);
+    setWorkspacesError(null);
+    try {
       if (!accessToken) {
-        setLoadingWorkspaces(false);
+        setWorkspaces([]);
         return;
       }
-      try {
-        const res = await axios.get(`${apiBaseUrl}/workspace`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        // Giả sử API trả { workspaces: [...] }
-        setWorkspaces(res.data.data || []);
-      } catch (err) {
-        setWorkspacesError(err.response?.data?.message || err.message);
-      } finally {
-        setLoadingWorkspaces(false);
-      }
-    };
+      const res = await axios.get(`${apiBaseUrl}/workspace`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setWorkspaces(res.data.data || []);
+    } catch (err) {
+      setWorkspacesError(err.response?.data?.message || err.message);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
 
-    fetchWorkspaces();
-  }, [apiBaseUrl, accessToken]);
+  // Initial fetch workspaces
+  useEffect(() => {
+    if (accessToken) fetchWorkspaces();
+  }, [accessToken]);
 
-  // 2. Hàm hỗ trợ navigate tới form tạo workspace
-  const navigateToCreateWorkspace = () => {
-    navigate("/workspace/create");
+  /**
+   * Create a new workspace and update context
+   */
+  const createWorkspace = async ({ name, description }) => {
+    const res = await axios.post(
+      `${apiBaseUrl}/workspace/create`,
+      { name, description },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 201) {
+      throw new Error(res.data.message || "Tạo workspace thất bại");
+    }
+    +(
+      // refetch toàn bộ để đảm bảo members đã populate
+      (await fetchWorkspaces())
+    );
+    return res.data.workspace;
+  };
+
+  // **Update workspace**:
+  const updateWorkspace = async (workspaceId, updates) => {
+    console.log("updateWorkspace", workspaceId, updates);
+
+    const res = await axios.put(
+      `${apiBaseUrl}/workspace/${workspaceId}`,
+      updates,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 200) {
+      throw new Error(res.data.message || "Cập nhật workspace thất bại");
+    }
+
+    const updated = res.data.workspace;
+    // cập nhật lại state workspaces: map qua array, thay đúng item
+    setWorkspaces((prev) =>
+      prev.map((ws) => (ws._id === workspaceId ? updated : ws))
+    );
+    // refetch toàn bộ để đảm bảo members đã populate
+    await fetchWorkspaces();
+    return res.data.workspace;
   };
 
   const fetchBoards = async (workspaceId) => {
@@ -1052,11 +1148,12 @@ export const Common = ({ children }) => {
         updateEventStatusByTime,
         formatDateAMPMForVN,
         workspaces,
+        createWorkspace,
+        updateWorkspace,
         loadingWorkspaces,
         workspacesError,
         currentWorkspaceId,
         setCurrentWorkspaceId,
-        navigateToCreateWorkspace,
         boards,
         fetchBoards,
         loadingBoards,

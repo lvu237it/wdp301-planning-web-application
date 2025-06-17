@@ -37,6 +37,7 @@ const Boards = () => {
 				<Spinner animation='border' />
 			</Container>
 		);
+
 	if (boardsError)
 		return (
 			<Container className='py-4'>
@@ -63,15 +64,18 @@ const Boards = () => {
 							}}>
 							Workspaces
 						</Breadcrumb.Item>
-						<Breadcrumb.Item active style={{ fontWeight: 'bold' }}>Boards</Breadcrumb.Item>
+						<Breadcrumb.Item active style={{ fontWeight: 'bold' }}>
+							Boards
+						</Breadcrumb.Item>
 					</Breadcrumb>
-
-					{/* ... phần content còn lại ... */}
 				</div>
 
 				<Button variant='success'>+ New Board</Button>
 			</div>
 			<h1>Boards</h1>
+			{boards.length === 0 && (
+				<Alert variant='info'>Chưa có board nào trong workspace này.</Alert>
+			)}
 			<Row>
 				{boards.map((board) => {
 					// avatar handling
@@ -81,7 +85,10 @@ const Boards = () => {
 
 					return (
 						<Col key={board._id} md={6} lg={4} className='mb-4'>
-							<Card className='h-100 shadow-sm'>
+							<Card
+								className='h-100 shadow-sm'
+								style={{ cursor: 'pointer' }}
+								onClick={() => navigate(`/boards/${board._id}`)}>
 								<Card.Body className='d-flex flex-column'>
 									{/* Title & desc */}
 									<div>
@@ -130,7 +137,8 @@ const Boards = () => {
 										</div>
 										<div className='d-flex align-items-center'>
 											<MdChecklist className='me-1' />{' '}
-											{board.tasks?.length ?? 0}
+											{board.lists?.length ?? 0}
+											{/* <MdChecklist className='me-1' /> {board.listsCount} */}
 										</div>
 									</div>
 
