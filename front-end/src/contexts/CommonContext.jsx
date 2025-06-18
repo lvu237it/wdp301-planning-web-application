@@ -20,6 +20,9 @@ export const useCommon = () => useContext(CommonContext);
 export const Common = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  // Get previous location from state, default to '/'
+  const from = location.state?.from?.pathname || '/';
+
   const socketInitialized = useRef(false);
   const [socketConnected, setSocketConnected] = useState(false);
 
@@ -72,27 +75,49 @@ export const Common = ({ children }) => {
   // Tạo ref để track đã thực hiện redirect hay chưa
   const hasRedirected = useRef(false);
   const isProcessingAuth = useRef(false); // Tránh xử lý auth nhiều lần
+  const isInitialLoad = useRef(true); // Track if this is initial app load
 
-  // Sửa useEffect để tránh redirect tự động gây conflict với Google callback
+  // Chỉ redirect khi thực sự cần thiết (sau login thành công), không redirect khi reload
   useEffect(() => {
-    // Chỉ redirect tự động nếu không phải đang ở Google callback và chưa redirect
+    // Nếu là lần đầu load app và đã có token + userData, đây là reload
+    if (isInitialLoad.current && isAuthenticated && userDataLocal) {
+      isInitialLoad.current = false;
+      // Không redirect khi reload - giữ nguyên trang hiện tại
+      return;
+    }
+
+    // Chỉ redirect về / khi:
+    // 1. Không phải initial load (đã login thành công)
+    // 2. Đang ở auth pages (login/register)
+    // 3. Không phải Google callback
+    // 4. Chưa redirect trước đó
     if (
+      !isInitialLoad.current &&
       isAuthenticated &&
       userDataLocal &&
+      (location.pathname === '/login' ||
+        location.pathname === '/register' ||
+        location.pathname === '/') &&
       !location.pathname.includes('/google-callback') &&
       !hasRedirected.current &&
       !isProcessingAuth.current
     ) {
       hasRedirected.current = true;
-      navigate('/');
+      navigate('/dashboard'); // Redirect to dashboard instead of root
     }
-  }, [isAuthenticated, userDataLocal]);
+
+    // Mark as not initial load after first effect run
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+    }
+  }, [isAuthenticated, userDataLocal, location.pathname]);
 
   // Reset redirect flag khi user logout
   useEffect(() => {
     if (!isAuthenticated) {
       hasRedirected.current = false;
       isProcessingAuth.current = false;
+      isInitialLoad.current = true; // Reset for next login
     }
   }, [isAuthenticated]);
 
@@ -372,7 +397,10 @@ export const Common = ({ children }) => {
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
       toast.success('Login successful!');
-      navigate('/');
+      // Chỉ navigate nếu đang ở auth pages
+      if (location.pathname === '/login' || location.pathname === '/register') {
+        navigate('/dashboard');
+      }
     }
 
     // Reset processing flag sau khi hoàn thành
@@ -945,8 +973,8 @@ export const Common = ({ children }) => {
     return res.data.workspace;
   };
 
-    // **Close workspace**:  
-    const closeWorkspace = async (workspaceId) => {
+  // **Close workspace**:
+  const closeWorkspace = async (workspaceId) => {
     const res = await axios.patch(
       `${apiBaseUrl}/workspace/${workspaceId}/close`, // đường dẫn route BE bạn đã định nghĩa
       {},
@@ -963,15 +991,14 @@ export const Common = ({ children }) => {
 
   //Delete workspace vĩnh viễn
   const deleteWorkspace = async (workspaceId) => {
-    const res = await axios.delete(
-      `${apiBaseUrl}/workspace/${workspaceId}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    const res = await axios.delete(`${apiBaseUrl}/workspace/${workspaceId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (res.status !== 200) {
       throw new Error(res.data.message || 'Xóa workspace thất bại');
     }
     // remove khỏi state
-    setWorkspaces(prev => prev.filter(ws => ws._id !== workspaceId));
+    setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
     toast.success('Workspace đã bị xóa vĩnh viễn');
     return true;
   };
