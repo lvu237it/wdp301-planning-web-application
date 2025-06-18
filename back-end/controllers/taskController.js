@@ -134,7 +134,6 @@ exports.createTask = async (req, res) => {
       });
     }
 
-    // const requiredIds = { calendarId, boardId, listId, assignedTo, assignedBy };
     const requiredIds = { boardId, listId };
     for (const [key, value] of Object.entries(requiredIds)) {
       if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -196,12 +195,9 @@ exports.createTask = async (req, res) => {
   }
 };
 
-// controllers/taskController.js
-
 exports.updateTask = async (req, res) => {
   try {
     const { id } = req.params;
-    // Chỉ lấy ra những field có thể cập nhật
     const {
       title,
       description,
@@ -224,7 +220,6 @@ exports.updateTask = async (req, res) => {
       return res.status(404).json({ status:'fail', message:'Không tìm thấy task' });
     }
 
-    // Chỉ gán khi payload có giá trị (không undefined)
     if (typeof title === 'string')           task.title       = title.trim();
     if (typeof description === 'string')     task.description = description;
     if (startDate !== undefined)             task.startDate   = new Date(startDate);
@@ -256,7 +251,6 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
-    // 1. Tìm task để lấy listId trước khi xóa
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
@@ -269,8 +263,6 @@ exports.deleteTask = async (req, res) => {
 
     // 2. Xóa task (hard delete)
     await Task.deleteOne({ _id: id });
-    // Nếu bạn muốn soft-delete, thay bằng:
-    // await Task.findByIdAndUpdate(id, { isDeleted: true, deletedAt: Date.now() });
 
     // 3. Cập nhật lại mảng tasks trong List: pull id của task vừa xóa
     await List.findByIdAndUpdate(

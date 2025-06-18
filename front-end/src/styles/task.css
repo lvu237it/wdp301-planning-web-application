@@ -118,7 +118,6 @@
   background: #fff;           
   position: relative;
 }
-
 /* badge ngày */
 .due-badge {
   display: inline-flex;
@@ -166,5 +165,10 @@
   gap: 8px;
   margin-left: 16px;
 }
-
+.icon-btn-taskTitle {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  line-height: 1;
+}
 
