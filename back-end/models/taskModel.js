@@ -44,8 +44,17 @@ const taskSchema = new mongoose.Schema(
       ref: 'User',
       // required: [true, 'Người giao nhiệm vụ là bắt buộc'],
     },
-    deadline: {
+    startDate: {
       type: Date,
+      default: Date.now,
+    },
+    endDate: {
+      type: Date,
+      default: Date.now,
+    },
+    allDay: {
+      type: Boolean,
+      default: false,
     },
     recurrence: {
       type: {
@@ -56,9 +65,6 @@ const taskSchema = new mongoose.Schema(
       interval: {
         type: Number,
         default: 1,
-      },
-      endDate: {
-        type: Date,
       },
     },
     reminderSettings: [

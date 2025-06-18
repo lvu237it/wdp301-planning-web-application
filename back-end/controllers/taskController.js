@@ -1,13 +1,12 @@
-const Task = require('../models/taskModel');
-const mongoose = require('mongoose');
-const User = require('../models/userModel');
-const sendEmail = require('../utils/sendMail');
-const List = require('../models/listModel');
-
+const Task = require("../models/taskModel");
+const mongoose = require("mongoose");
+const User = require("../models/userModel");
+const sendEmail = require("../utils/sendMail");
+const List = require("../models/listModel");
 const notifyAssignedUser = async (task) => {
   try {
     const assignedUser = await User.findById(task.assignedTo).select(
-      'email name'
+      "email name"
     );
     if (!assignedUser || !assignedUser.email) {
       console.warn(`User không tồn tại hoặc chưa có email: ${task.assignedTo}`);
@@ -15,15 +14,15 @@ const notifyAssignedUser = async (task) => {
     }
     const subject = `Bạn đã được giao task mới: "${task.title}"`;
     const deadlineText = task.deadline
-      ? new Date(task.deadline).toLocaleString('vi-VN')
-      : 'Chưa có hạn chót';
+      ? new Date(task.deadline).toLocaleString("vi-VN")
+      : "Chưa có hạn chót";
 
     const htmlContent = `
-      <h2>Chào ${assignedUser.name || 'bạn'},</h2>
+      <h2>Chào ${assignedUser.name || "bạn"},</h2>
       <p>Bạn vừa được giao một công việc mới trên WebPlanPro:</p>
       <ul>
         <li><strong>Tiêu đề:</strong> ${task.title}</li>
-        <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
+        <li><strong>Mô tả:</strong> ${task.description || "Không có mô tả"}</li>
         <li><strong>Hạn chót:</strong> ${deadlineText}</li>
         <li><strong>Board ID:</strong> ${task.boardId}</li>
         <li><strong>List ID:</strong> ${task.listId}</li>
@@ -35,21 +34,21 @@ const notifyAssignedUser = async (task) => {
     await sendEmail(assignedUser.email, subject, htmlContent);
     console.log(`Đã gửi email thông báo tới ${assignedUser.email}`);
   } catch (error) {
-    console.error('Lỗi khi gửi email thông báo task:', error);
+    console.error("Lỗi khi gửi email thông báo task:", error);
   }
 };
 
 exports.getAllTask = async (req, res) => {
   try {
-    const tasks = await Task.find({ isDeleted: false }).sort('createdAt');
+    const tasks = await Task.find({ isDeleted: false }).sort("createdAt");
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: tasks.length,
       data: tasks,
     });
   } catch (error) {
     res.status(500).json({
-      status: 'error',
+      status: "error",
       message: error.message,
     });
   }
@@ -59,18 +58,18 @@ exports.getTasksByBoard = async (req, res) => {
     const { boardId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
-        status: 'fail',
-        message: 'boardId không hợp lệ',
+        status: "fail",
+        message: "boardId không hợp lệ",
       });
     }
     const tasks = await Task.find({ boardId, isDeleted: false });
     res.status(200).json({
-      status: 'success',
+      status: "success",
       results: tasks.length,
       data: tasks,
     });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(500).json({ status: "error", message: err.message });
   }
 };
 
@@ -80,26 +79,26 @@ exports.getTaskId = async (req, res) => {
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'fail',
-        message: 'ID không hợp lệ',
+        status: "fail",
+        message: "ID không hợp lệ",
       });
     }
 
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
-        status: 'fail',
-        message: 'Không tìm thấy task',
+        status: "fail",
+        message: "Không tìm thấy task",
       });
     }
 
     res.status(200).json({
-      status: 'success',
+      status: "success",
       data: task,
     });
   } catch (error) {
     res.status(500).json({
-      status: 'error',
+      status: "error",
       message: error.message,
     });
   }
@@ -117,7 +116,9 @@ exports.createTask = async (req, res) => {
       eventId,
       assignedTo,
       assignedBy,
-      deadline,
+      startDate,
+      endDate,
+      allDay,
       recurrence,
       reminderSettings,
       checklist,
@@ -127,9 +128,9 @@ exports.createTask = async (req, res) => {
 
     if (!title || !boardId || !listId) {
       return res.status(400).json({
-        status: 'fail',
+        status: "fail",
         message:
-          'title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc',
+          "title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc",
       });
     }
 
@@ -138,7 +139,7 @@ exports.createTask = async (req, res) => {
     for (const [key, value] of Object.entries(requiredIds)) {
       if (!mongoose.Types.ObjectId.isValid(value)) {
         return res.status(400).json({
-          status: 'fail',
+          status: "fail",
           message: `${key} không hợp lệ`,
         });
       }
@@ -146,17 +147,17 @@ exports.createTask = async (req, res) => {
     if (workspaceId && !mongoose.Types.ObjectId.isValid(workspaceId)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'workspaceId không hợp lệ' });
+        .json({ status: "fail", message: "workspaceId không hợp lệ" });
     }
     if (eventId && !mongoose.Types.ObjectId.isValid(eventId)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'eventId không hợp lệ' });
+        .json({ status: "fail", message: "eventId không hợp lệ" });
     }
-
+    const now = new Date();
     const newTask = await Task.create({
       title,
-      description: description || '',
+      description: description || "",
       calendarId,
       workspaceId: workspaceId || null,
       boardId,
@@ -164,7 +165,9 @@ exports.createTask = async (req, res) => {
       eventId: eventId || null,
       assignedTo: assignedTo || null,
       assignedBy: assignedBy || null,
-      deadline: deadline || null,
+      startDate: startDate ? new Date(startDate) : now,
+      endDate: endDate ? new Date(endDate) : now,
+      allDay: typeof allDay === "boolean" ? allDay : false,
       recurrence: recurrence || null,
       reminderSettings: Array.isArray(reminderSettings) ? reminderSettings : [],
       checklist: Array.isArray(checklist) ? checklist : [],
@@ -181,143 +184,65 @@ exports.createTask = async (req, res) => {
     );
 
     res.status(201).json({
-      status: 'success',
+      status: "success",
       data: newTask,
     });
   } catch (error) {
-    console.error('Error while creating task:', error);
+    console.error("Error while creating task:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Có lỗi xảy ra khi tạo task',
+      status: "error",
+      message: "Có lỗi xảy ra khi tạo task",
     });
   }
 };
 
+// controllers/taskController.js
+
 exports.updateTask = async (req, res) => {
   try {
     const { id } = req.params;
+    // Chỉ lấy ra những field có thể cập nhật
     const {
       title,
       description,
-      calendarId,
-      workspaceId,
-      boardId,
-      listId,
-      eventId,
-      assignedTo,
-      assignedBy,
-      deadline,
+      startDate,
+      endDate,
+      allDay,
       recurrence,
       reminderSettings,
       checklist,
       labels,
       documents,
-      progress,
+      progress
     } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'ID không hợp lệ',
-      });
+      return res.status(400).json({ status:'fail', message:'ID không hợp lệ' });
     }
-
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Không tìm thấy task',
-      });
+      return res.status(404).json({ status:'fail', message:'Không tìm thấy task' });
     }
 
-    const oldAssignedTo = task.assignedTo.toString();
-
-    const idFields = {
-      calendarId,
-      workspaceId,
-      boardId,
-      listId,
-      eventId,
-      assignedTo,
-      assignedBy,
-    };
-    for (const [key, value] of Object.entries(idFields)) {
-      if (value !== undefined && value !== null) {
-        if (!mongoose.Types.ObjectId.isValid(value)) {
-          return res.status(400).json({
-            status: 'fail',
-            message: `${key} không hợp lệ`,
-          });
-        }
-      }
-    }
-
-    if (typeof title === 'string' && title.trim() !== '') {
-      task.title = title.trim();
-    }
-    if (typeof description === 'string') {
-      task.description = description;
-    }
-    if (calendarId) {
-      task.calendarId = calendarId;
-    }
-    if (workspaceId !== undefined) {
-      task.workspaceId = workspaceId;
-    }
-    if (boardId) {
-      task.boardId = boardId;
-    }
-    if (listId) {
-      task.listId = listId;
-    }
-    if (eventId !== undefined) {
-      task.eventId = eventId;
-    }
-    if (assignedTo) {
-      task.assignedTo = assignedTo;
-    }
-    if (assignedBy) {
-      task.assignedBy = assignedBy;
-    }
-    if (deadline !== undefined) {
-      task.deadline = deadline;
-    }
-    if (recurrence !== undefined) {
-      task.recurrence = recurrence;
-    }
-    if (Array.isArray(reminderSettings)) {
-      task.reminderSettings = reminderSettings;
-    }
-    if (Array.isArray(checklist)) {
-      task.checklist = checklist;
-    }
-    if (Array.isArray(labels)) {
-      task.labels = labels;
-    }
-    if (Array.isArray(documents)) {
-      task.documents = documents;
-    }
-    if (typeof progress === 'number') {
-      task.progress = progress;
-    }
+    // Chỉ gán khi payload có giá trị (không undefined)
+    if (typeof title === 'string')           task.title       = title.trim();
+    if (typeof description === 'string')     task.description = description;
+    if (startDate !== undefined)             task.startDate   = new Date(startDate);
+    if (endDate   !== undefined)             task.endDate     = new Date(endDate);
+    if (allDay    !== undefined)             task.allDay      = allDay;
+    if (recurrence !== undefined)            task.recurrence  = recurrence;
+    if (Array.isArray(reminderSettings))     task.reminderSettings = reminderSettings;
+    if (Array.isArray(checklist))            task.checklist       = checklist;
+    if (Array.isArray(labels))               task.labels          = labels;
+    if (Array.isArray(documents))            task.documents       = documents;
+    if (typeof progress === 'number')        task.progress        = progress;
 
     const updatedTask = await task.save();
 
-    const newAssignedTo = updatedTask.assignedTo.toString();
-    if (assignedTo && newAssignedTo !== oldAssignedTo) {
-      await notifyAssignedUser(updatedTask);
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: updatedTask,
-    });
+    res.status(200).json({ status:'success', data:updatedTask });
   } catch (error) {
     console.error('Error while updating task:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Có lỗi xảy ra khi cập nhật task',
-    });
+    res.status(500).json({ status:'error', message:'Có lỗi xảy ra khi cập nhật task' });
   }
 };
 
@@ -326,8 +251,8 @@ exports.deleteTask = async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        status: 'fail',
-        message: 'ID không hợp lệ',
+        status: "fail",
+        message: "ID không hợp lệ",
       });
     }
 
@@ -335,8 +260,8 @@ exports.deleteTask = async (req, res) => {
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
-        status: 'fail',
-        message: 'Không tìm thấy task',
+        status: "fail",
+        message: "Không tìm thấy task",
       });
     }
 
@@ -355,14 +280,14 @@ exports.deleteTask = async (req, res) => {
     );
 
     res.status(200).json({
-      status: 'success',
-      message: 'Xóa task thành công và cập nhật List.tasks',
+      status: "success",
+      message: "Xóa task thành công và cập nhật List.tasks",
     });
   } catch (error) {
-    console.error('Error while deleting task:', error);
+    console.error("Error while deleting task:", error);
     res.status(500).json({
-      status: 'error',
-      message: 'Có lỗi xảy ra khi xóa task',
+      status: "error",
+      message: "Có lỗi xảy ra khi xóa task",
     });
   }
 };

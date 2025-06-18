@@ -97,7 +97,6 @@ initializeAdminId()
     console.error('Failed to initialize admin ID:', err);
     process.exit(1);
   });
-
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
@@ -110,7 +109,6 @@ app.use('/workspace/:workspaceId/board', boardRouter);
 app.use('/files', fileRouter);
 app.use('/notification', notificationRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
-
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
