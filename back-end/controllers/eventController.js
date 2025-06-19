@@ -22,33 +22,20 @@ const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
 const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
 // Helper function để xử lý địa chỉ và geocoding
-const processAddressData = async (locationName, addressInput, type) => {
+const processAddressData = async (addressInput, type) => {
   if (type === 'online') {
     return null; // Sự kiện online không cần address
   }
 
-  if (!locationName && !addressInput) {
+  if (!addressInput || addressInput.trim() === '') {
     return null; // Không có thông tin địa chỉ
   }
 
-  // Kết hợp locationName và address thành full address string
-  // Tránh duplicate nếu addressInput đã chứa locationName
-  let fullAddress = '';
-  if (locationName && addressInput) {
-    // Kiểm tra xem addressInput đã chứa locationName chưa
-    if (addressInput.toLowerCase().includes(locationName.toLowerCase())) {
-      fullAddress = addressInput; // Chỉ dùng addressInput nếu đã chứa locationName
-    } else {
-      fullAddress = [locationName, addressInput].join(', '); // Gộp bình thường
-    }
-  } else {
-    fullAddress = [locationName, addressInput].filter(Boolean).join(', ');
-  }
-
-  console.log('Processing address:', fullAddress);
+  const trimmedAddress = addressInput.trim();
+  console.log('Processing address:', trimmedAddress);
 
   // Thử geocoding
-  const geocodedData = await geocodeAddress(fullAddress);
+  const geocodedData = await geocodeAddress(trimmedAddress);
 
   if (geocodedData) {
     // Nếu geocoding thành công, trả về object đầy đủ
@@ -59,7 +46,7 @@ const processAddressData = async (locationName, addressInput, type) => {
     return {
       type: 'Point',
       coordinates: null,
-      formattedAddress: fullAddress,
+      formattedAddress: trimmedAddress,
       placeId: null,
       mapZoomLevel: 15,
     };
@@ -113,9 +100,7 @@ const createGoogleCalendarEvent = async (userId, eventData) => {
       },
       location:
         eventData.type === 'offline'
-          ? `${eventData.locationName || ''} ${
-              eventData.address?.formattedAddress || ''
-            }`.trim()
+          ? eventData.address?.formattedAddress || ''
           : undefined,
       attendees: participantEmails,
     };
@@ -199,9 +184,7 @@ const updateGoogleCalendarEvent = async (userId, googleEventId, eventData) => {
       },
       location:
         eventData.type === 'offline'
-          ? `${eventData.locationName || ''} ${
-              eventData.address?.formattedAddress || ''
-            }`.trim()
+          ? eventData.address?.formattedAddress || ''
           : undefined,
       attendees: participantEmails,
     };
@@ -244,7 +227,6 @@ exports.createEventForCalendar = async (req, res) => {
     const {
       title,
       description,
-      locationName,
       address,
       type,
       startDate,
@@ -422,15 +404,33 @@ exports.createEventForCalendar = async (req, res) => {
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
         status: 400,
       });
-    } else if (type === 'offline' && !locationName && !address) {
+    } else if (type === 'offline' && !address) {
       return res.status(400).json({
-        message: 'Thiếu thông tin địa điểm cho sự kiện offline',
+        message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
         status: 400,
       });
     }
 
+    const now = new Date();
     const start = new Date(startDate);
     const end = new Date(endDate);
+
+    // Kiểm tra startDate không được trong quá khứ
+    if (start < now) {
+      return res.status(400).json({
+        message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
+    // Kiểm tra endDate không được trong quá khứ
+    if (end < now) {
+      return res.status(400).json({
+        message: 'Thời gian kết thúc không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
     if (!allDay && start >= end) {
       return res.status(400).json({
         message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
@@ -628,11 +628,7 @@ exports.createEventForCalendar = async (req, res) => {
     }
 
     // Xử lý địa chỉ và geocoding
-    const processedAddress = await processAddressData(
-      locationName,
-      address,
-      type
-    );
+    const processedAddress = await processAddressData(address, type);
 
     if (
       status &&
@@ -660,7 +656,6 @@ exports.createEventForCalendar = async (req, res) => {
       title,
       description,
       calendarId,
-      locationName: type === 'offline' ? locationName : null,
       address: processedAddress,
       type,
       startDate,
@@ -715,7 +710,6 @@ exports.createEventForCalendar = async (req, res) => {
         endDate: savedEvent.endDate,
         allDay: savedEvent.allDay,
         type: savedEvent.type,
-        locationName: savedEvent.locationName,
         address: savedEvent.address,
         onlineUrl: savedEvent.onlineUrl,
         timeZone: savedEvent.timeZone,
@@ -853,7 +847,6 @@ exports.getEventById = async (req, res) => {
       rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
       extendedProps: {
         description: event.description,
-        locationName: event.locationName,
         address: event.address,
         type: event.type,
         onlineUrl: event.onlineUrl,
@@ -1096,7 +1089,6 @@ exports.updateEvent = async (req, res) => {
     const {
       title,
       description,
-      locationName,
       address,
       type,
       startDate,
@@ -1158,7 +1150,6 @@ exports.updateEvent = async (req, res) => {
       //   event.meetingCode = meetingCode;
       // }
       event.address = null; // Đặt address là null nếu là sự kiện online
-      event.locationName = null; // Đặt locationName là null nếu là sự kiện online
 
       //Nếu sự kiện online nhưng chưa có onlineUrl thì cần tạo một Meet link mới
       if (!event.onlineUrl) {
@@ -1186,10 +1177,10 @@ exports.updateEvent = async (req, res) => {
         }
       }
     } else if (type === 'offline') {
-      //Nếu sự kiện offline thì có thể cập nhật address, locationName
-      if (!address && !locationName) {
+      //Nếu sự kiện offline thì có thể cập nhật address
+      if (!address) {
         return res.status(400).json({
-          message: 'Thiếu thông tin địa điểm cho sự kiện offline',
+          message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
           status: 400,
         });
       }
@@ -1198,24 +1189,15 @@ exports.updateEvent = async (req, res) => {
 
       // Chỉ xử lý address mới nếu thực sự có thay đổi
       // So sánh với dữ liệu hiện tại để tránh duplicate
-      const currentLocationName = event.locationName || '';
       const currentFormattedAddress = event.address?.formattedAddress || '';
-
-      const hasLocationNameChanged = locationName !== currentLocationName;
       const hasAddressChanged = address !== currentFormattedAddress;
 
-      if (hasLocationNameChanged || hasAddressChanged) {
+      if (hasAddressChanged) {
         // Chỉ khi có thay đổi thực sự mới gọi processAddressData
-        const processedAddress = await processAddressData(
-          locationName,
-          address,
-          'offline'
-        );
+        const processedAddress = await processAddressData(address, 'offline');
         event.address = processedAddress;
       }
 
-      // Cập nhật locationName
-      event.locationName = locationName || event.locationName;
       event.onlineUrl = null; // Đặt onlineUrl là null nếu là sự kiện offline
       event.meetingCode = null; // Đặt meetingCode là null nếu là sự kiện offline
     } else {
@@ -1226,12 +1208,31 @@ exports.updateEvent = async (req, res) => {
     }
 
     // Chỉ cập nhật startDate và endDate nếu chúng được gửi trong request
+    const now = new Date();
+
     if (startDate !== undefined) {
       const start = new Date(startDate);
+
+      // Kiểm tra startDate không được trong quá khứ
+      if (start < now) {
+        return res.status(400).json({
+          message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+          status: 400,
+        });
+      }
 
       // Kiểm tra thời gian bắt đầu và kết thúc nếu không phải sự kiện cả ngày
       if (allDay === false && endDate !== undefined) {
         const end = new Date(endDate);
+
+        // Kiểm tra endDate không được trong quá khứ
+        if (end < now) {
+          return res.status(400).json({
+            message: 'Thời gian kết thúc không được chọn trong quá khứ',
+            status: 400,
+          });
+        }
+
         if (start >= end) {
           return res.status(400).json({
             message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
@@ -1254,6 +1255,14 @@ exports.updateEvent = async (req, res) => {
 
     if (endDate !== undefined && startDate === undefined) {
       const end = new Date(endDate);
+
+      // Kiểm tra endDate không được trong quá khứ
+      if (end < now) {
+        return res.status(400).json({
+          message: 'Thời gian kết thúc không được chọn trong quá khứ',
+          status: 400,
+        });
+      }
 
       // Nếu chỉ có endDate mà không có startDate, kiểm tra với startDate hiện tại
       if (allDay === false && event.startDate >= end) {
@@ -2514,7 +2523,158 @@ const determineEventStatus = (startDate, endDate, currentStatus) => {
   return currentStatus;
 };
 
-// Cập nhật trạng thái sự kiện dựa trên thời gian
+// Cập nhật trạng thái tất cả sự kiện liên quan đến user dựa trên thời gian
+exports.updateAllUserEventsStatusByTime = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+
+    // Lấy tất cả sự kiện mà user có liên quan (organizer hoặc participant)
+    // Chỉ lấy sự kiện chưa bị xóa và có status không phải 'cancelled'
+    const userEvents = await Event.find({
+      $and: [
+        { isDeleted: false },
+        { status: { $ne: 'cancelled' } }, // Không cập nhật sự kiện đã hủy
+        {
+          $or: [
+            { organizer: userId }, // Sự kiện do user tạo
+            {
+              participants: {
+                $elemMatch: {
+                  userId: userId,
+                  status: { $in: ['accepted', 'pending'] }, // Chỉ cập nhật sự kiện user đã tham gia hoặc đang chờ
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }).select('title startDate endDate status allDay organizer participants');
+
+    if (userEvents.length === 0) {
+      return res.status(200).json({
+        message: 'Không có sự kiện nào cần cập nhật trạng thái',
+        status: 200,
+        data: {
+          totalEvents: 0,
+          updatedEvents: 0,
+          events: [],
+        },
+      });
+    }
+
+    // Phân loại và cập nhật sự kiện theo batch
+    const eventsToUpdate = [];
+    const eventUpdates = [];
+
+    for (const event of userEvents) {
+      const newStatus = determineEventStatus(
+        event.startDate,
+        event.endDate,
+        event.status
+      );
+
+      if (newStatus !== event.status) {
+        eventsToUpdate.push({
+          eventId: event._id,
+          oldStatus: event.status,
+          newStatus: newStatus,
+          title: event.title,
+        });
+
+        eventUpdates.push({
+          updateOne: {
+            filter: { _id: event._id },
+            update: {
+              $set: {
+                status: newStatus,
+                updatedAt: now,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    let updatedCount = 0;
+    const historyRecords = [];
+
+    // Thực hiện batch update nếu có sự kiện cần cập nhật
+    if (eventUpdates.length > 0) {
+      try {
+        const bulkResult = await Event.bulkWrite(eventUpdates, {
+          ordered: false,
+        });
+        updatedCount = bulkResult.modifiedCount;
+
+        // Tạo event history records cho những sự kiện đã được cập nhật
+        for (const eventUpdate of eventsToUpdate) {
+          const event = userEvents.find(
+            (e) => e._id.toString() === eventUpdate.eventId.toString()
+          );
+
+          historyRecords.push({
+            eventId: eventUpdate.eventId,
+            action: 'auto_update_status_bulk',
+            participants: event.participants.map((p) => ({
+              userId: p.userId,
+              status: p.status,
+            })),
+          });
+        }
+
+        // Batch insert event history
+        if (historyRecords.length > 0) {
+          await EventHistory.insertMany(historyRecords);
+        }
+
+        console.log(
+          `✅ Bulk updated ${updatedCount} events status for user ${userId}`
+        );
+
+        // Gửi thông báo real-time cho user qua socket
+        try {
+          const { emitToUser } = require('../utils/socket');
+          emitToUser(userId.toString(), 'events_status_updated', {
+            updatedCount,
+            events: eventsToUpdate,
+          });
+        } catch (socketError) {
+          console.warn('Failed to emit socket event:', socketError.message);
+        }
+      } catch (bulkError) {
+        console.error('❌ Bulk update failed:', bulkError);
+        return res.status(500).json({
+          message: 'Lỗi khi cập nhật hàng loạt sự kiện',
+          status: 500,
+          error: bulkError.message,
+        });
+      }
+    }
+
+    res.status(200).json({
+      message:
+        updatedCount > 0
+          ? `Đã cập nhật trạng thái cho ${updatedCount} sự kiện`
+          : 'Tất cả sự kiện đã có trạng thái chính xác',
+      status: 200,
+      data: {
+        totalEvents: userEvents.length,
+        updatedEvents: updatedCount,
+        events: eventsToUpdate,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi cập nhật trạng thái sự kiện hàng loạt:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+// Cập nhật trạng thái sự kiện dựa trên thời gian (legacy - giữ lại để backward compatibility)
 exports.updateEventStatusByTime = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2555,10 +2715,14 @@ exports.updateEventStatusByTime = async (req, res) => {
       event.status
     );
 
+    let updated = false;
     // Chỉ cập nhật nếu trạng thái thực sự thay đổi
     if (newStatus !== event.status) {
+      const oldStatus = event.status;
       event.status = newStatus;
+      event.updatedAt = new Date();
       await event.save();
+      updated = true;
 
       // Ghi lịch sử thay đổi trạng thái
       await EventHistory.create({
@@ -2571,8 +2735,21 @@ exports.updateEventStatusByTime = async (req, res) => {
       });
 
       console.log(
-        `Auto-updated event ${event._id} status from ${event.status} to ${newStatus}`
+        `✅ Auto-updated event ${event._id} status from ${oldStatus} to ${newStatus}`
       );
+
+      // Emit socket event for real-time update
+      try {
+        const { emitToUser } = require('../utils/socket');
+        emitToUser(userId.toString(), 'event_status_updated', {
+          eventId: event._id,
+          oldStatus,
+          newStatus,
+          title: event.title,
+        });
+      } catch (socketError) {
+        console.warn('Failed to emit socket event:', socketError.message);
+      }
     }
 
     res.status(200).json({
@@ -2582,11 +2759,11 @@ exports.updateEventStatusByTime = async (req, res) => {
         eventId: event._id,
         oldStatus: event.status,
         newStatus: newStatus,
-        updated: newStatus !== event.status,
+        updated: updated,
       },
     });
   } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái sự kiện:', error);
+    console.error('❌ Lỗi khi cập nhật trạng thái sự kiện:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,

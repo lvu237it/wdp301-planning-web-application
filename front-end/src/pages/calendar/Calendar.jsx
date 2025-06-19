@@ -24,7 +24,6 @@ import {
   FaCalendarCheck,
   FaPaperPlane,
   FaComments,
-  FaEllipsisV,
   FaChevronUp,
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,8 +55,8 @@ const fromLocalDateTime = (localDateTime) => {
 };
 
 // Helper function để tạo Google Maps URL
-const generateMapsUrl = (address, locationName) => {
-  if (!address && !locationName) return null;
+const generateMapsUrl = (address) => {
+  if (!address) return null;
 
   // Nếu address là object với coordinates (từ geocoding)
   if (
@@ -77,12 +76,8 @@ const generateMapsUrl = (address, locationName) => {
   }
 
   // Fallback: search bằng địa chỉ text
-  const searchQuery = [
-    locationName,
-    typeof address === 'string' ? address : address?.formattedAddress,
-  ]
-    .filter(Boolean)
-    .join(', ');
+  const searchQuery =
+    typeof address === 'string' ? address : address?.formattedAddress;
 
   if (searchQuery) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -94,7 +89,7 @@ const generateMapsUrl = (address, locationName) => {
 };
 
 // Helper function để safely extract address data
-const getAddressDisplay = (address, locationName) => {
+const getAddressDisplay = (address) => {
   if (!address) return '';
 
   if (typeof address === 'string') {
@@ -106,6 +101,27 @@ const getAddressDisplay = (address, locationName) => {
   }
 
   return '';
+};
+
+// Helper function để lấy thời gian hiện tại theo múi giờ Việt Nam
+const getCurrentVietnamTime = () => {
+  const now = new Date();
+  // Múi giờ Việt Nam là UTC+7
+  const vietnamOffset = 7 * 60; // 7 hours in minutes
+  const currentOffset = now.getTimezoneOffset(); // Current timezone offset in minutes from UTC
+  const vietnamTime = new Date(
+    now.getTime() + (vietnamOffset + currentOffset) * 60 * 1000
+  );
+  return vietnamTime;
+};
+
+// Helper function để format thời gian Việt Nam cho datetime-local input
+const formatVietnamTimeForInput = (forDateOnly = false) => {
+  const vietnamTime = getCurrentVietnamTime();
+  if (forDateOnly) {
+    return vietnamTime.toISOString().split('T')[0];
+  }
+  return vietnamTime.toISOString().slice(0, 16);
 };
 
 const Calendar = () => {
@@ -120,6 +136,7 @@ const Calendar = () => {
     userDataLocal,
     calendarUser,
     getCalendarUser,
+    updateAllUserEventsStatusByTime,
     updateEventStatusByTime,
     cancelEventParticipation,
     respondToEventInvitation,
@@ -150,7 +167,6 @@ const Calendar = () => {
     startDate: toLocalDateTime(new Date()), // Use local datetime
     endDate: toLocalDateTime(new Date()),
     type: 'offline',
-    locationName: '',
     address: '',
     status: 'scheduled',
     participantEmails: '', // Email string separated by commas
@@ -179,7 +195,7 @@ const Calendar = () => {
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
-  const [showMessageActions, setShowMessageActions] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Infinite scroll states
@@ -377,11 +393,62 @@ const Calendar = () => {
       setShowConflictModal(true);
     };
 
+    // Listen for real-time event status updates from scheduled jobs
+    const handleEventsStatusUpdated = (data) => {
+      console.log(
+        `📅 Received event status updates: ${data.updatedCount} events updated`
+      );
+      // Refresh calendar if there are updates
+      if (data.updatedCount > 0 && dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+      }
+    };
+
+    const handleEventStatusUpdated = (data) => {
+      console.log(
+        `📅 Event ${data.eventId} status updated: ${data.oldStatus} → ${data.newStatus}`
+      );
+      // Refresh calendar
+      if (dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+      }
+    };
+
+    const handleEventsStatusUpdatedScheduled = (data) => {
+      console.log(`📅 Scheduled update: ${data.updatedCount} events updated`);
+      // Refresh calendar if there are updates
+      if (data.updatedCount > 0 && dateRange.start && dateRange.end) {
+        debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+      }
+    };
+
     window.addEventListener('eventUpdated', handleEventUpdated);
     window.addEventListener('eventConflict', handleEventConflict);
+
+    // Add socket event listeners
+    const socket = window.socket;
+    if (socket) {
+      socket.on('events_status_updated', handleEventsStatusUpdated);
+      socket.on('event_status_updated', handleEventStatusUpdated);
+      socket.on(
+        'events_status_updated_scheduled',
+        handleEventsStatusUpdatedScheduled
+      );
+    }
+
     return () => {
       window.removeEventListener('eventUpdated', handleEventUpdated);
       window.removeEventListener('eventConflict', handleEventConflict);
+
+      // Remove socket event listeners
+      if (socket) {
+        socket.off('events_status_updated', handleEventsStatusUpdated);
+        socket.off('event_status_updated', handleEventStatusUpdated);
+        socket.off(
+          'events_status_updated_scheduled',
+          handleEventsStatusUpdatedScheduled
+        );
+      }
     };
   }, [debouncedFetchEvents, dateRange, searchTerm]);
 
@@ -493,7 +560,7 @@ const Calendar = () => {
       setNewMessage('');
       setEditingMessageId(null);
       setEditingContent('');
-      setShowMessageActions(null);
+      setContextMenu(null);
       // Reset infinite scroll states
       setIsLoadingMoreMessages(false);
       setHasMoreMessages(true);
@@ -509,20 +576,28 @@ const Calendar = () => {
   // Close message actions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (!event.target.closest('.message-actions')) {
-        setShowMessageActions(null);
+      // Check if click is outside context menu
+      const isClickInsideMenu = event.target.closest('.messenger-context-menu');
+
+      if (!isClickInsideMenu && contextMenu) {
+        setContextMenu(null);
       }
     };
 
-    if (showMessageActions) {
-      document.addEventListener('mousedown', handleClickOutside);
+    if (contextMenu) {
+      // Add a small delay to prevent immediate closing when opening the menu
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('click', handleClickOutside, true);
+      }, 10);
+
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        clearTimeout(timeoutId);
+        document.removeEventListener('click', handleClickOutside, true);
       };
     }
-  }, [showMessageActions]);
+  }, [contextMenu]);
 
-  // Khởi tạo lấy sự kiện
+  // Khởi tạo lấy sự kiện và cập nhật trạng thái
   useEffect(() => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) {
@@ -537,7 +612,28 @@ const Calendar = () => {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       setDateRange({ start, end });
-      debouncedFetchEvents(start, end, searchTerm);
+
+      // Cập nhật trạng thái tất cả sự kiện trước khi fetch
+      const initializeCalendar = async () => {
+        try {
+          const statusUpdate = await updateAllUserEventsStatusByTime();
+          if (statusUpdate && statusUpdate.updatedEvents > 0) {
+            console.log(
+              `✅ Updated ${statusUpdate.updatedEvents} events status on calendar load`
+            );
+          }
+        } catch (error) {
+          console.warn(
+            'Failed to update events status on calendar load:',
+            error
+          );
+        } finally {
+          // Luôn fetch events dù cập nhật status có thành công hay không
+          debouncedFetchEvents(start, end, searchTerm);
+        }
+      };
+
+      initializeCalendar();
     }
 
     return () => debouncedFetchEvents.cancel();
@@ -546,9 +642,38 @@ const Calendar = () => {
     userDataLocal,
     calendarUser,
     getCalendarUser,
-    navigate,
     debouncedFetchEvents,
-    searchTerm,
+    updateAllUserEventsStatusByTime,
+  ]);
+
+  // Periodic status update - cập nhật trạng thái định kỳ mỗi 5 phút
+  useEffect(() => {
+    if (!accessToken || !calendarUser?._id) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const statusUpdate = await updateAllUserEventsStatusByTime();
+        if (statusUpdate && statusUpdate.updatedEvents > 0) {
+          console.log(
+            `✅ Periodic update: Updated ${statusUpdate.updatedEvents} events status`
+          );
+          // Refresh events nếu có cập nhật
+          if (dateRange.start && dateRange.end) {
+            debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to periodic update events status:', error);
+      }
+    }, 5 * 60 * 1000); // 5 phút
+
+    return () => clearInterval(intervalId);
+  }, [
+    accessToken,
+    calendarUser,
+    dateRange,
+    debouncedFetchEvents,
+    updateAllUserEventsStatusByTime,
   ]);
 
   // Xử lý thay đổi khoảng ngày
@@ -608,7 +733,6 @@ const Calendar = () => {
         allDay: eventInfo.event.allDay,
         type: eventInfo.event.extendedProps.type,
         description: eventInfo.event.extendedProps.description,
-        locationName: eventInfo.event.extendedProps.locationName,
         address: eventInfo.event.extendedProps.address,
         onlineUrl: eventInfo.event.extendedProps.onlineUrl,
         meetingCode: eventInfo.event.extendedProps.meetingCode,
@@ -726,7 +850,6 @@ const Calendar = () => {
       startDate: localDateStr,
       endDate: localDateStr,
       type: 'offline',
-      locationName: '',
       address: '',
       status: 'scheduled',
       participantEmails: '',
@@ -747,7 +870,6 @@ const Calendar = () => {
         ? toLocalDateTime(selectedEvent.end)
         : toLocalDateTime(selectedEvent.start),
       type: selectedEvent.type || 'offline',
-      locationName: selectedEvent.locationName || '',
       address:
         typeof selectedEvent.address === 'string'
           ? selectedEvent.address
@@ -770,11 +892,24 @@ const Calendar = () => {
         return;
       }
 
+      const vietnamNow = getCurrentVietnamTime();
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+
+      // Kiểm tra startDate không được trong quá khứ (theo múi giờ Việt Nam)
+      if (startDate < vietnamNow) {
+        toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+        return;
+      }
+
+      // Kiểm tra endDate không được trong quá khứ (theo múi giờ Việt Nam)
+      if (endDate < vietnamNow) {
+        toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+        return;
+      }
+
       // Chỉ validate date khi không phải sự kiện cả ngày
-      if (
-        !formData.allDay &&
-        new Date(formData.startDate) > new Date(formData.endDate)
-      ) {
+      if (!formData.allDay && startDate > endDate) {
         toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
         return;
       }
@@ -791,7 +926,6 @@ const Calendar = () => {
           endDate: fromLocalDateTime(formData.endDate),
           type: formData.type,
           organizer: userId,
-          locationName: formData.locationName || undefined,
           address: formData.address || undefined,
           status: 'scheduled',
           participantEmails: formData.participantEmails
@@ -825,7 +959,6 @@ const Calendar = () => {
             startDate: toLocalDateTime(new Date()),
             endDate: toLocalDateTime(new Date()),
             type: 'offline',
-            locationName: '',
             address: '',
             status: 'scheduled',
             participantEmails: '',
@@ -879,11 +1012,24 @@ const Calendar = () => {
         return;
       }
 
+      const vietnamNow = getCurrentVietnamTime();
+      const startDate = new Date(editFormData.startDate);
+      const endDate = new Date(editFormData.endDate);
+
+      // Kiểm tra startDate không được trong quá khứ (theo múi giờ Việt Nam)
+      if (startDate < vietnamNow) {
+        toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+        return;
+      }
+
+      // Kiểm tra endDate không được trong quá khứ (theo múi giờ Việt Nam)
+      if (endDate < vietnamNow) {
+        toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+        return;
+      }
+
       // Chỉ validate date khi không phải sự kiện cả ngày
-      if (
-        !editFormData.allDay &&
-        new Date(editFormData.startDate) > new Date(editFormData.endDate)
-      ) {
+      if (!editFormData.allDay && startDate > endDate) {
         toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
         return;
       }
@@ -895,7 +1041,6 @@ const Calendar = () => {
           title: editFormData.title,
           description: editFormData.description || undefined,
           type: editFormData.type,
-          locationName: editFormData.locationName || undefined,
           address: editFormData.address || undefined,
           status: 'scheduled',
           participantEmails: editFormData.participantEmails
@@ -1119,10 +1264,14 @@ const Calendar = () => {
         );
         setEditingMessageId(null);
         setEditingContent('');
-        setShowMessageActions(null);
+        setContextMenu(null);
       }
     } catch (error) {
       console.error('Error editing message:', error);
+      // Close modal on error as well
+      setEditingMessageId(null);
+      setEditingContent('');
+      setContextMenu(null);
     }
   };
 
@@ -1132,10 +1281,18 @@ const Calendar = () => {
       const result = await deleteEventMessage(messageId);
       if (result.success) {
         setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
-        setShowMessageActions(null);
+        setContextMenu(null);
+
+        // Update pagination count
+        setMessagePagination((prev) => ({
+          ...prev,
+          total: Math.max((prev.total || 0) - 1, 0),
+        }));
       }
     } catch (error) {
       console.error('Error deleting message:', error);
+      // Still close the actions menu on error
+      setContextMenu(null);
     }
   };
 
@@ -1143,7 +1300,7 @@ const Calendar = () => {
     console.log('start editing message', message);
     setEditingMessageId(message._id);
     setEditingContent(message.content);
-    setShowMessageActions(null);
+    setContextMenu(null);
   };
 
   const cancelEditing = () => {
@@ -1323,13 +1480,8 @@ const Calendar = () => {
   };
 
   // Component nút xem vị trí trên bản đồ
-  const MapLocationButton = ({
-    address,
-    locationName,
-    className = '',
-    size = 'sm',
-  }) => {
-    const mapsUrl = generateMapsUrl(address, locationName);
+  const MapLocationButton = ({ address, className = '', size = 'sm' }) => {
+    const mapsUrl = generateMapsUrl(address);
 
     if (!mapsUrl) return null;
 
@@ -1444,6 +1596,21 @@ const Calendar = () => {
     // Create a synthetic event to pass to handleCreateSubmit
     const syntheticEvent = { preventDefault: () => {} };
 
+    // Validate dates before forcing create
+    const vietnamNow = getCurrentVietnamTime();
+    const startDate = new Date(createConflictData.formData.startDate);
+    const endDate = new Date(createConflictData.formData.endDate);
+
+    if (startDate < vietnamNow) {
+      toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+      return;
+    }
+
+    if (endDate < vietnamNow) {
+      toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+      return;
+    }
+
     try {
       setIsCreatingEvent(true);
       let userId = userDataLocal?.id || userDataLocal?._id;
@@ -1456,7 +1623,6 @@ const Calendar = () => {
         endDate: fromLocalDateTime(createConflictData.formData.endDate),
         type: createConflictData.formData.type,
         organizer: userId,
-        locationName: createConflictData.formData.locationName || undefined,
         address: createConflictData.formData.address || undefined,
         status: 'scheduled',
         participantEmails: createConflictData.formData.participantEmails
@@ -1490,7 +1656,6 @@ const Calendar = () => {
           startDate: toLocalDateTime(new Date()),
           endDate: toLocalDateTime(new Date()),
           type: 'offline',
-          locationName: '',
           address: '',
           status: 'scheduled',
           participantEmails: '',
@@ -1570,6 +1735,30 @@ const Calendar = () => {
         </Modal.Footer>
       </Modal>
     );
+  };
+
+  const handleMessageClick = (message, event) => {
+    const isOwnMessage = message.userId._id === currentUserId;
+    if (!isOwnMessage || editingMessageId) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    startEditing(message);
+  };
+
+  const handleMessageRightClick = (message, event) => {
+    const isOwnMessage = message.userId._id === currentUserId;
+    if (!isOwnMessage || editingMessageId) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setContextMenu({
+      messageId: message._id,
+      x: event.clientX,
+      y: event.clientY,
+      message: message,
+    });
   };
 
   return (
@@ -1737,24 +1926,22 @@ const Calendar = () => {
                                   {formatEventDate(new Date(event.start))}
                                 </span>
                               </div>
-                              {event.extendedProps.locationName && (
-                                <div className='event-meta-item'>
-                                  <span>📍</span>
-                                  <span>
-                                    {event.extendedProps.locationName}
-                                  </span>
-                                  {event.extendedProps.type === 'offline' && (
+                              {event.extendedProps.type === 'offline' &&
+                                event.extendedProps.address && (
+                                  <div className='event-meta-item'>
+                                    <span>📍</span>
+                                    <span>
+                                      {getAddressDisplay(
+                                        event.extendedProps.address
+                                      )}
+                                    </span>
                                     <MapLocationButton
                                       address={event.extendedProps.address}
-                                      locationName={
-                                        event.extendedProps.locationName
-                                      }
                                       size='xs'
                                       className='ms-1'
                                     />
-                                  )}
-                                </div>
-                              )}
+                                  </div>
+                                )}
                               {event.extendedProps.type === 'online' &&
                                 event.extendedProps?.onlineUrl && (
                                   <div className='event-meta-item'>
@@ -1880,28 +2067,20 @@ const Calendar = () => {
                           </>
                         )}
                       </p>
-                      {selectedEvent.locationName && (
-                        <p>
-                          <span className='me-2'>📍</span>
-                          Địa điểm: {selectedEvent.locationName}
-                        </p>
-                      )}
-                      {selectedEvent.address && (
-                        <div>
-                          <p className='mb-1'>
-                            <span className='me-2'>🏠</span>
-                            Địa chỉ chi tiết:{' '}
-                            {getAddressDisplay(selectedEvent.address)}
-                          </p>
-                          {selectedEvent.type === 'offline' && (
+                      {selectedEvent.type === 'offline' &&
+                        selectedEvent.address && (
+                          <div>
+                            <p className='mb-1'>
+                              <span className='me-2'>📍</span>
+                              Địa chỉ:{' '}
+                              {getAddressDisplay(selectedEvent.address)}
+                            </p>
                             <MapLocationButton
                               address={selectedEvent.address}
-                              locationName={selectedEvent.locationName}
                               className='mb-2'
                             />
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
                       {selectedEvent.type === 'online' &&
                         selectedEvent?.onlineUrl && (
                           <p>
@@ -2108,6 +2287,12 @@ const Calendar = () => {
                                             ? 'messenger-own'
                                             : 'messenger-other'
                                         }`}
+                                        onClick={(e) =>
+                                          handleMessageClick(message, e)
+                                        }
+                                        onContextMenu={(e) =>
+                                          handleMessageRightClick(message, e)
+                                        }
                                       >
                                         {/* Avatar luôn ở đầu */}
                                         <img
@@ -2202,52 +2387,6 @@ const Calendar = () => {
                                                     </span>
                                                   )}
                                                 </div>
-
-                                                {/* Actions menu chỉ hiện khi hover và chỉ cho tin nhắn của mình */}
-                                                {canEditOrDelete && (
-                                                  <div className='messenger-actions'>
-                                                    <button
-                                                      className='messenger-actions-btn'
-                                                      onClick={() =>
-                                                        setShowMessageActions(
-                                                          showMessageActions ===
-                                                            message._id
-                                                            ? null
-                                                            : message._id
-                                                        )
-                                                      }
-                                                    >
-                                                      <FaEllipsisV />
-                                                    </button>
-                                                    {showMessageActions ===
-                                                      message._id && (
-                                                      <div className='messenger-actions-menu'>
-                                                        <button
-                                                          onClick={() =>
-                                                            startEditing(
-                                                              message
-                                                            )
-                                                          }
-                                                          className='messenger-action-item'
-                                                        >
-                                                          <FaEdit />
-                                                          Chỉnh sửa
-                                                        </button>
-                                                        <button
-                                                          onClick={() =>
-                                                            handleDeleteMessage(
-                                                              message._id
-                                                            )
-                                                          }
-                                                          className='messenger-action-item messenger-delete'
-                                                        >
-                                                          <FaTrash />
-                                                          Xóa
-                                                        </button>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                )}
                                               </div>
                                             )}
                                           </div>
@@ -2281,6 +2420,40 @@ const Calendar = () => {
                                 </>
                               )}
                             </div>
+
+                            {/* Context Menu */}
+                            {contextMenu && (
+                              <div
+                                className='messenger-context-menu'
+                                style={{
+                                  left: contextMenu.x,
+                                  top: contextMenu.y,
+                                }}
+                              >
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    startEditing(contextMenu.message);
+                                  }}
+                                  className='messenger-action-item'
+                                >
+                                  <FaEdit />
+                                  Chỉnh sửa
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteMessage(contextMenu.messageId);
+                                  }}
+                                  className='messenger-action-item messenger-delete'
+                                >
+                                  <FaTrash />
+                                  Xóa
+                                </button>
+                              </div>
+                            )}
 
                             {/* Message Input */}
                             {canSendMessage && (
@@ -2435,6 +2608,11 @@ const Calendar = () => {
                             ? formData.startDate.split('T')[0]
                             : formData.startDate
                         }
+                        min={
+                          formData.allDay
+                            ? formatVietnamTimeForInput(true)
+                            : formatVietnamTimeForInput(false)
+                        }
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -2457,6 +2635,11 @@ const Calendar = () => {
                           formData.allDay
                             ? formData.endDate.split('T')[0]
                             : formData.endDate
+                        }
+                        min={
+                          formData.allDay
+                            ? formatVietnamTimeForInput(true)
+                            : formatVietnamTimeForInput(false)
                         }
                         onChange={(e) =>
                           setFormData({
@@ -2528,37 +2711,22 @@ const Calendar = () => {
                 </>
               )} */}
                 {formData.type === 'offline' && (
-                  <>
-                    <Form.Group className='mb-3'>
-                      <Form.Label>Tên địa điểm</Form.Label>
-                      <Form.Control
-                        type='text'
-                        value={formData.locationName}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            locationName: e.target.value,
-                          })
-                        }
-                        placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
-                      />
-                    </Form.Group>
-                    <Form.Group className='mb-3'>
-                      <Form.Label>Địa chỉ chi tiết</Form.Label>
-                      <Form.Control
-                        type='text'
-                        value={formData.address}
-                        onChange={(e) =>
-                          setFormData({ ...formData, address: e.target.value })
-                        }
-                        placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
-                      />
-                      <Form.Text className='text-muted'>
-                        Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa
-                        độ trên bản đồ
-                      </Form.Text>
-                    </Form.Group>
-                  </>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Địa chỉ *</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={formData.address}
+                      onChange={(e) =>
+                        setFormData({ ...formData, address: e.target.value })
+                      }
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      required
+                    />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
+                  </Form.Group>
                 )}
                 {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>
@@ -2701,6 +2869,11 @@ const Calendar = () => {
                             ? (editFormData.startDate || '').split('T')[0]
                             : editFormData.startDate || ''
                         }
+                        min={
+                          editFormData.allDay
+                            ? formatVietnamTimeForInput(true)
+                            : formatVietnamTimeForInput(false)
+                        }
                         onChange={(e) =>
                           setEditFormData({
                             ...editFormData,
@@ -2723,6 +2896,11 @@ const Calendar = () => {
                           editFormData.allDay
                             ? (editFormData.endDate || '').split('T')[0]
                             : editFormData.endDate || ''
+                        }
+                        min={
+                          editFormData.allDay
+                            ? formatVietnamTimeForInput(true)
+                            : formatVietnamTimeForInput(false)
                         }
                         onChange={(e) =>
                           setEditFormData({
@@ -2814,40 +2992,25 @@ const Calendar = () => {
                 </>
               )} */}
                 {editFormData.type === 'offline' && (
-                  <>
-                    <Form.Group className='mb-3'>
-                      <Form.Label>Tên địa điểm</Form.Label>
-                      <Form.Control
-                        type='text'
-                        value={editFormData.locationName || ''}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            locationName: e.target.value,
-                          })
-                        }
-                        placeholder='Ví dụ: Phòng họp A, Trường FPT, Nhà văn hóa...'
-                      />
-                    </Form.Group>
-                    <Form.Group className='mb-3'>
-                      <Form.Label>Địa chỉ chi tiết</Form.Label>
-                      <Form.Control
-                        type='text'
-                        value={editFormData.address || ''}
-                        onChange={(e) =>
-                          setEditFormData({
-                            ...editFormData,
-                            address: e.target.value,
-                          })
-                        }
-                        placeholder='Ví dụ: 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
-                      />
-                      <Form.Text className='text-muted'>
-                        Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa
-                        độ trên bản đồ
-                      </Form.Text>
-                    </Form.Group>
-                  </>
+                  <Form.Group className='mb-3'>
+                    <Form.Label>Địa chỉ *</Form.Label>
+                    <Form.Control
+                      type='text'
+                      value={editFormData.address || ''}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          address: e.target.value,
+                        })
+                      }
+                      placeholder='Ví dụ: Phòng họp A, Trường FPT, 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      required
+                    />
+                    <Form.Text className='text-muted'>
+                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ
+                    </Form.Text>
+                  </Form.Group>
                 )}
                 {/* <Form.Group className='mb-3'>
                 <Form.Label>Lặp lại</Form.Label>

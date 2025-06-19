@@ -738,7 +738,34 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Update event status based on time
+  // Update event status based on time (improved - bulk update all user events)
+  const updateAllUserEventsStatusByTime = async () => {
+    if (!accessToken) return null;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/update-all-status-by-time`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 15000, // Tăng timeout cho bulk operation
+        }
+      );
+
+      if (response.data.status === 200) {
+        console.log(
+          `✅ Updated ${response.data.data.updatedEvents}/${response.data.data.totalEvents} events status`
+        );
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error('❌ Error updating all user events status by time:', error);
+      // Không hiển thị toast error vì đây là background process
+      return null;
+    }
+  };
+
+  // Update event status based on time (legacy - single event)
   const updateEventStatusByTime = async (eventId) => {
     if (!accessToken || !eventId) return null;
 
@@ -807,6 +834,13 @@ export const Common = ({ children }) => {
               duration: 3000,
             });
           }
+        } else if (notification.type === 'new_message') {
+          // Thông báo tin nhắn mới với icon đặc biệt
+          toast(notification.title, {
+            description: notification.content,
+            duration: 4000,
+            icon: '💬',
+          });
         } else {
           toast.success(notification.title, {
             description: notification.content,
@@ -1497,6 +1531,7 @@ export const Common = ({ children }) => {
         fetchNotifications,
         markNotificationAsRead,
         respondToEventInvitation,
+        updateAllUserEventsStatusByTime,
         updateEventStatusByTime,
         formatDateAMPMForVN,
         workspaces,

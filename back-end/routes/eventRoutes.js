@@ -15,17 +15,27 @@ router.get(
   eventController.getParticipatedEvents
 ); // Lấy sự kiện đã tham gia
 
+// Cập nhật trạng thái tất cả sự kiện của user dựa trên thời gian (Bulk update - improved)
+router.patch(
+  '/update-all-status-by-time',
+  auth.protect,
+  eventController.updateAllUserEventsStatusByTime
+);
+
+// Cập nhật trạng thái sự kiện cụ thể dựa trên thời gian (Legacy - backward compatibility)
+router.patch(
+  '/:id/update-status-by-time',
+  auth.protect,
+  eventController.updateEventStatusByTime
+);
+
 router.post(
   '/:id/invite',
   auth.protect,
   eventController.inviteToBecomeParticipant
 ); //ok
 router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
-router.patch(
-  '/:id/update-status-by-time',
-  auth.protect,
-  eventController.updateEventStatusByTime
-); // Cập nhật trạng thái dựa trên thời gian
+
 router.patch(
   '/:id/cancel-invitation-and-give-reason',
   auth.protect,

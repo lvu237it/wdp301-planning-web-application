@@ -940,7 +940,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  z-index: 9999; /* Đảm bảo hiển thị trên tất cả */
+  z-index: 9000; /* Đảm bảo hiển thị trên tất cả */
   overflow-y: auto; /* Cho phép scroll khi cần */
 }
 
@@ -1005,7 +1005,7 @@ body.modal-open {
 
 /* Đảm bảo modal luôn hiển thị trên các element khác */
 .event-modal-overlay {
-  z-index: 9999 !important;
+  z-index: 9000 !important;
 }
 
 .event-modal-header {
@@ -1480,7 +1480,7 @@ body.modal-open {
 /* Event tooltip */
 .event-tooltip {
   position: absolute;
-  z-index: 9999;
+  z-index: 9000;
   background: rgba(30, 30, 40, 0.95);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2063,13 +2063,13 @@ body.modal-open {
   color: #dc3545 !important;
 }
 
-/* Responsive chat */
 /* Messenger-style Chat UI */
 .messenger-message {
   display: flex;
   margin-bottom: 12px;
   align-items: flex-end;
   gap: 8px;
+  position: relative;
 }
 
 .messenger-message.messenger-own {
@@ -2094,6 +2094,7 @@ body.modal-open {
   max-width: 70%;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .messenger-sender {
@@ -2155,59 +2156,61 @@ body.modal-open {
   opacity: 0.7;
 }
 
-/* Actions */
-.messenger-actions {
-  position: absolute;
-  top: 50%;
-  right: -30px;
-  transform: translateY(-50%);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.messenger-message.messenger-own .messenger-actions {
-  left: -30px;
-  right: auto;
-}
-
-.messenger-bubble:hover .messenger-actions {
-  opacity: 1;
-}
-
-.messenger-actions-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background-color: #ffffff;
-  border: 1px solid #dddfe2;
-  color: #65676b;
-  font-size: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Interactive message styles for own messages */
+.messenger-message.messenger-own .messenger-bubble {
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
 }
 
-.messenger-actions-btn:hover {
-  background-color: #f2f3f5;
+.messenger-message.messenger-own .messenger-bubble:hover {
+  background: linear-gradient(135deg, #0084ff, #0066cc) !important;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 132, 255, 0.3);
 }
 
-.messenger-actions-menu {
+.messenger-message.messenger-own .messenger-bubble:hover::after {
+  content: 'Nhấp để chỉnh sửa';
   position: absolute;
-  top: 100%;
-  right: 0;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.messenger-message.messenger-own .messenger-bubble:active {
+  transform: scale(0.98);
+}
+
+/* Context menu for message actions */
+.messenger-context-menu {
+  position: fixed;
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  padding: 8px 0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  z-index: 10001;
+  padding: 4px 0;
   min-width: 140px;
+  animation: slideInActions 0.2s ease-out;
+  border: 1px solid #e1e5e9;
 }
 
-.messenger-message.messenger-own .messenger-actions-menu {
-  left: 0;
-  right: auto;
+@keyframes slideInActions {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .messenger-action-item {
@@ -2329,11 +2332,8 @@ body.modal-open {
     font-size: 0.65rem;
   }
 
-  .messenger-actions {
-    right: -25px;
-  }
-
-  .messenger-message.messenger-own .messenger-actions {
-    left: -25px;
+  .messenger-message.messenger-own .messenger-bubble:hover::after {
+    font-size: 0.6rem;
+    top: -20px;
   }
 }

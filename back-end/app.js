@@ -7,9 +7,10 @@ const swaggerUi = require('swagger-ui-express');
 const session = require('express-session');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
-
 // utils
 const AppError = require('./utils/appError');
+const cronJobs = require('./utils/cronJobs');
+
 // import routers
 const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
@@ -112,6 +113,9 @@ app.use('/files', fileRouter);
 app.use('/notification', notificationRouter);
 app.use('/message', messageRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
+
+// Initialize all cron jobs
+cronJobs.initializeCronJobs();
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

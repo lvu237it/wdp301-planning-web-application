@@ -87,7 +87,25 @@ exports.createEventMessage = async (req, res, next) => {
       });
     });
 
-    // Tạo thông báo cho những người offline (người online đã nhận real-time message)
+    // Gửi thông báo real-time tới notification bell cho tất cả user (cả online và offline)
+    const senderName =
+      message.userId.fullname || message.userId.username || 'Ai đó';
+    const notificationData = {
+      eventId: eventId,
+      title: `Tin nhắn mới trong sự kiện "${event.title}"`,
+      content: `${senderName} đã gửi: ${message.content.substring(0, 80)}${
+        message.content.length > 80 ? '...' : ''
+      }`,
+      type: 'new_message',
+      createdBy: message.userId._id,
+      messageId: message._id,
+    };
+
+    acceptedParticipants.forEach((participantId) => {
+      io.to(participantId).emit('new_notification', notificationData);
+    });
+
+    // Tạo thông báo cho tất cả người tham gia (cả online và offline)
     await exports.createMessageNotification(message, eventId, null);
 
     res.status(201).json({
@@ -383,21 +401,9 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
       return;
     }
 
-    // Chỉ gửi notification cho những user offline (không online)
-    const offlineUsers = getOfflineUsers(targetUsers);
-
-    if (offlineUsers.length === 0) {
-      await session.abortTransaction();
-      session.endSession();
-      console.log(
-        '📱 Tất cả người dùng đều đang online, không cần tạo notification'
-      );
-      return;
-    }
-
-    // Tạo thông báo cho từng người nhận offline bằng NotificationService
-    // (Người online đã nhận real-time message qua socket)
-    const notificationPromises = offlineUsers.map(async (userId) => {
+    // Gửi notification cho tất cả người dùng (cả online và offline)
+    // Vì thông báo sẽ hiển thị trong notification bell ngay cả khi user đang online
+    const notificationPromises = targetUsers.map(async (userId) => {
       const user = await User.findById(message.userId, 'username fullname');
       const senderName = user?.fullname || user?.username || 'Ai đó';
 
@@ -422,7 +428,7 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
 
     await session.commitTransaction();
     console.log(
-      `✅ Đã tạo thông báo tin nhắn cho ${offlineUsers.length}/${targetUsers.length} người dùng offline`
+      `✅ Đã tạo thông báo tin nhắn cho ${targetUsers.length} người dùng`
     );
   } catch (error) {
     await session.abortTransaction();
