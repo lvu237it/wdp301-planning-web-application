@@ -22,6 +22,10 @@ import {
   FaTimes,
   FaPlus,
   FaCalendarCheck,
+  FaPaperPlane,
+  FaComments,
+  FaEllipsisV,
+  FaChevronUp,
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCommon } from '../../contexts/CommonContext';
@@ -119,6 +123,11 @@ const Calendar = () => {
     updateEventStatusByTime,
     cancelEventParticipation,
     respondToEventInvitation,
+    sendEventMessage,
+    getEventMessages,
+    loadMoreEventMessages,
+    editEventMessage,
+    deleteEventMessage,
   } = useCommon();
 
   // Thêm ref cho FullCalendar
@@ -161,6 +170,23 @@ const Calendar = () => {
   const [conflictEventData, setConflictEventData] = useState(null);
   const [showCreateConflictModal, setShowCreateConflictModal] = useState(false);
   const [createConflictData, setCreateConflictData] = useState(null);
+
+  // Chat states
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [canSendMessage, setCanSendMessage] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [showMessageActions, setShowMessageActions] = useState(null);
+  const messagesEndRef = useRef(null);
+
+  // Infinite scroll states
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [messagePagination, setMessagePagination] = useState({});
+  const messagesContainerRef = useRef(null);
 
   // Get current user ID
   const currentUserId = userDataLocal?._id || userDataLocal?.id;
@@ -364,16 +390,142 @@ const Calendar = () => {
     setFilteredEvents(events);
   }, [events]);
 
+  // Handle real-time message events
+  useEffect(() => {
+    const handleNewMessage = (e) => {
+      const { eventId, message } = e.detail;
+
+      if (selectedEvent?.id === eventId) {
+        setMessages((prev) => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some((msg) => msg._id === message._id);
+          if (messageExists) {
+            return prev;
+          }
+
+          // Add new message at the end (newest messages at bottom)
+          const newState = [...prev, message];
+
+          return newState;
+        });
+
+        // Update pagination count
+        setMessagePagination((prev) => ({
+          ...prev,
+          total: (prev.total || 0) + 1,
+        }));
+
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    };
+
+    const handleDeleteMessage = (e) => {
+      const { eventId, messageId } = e.detail;
+      if (selectedEvent?.id === eventId) {
+        setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+
+        // Update pagination count
+        setMessagePagination((prev) => ({
+          ...prev,
+          total: Math.max((prev.total || 0) - 1, 0),
+        }));
+      }
+    };
+
+    const handleEditMessage = (e) => {
+      const { eventId, message } = e.detail;
+      if (selectedEvent?.id === eventId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === message._id ? { ...msg, ...message } : msg
+          )
+        );
+      }
+    };
+
+    window.addEventListener('new_event_message', handleNewMessage);
+    window.addEventListener('delete_event_message', handleDeleteMessage);
+    window.addEventListener('edit_event_message', handleEditMessage);
+
+    return () => {
+      window.removeEventListener('new_event_message', handleNewMessage);
+      window.removeEventListener('delete_event_message', handleDeleteMessage);
+      window.removeEventListener('edit_event_message', handleEditMessage);
+    };
+  }, [selectedEvent?.id]);
+
+  // Load messages when showing chat
+  useEffect(() => {
+    if (showChat && selectedEvent?.id) {
+      loadEventMessages(selectedEvent.id);
+    }
+  }, [showChat, selectedEvent?.id]);
+
+  // Infinite scroll handler
+  useEffect(() => {
+    const handleScroll = () => {
+      const container = messagesContainerRef.current;
+      if (!container || isLoadingMoreMessages || !hasMoreMessages) return;
+
+      // Load more when user scrolls near the top (within 50px)
+      if (container.scrollTop <= 50) {
+        loadMoreMessages();
+      }
+    };
+
+    const container = messagesContainerRef.current;
+    if (container && showChat) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [showChat, isLoadingMoreMessages, hasMoreMessages]);
+
+  // Reset chat when modal closes and manage body scroll
+  useEffect(() => {
+    if (showEventModal) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+      setShowChat(false);
+      setMessages([]);
+      setNewMessage('');
+      setEditingMessageId(null);
+      setEditingContent('');
+      setShowMessageActions(null);
+      // Reset infinite scroll states
+      setIsLoadingMoreMessages(false);
+      setHasMoreMessages(true);
+      setMessagePagination({});
+    }
+
+    // Cleanup function để đảm bảo body được reset khi component unmount
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [showEventModal]);
+
+  // Close message actions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.message-actions')) {
+        setShowMessageActions(null);
+      }
+    };
+
+    if (showMessageActions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showMessageActions]);
+
   // Khởi tạo lấy sự kiện
   useEffect(() => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) {
-      console.log('accesstoken', accessToken);
-      console.log('userDataLocal', userDataLocal.id);
-      console.log(' userDataLocal._id', userDataLocal._id);
-      console.log(
-        'Chưa đăng nhập hoặc không có userDataLocal, chuyển hướng đến login'
-      );
       navigate('/login');
       return;
     }
@@ -835,6 +987,204 @@ const Calendar = () => {
     searchTerm,
   ]);
 
+  // Chat functions
+  const loadEventMessages = async (eventId, limit = 30) => {
+    if (!eventId) return;
+
+    setIsLoadingMessages(true);
+    try {
+      const result = await getEventMessages(eventId, limit, 0);
+      if (result.success) {
+        setMessages(result.messages || []);
+        setCanSendMessage(result.canSendMessage || false);
+        setMessagePagination(result.pagination || {});
+        setHasMoreMessages(result.pagination?.hasMore || false);
+
+        // Scroll to bottom after loading messages
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  // Load more messages function for infinite scroll
+  const loadMoreMessages = async () => {
+    if (!selectedEvent?.id || isLoadingMoreMessages || !hasMoreMessages) return;
+
+    setIsLoadingMoreMessages(true);
+    try {
+      const result = await loadMoreEventMessages(
+        selectedEvent.id,
+        messages,
+        20
+      );
+      if (result.success) {
+        // Always update pagination and hasMore status
+        setMessagePagination(result.pagination || {});
+        setHasMoreMessages(result.pagination?.hasMore || false);
+
+        if (result.messages.length > 0) {
+          // Remember current scroll position
+          const container = messagesContainerRef.current;
+          const scrollHeightBefore = container?.scrollHeight || 0;
+
+          // Merge new messages at the beginning (older messages)
+          setMessages((prev) => {
+            // Remove duplicates before merging
+            const existingIds = new Set(prev.map((msg) => msg._id));
+            const newMessages = result.messages.filter(
+              (msg) => !existingIds.has(msg._id)
+            );
+
+            const mergedMessages = [...newMessages, ...prev];
+
+            return mergedMessages;
+          });
+
+          // Maintain scroll position after adding messages at the top
+          setTimeout(() => {
+            if (container) {
+              const scrollHeightAfter = container.scrollHeight;
+              const heightDifference = scrollHeightAfter - scrollHeightBefore;
+              container.scrollTop = container.scrollTop + heightDifference;
+            }
+          }, 100);
+        } else {
+          console.log('📭 No more messages to load');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setIsLoadingMoreMessages(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedEvent?.id) return;
+
+    const messageContent = newMessage.trim();
+    setNewMessage('');
+
+    try {
+      const result = await sendEventMessage(selectedEvent.id, messageContent);
+      if (result.success) {
+        // Add message to local state with all required fields
+        const messageWithFullData = {
+          ...result.message,
+          isEdited: false,
+          editedAt: null,
+        };
+
+        setMessages((prev) => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some(
+            (msg) => msg._id === messageWithFullData._id
+          );
+          if (messageExists) {
+            return prev;
+          }
+
+          // Add new sent message at the end (newest messages at bottom)
+          const newState = [...prev, messageWithFullData];
+
+          return newState;
+        });
+        // Scroll to bottom
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Restore message on error
+      setNewMessage(messageContent);
+    }
+  };
+
+  const handleEditMessage = async (messageId, content) => {
+    console.log('handle edit message', messageId, content);
+    try {
+      const result = await editEventMessage(messageId, content);
+      if (result.success) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === messageId ? { ...msg, ...result.message } : msg
+          )
+        );
+        setEditingMessageId(null);
+        setEditingContent('');
+        setShowMessageActions(null);
+      }
+    } catch (error) {
+      console.error('Error editing message:', error);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    console.log('handle delete message', messageId);
+    try {
+      const result = await deleteEventMessage(messageId);
+      if (result.success) {
+        setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+        setShowMessageActions(null);
+      }
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
+  const startEditing = (message) => {
+    console.log('start editing message', message);
+    setEditingMessageId(message._id);
+    setEditingContent(message.content);
+    setShowMessageActions(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const submitMessageEdit = (messageId) => {
+    if (editingContent.trim()) {
+      handleEditMessage(messageId, editingContent.trim());
+    }
+  };
+
+  const canUserChat = (event) => {
+    if (!event || !currentUserId) return false;
+
+    // Check if user is organizer
+    if (
+      event.organizer?.userId === currentUserId ||
+      event.organizer?._id === currentUserId
+    ) {
+      return true;
+    }
+
+    // Check if user is accepted participant
+    return event.participants?.some(
+      (p) =>
+        (p.userId === currentUserId || p.userId?._id === currentUserId) &&
+        p.status === 'accepted'
+    );
+  };
+
+  const shouldShowChatFeature = (event) => {
+    if (!event) return false;
+    return (
+      canUserChat(event) &&
+      event.status &&
+      !['draft', 'completed', 'cancelled'].includes(event.status)
+    );
+  };
+
   // Lọc sự kiện theo ngày được chọn
   const selectedDateEvents = useMemo(() => {
     return events.filter((event) => {
@@ -844,10 +1194,7 @@ const Calendar = () => {
   }, [events, selectedDate]);
 
   // Debug selectedDateEvents
-  useEffect(() => {
-    console.log('Selected date:', selectedDate.toDateString());
-    console.log('Selected date events:', selectedDateEvents);
-  }, [selectedDate, selectedDateEvents]);
+  useEffect(() => {}, [selectedDate, selectedDateEvents]);
 
   // Render nội dung sự kiện
   const renderEventContent = useCallback(
@@ -886,7 +1233,6 @@ const Calendar = () => {
   const canEditEvent = useCallback(
     (event) => {
       if (!canModifyEvent(event)) return false;
-
       const status = event?.status;
       // Chỉ có thể chỉnh sửa khi status là draft hoặc scheduled
       return status === 'draft' || status === 'scheduled';
@@ -1484,7 +1830,8 @@ const Calendar = () => {
                 onClick={() => setShowEventModal(false)}
               >
                 <motion.div
-                  className='event-modal'
+                  className='event-modal '
+                  style={{ marginTop: 50 }}
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.8, opacity: 0 }}
@@ -1627,6 +1974,354 @@ const Calendar = () => {
                         </span>
                       </p>
                     </div>
+
+                    {/* Chat Section */}
+                    {shouldShowChatFeature(selectedEvent) && (
+                      <div className='border-top mt-3 pt-3'>
+                        <div className='d-flex justify-content-between align-items-center mb-3'>
+                          <h5 className='mb-0 d-flex align-items-center'>
+                            <FaComments className='me-2' />
+                            Thảo luận
+                          </h5>
+                          <Button
+                            variant={showChat ? 'outline-primary' : 'primary'}
+                            size='sm'
+                            onClick={() => setShowChat(!showChat)}
+                          >
+                            {showChat ? 'Ẩn' : 'Hiển thị'}
+                          </Button>
+                        </div>
+
+                        {showChat && (
+                          <div className='chat-container'>
+                            {/* Messages Area */}
+                            <div
+                              ref={messagesContainerRef}
+                              className='messages-area border rounded p-3 mb-3'
+                              style={{
+                                height: '300px',
+                                overflowY: 'auto',
+                                backgroundColor: '#f8f9fa',
+                              }}
+                            >
+                              {isLoadingMessages ? (
+                                <div className='text-center p-3'>
+                                  <Spinner animation='border' size='sm' />
+                                  <div className='mt-2 text-muted'>
+                                    Đang tải tin nhắn...
+                                  </div>
+                                </div>
+                              ) : messages.length === 0 ? (
+                                <div className='text-center text-muted p-3'>
+                                  <FaComments size={24} className='mb-2' />
+                                  <div>
+                                    Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò
+                                    chuyện!
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  {/* Loading more messages at top */}
+                                  {isLoadingMoreMessages && (
+                                    <motion.div
+                                      className='text-center p-2 mb-3'
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -10 }}
+                                      transition={{ duration: 0.3 }}
+                                    >
+                                      <div
+                                        style={{
+                                          background: 'rgba(13, 110, 253, 0.1)',
+                                          borderRadius: '15px',
+                                          padding: '12px 16px',
+                                          display: 'inline-block',
+                                          border:
+                                            '1px solid rgba(13, 110, 253, 0.2)',
+                                        }}
+                                      >
+                                        <Spinner
+                                          animation='border'
+                                          size='sm'
+                                          style={{ color: '#0d6efd' }}
+                                        />
+                                        <div
+                                          className='text-muted small mt-1'
+                                          style={{ color: '#0d6efd' }}
+                                        >
+                                          Đang tải thêm tin nhắn...
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  )}
+
+                                  {/* Show load more button if there are more messages and not loading */}
+
+                                  {hasMoreMessages &&
+                                    !isLoadingMoreMessages && (
+                                      <motion.div
+                                        className='text-center p-2 mb-3'
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{
+                                          duration: 0.3,
+                                          ease: 'easeOut',
+                                        }}
+                                      >
+                                        <motion.button
+                                          onClick={loadMoreMessages}
+                                          className='btn btn-sm btn-outline-primary load-more-btn'
+                                          style={{
+                                            background:
+                                              'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                            border: '1px solid #dee2e6',
+                                            borderRadius: '20px',
+                                            transition: 'all 0.3s ease',
+                                            boxShadow:
+                                              '0 2px 4px rgba(0,0,0,0.1)',
+                                          }}
+                                          whileHover={{
+                                            scale: 1.05,
+                                            y: -2,
+                                            boxShadow:
+                                              '0 4px 8px rgba(0,0,0,0.15)',
+                                          }}
+                                          whileTap={{ scale: 0.95 }}
+                                        >
+                                          <FaChevronUp className='me-1' />
+                                          Tải thêm tin nhắn
+                                        </motion.button>
+                                      </motion.div>
+                                    )}
+
+                                  {messages.map((message, index) => {
+                                    const isOwnMessage =
+                                      message.userId._id === currentUserId;
+                                    const canEditOrDelete =
+                                      message.userId._id === currentUserId; // Chỉ người gửi mới có thể edit/delete
+
+                                    return (
+                                      <div
+                                        key={message._id}
+                                        className={`messenger-message ${
+                                          isOwnMessage
+                                            ? 'messenger-own'
+                                            : 'messenger-other'
+                                        }`}
+                                      >
+                                        {/* Avatar luôn ở đầu */}
+                                        <img
+                                          src={
+                                            message.userId.avatar ||
+                                            '/images/user-avatar-default.png'
+                                          }
+                                          alt={
+                                            message.userId.fullname ||
+                                            message.userId.username
+                                          }
+                                          className='messenger-avatar'
+                                        />
+
+                                        <div className='messenger-content'>
+                                          {/* Tên người gửi (chỉ hiện cho tin nhắn của người khác) */}
+                                          {!isOwnMessage && (
+                                            <div className='messenger-sender'>
+                                              {message.userId.fullname ||
+                                                message.userId.username}
+                                            </div>
+                                          )}
+
+                                          {/* Nội dung tin nhắn */}
+                                          <div className='messenger-bubble-wrapper'>
+                                            {editingMessageId ===
+                                            message._id ? (
+                                              <div className='messenger-edit-form'>
+                                                <input
+                                                  type='text'
+                                                  value={editingContent}
+                                                  onChange={(e) =>
+                                                    setEditingContent(
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  onKeyPress={(e) => {
+                                                    if (
+                                                      e.key === 'Enter' &&
+                                                      !e.shiftKey
+                                                    ) {
+                                                      e.preventDefault();
+                                                      submitMessageEdit(
+                                                        message._id
+                                                      );
+                                                    } else if (
+                                                      e.key === 'Escape'
+                                                    ) {
+                                                      cancelEditing();
+                                                    }
+                                                  }}
+                                                  className='messenger-edit-input'
+                                                  autoFocus
+                                                />
+                                                <div className='messenger-edit-actions'>
+                                                  <button
+                                                    onClick={() =>
+                                                      submitMessageEdit(
+                                                        message._id
+                                                      )
+                                                    }
+                                                    className='messenger-edit-save'
+                                                  >
+                                                    ✓
+                                                  </button>
+                                                  <button
+                                                    onClick={cancelEditing}
+                                                    className='messenger-edit-cancel'
+                                                  >
+                                                    ✕
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div
+                                                className={`messenger-bubble ${
+                                                  isOwnMessage
+                                                    ? 'messenger-bubble-own'
+                                                    : 'messenger-bubble-other'
+                                                }`}
+                                                onDoubleClick={() =>
+                                                  canEditOrDelete &&
+                                                  startEditing(message)
+                                                }
+                                              >
+                                                <div className='messenger-text'>
+                                                  {message.content}
+                                                  {message.isEdited && (
+                                                    <span className='messenger-edited'>
+                                                      {' '}
+                                                      • đã chỉnh sửa
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {/* Actions menu chỉ hiện khi hover và chỉ cho tin nhắn của mình */}
+                                                {canEditOrDelete && (
+                                                  <div className='messenger-actions'>
+                                                    <button
+                                                      className='messenger-actions-btn'
+                                                      onClick={() =>
+                                                        setShowMessageActions(
+                                                          showMessageActions ===
+                                                            message._id
+                                                            ? null
+                                                            : message._id
+                                                        )
+                                                      }
+                                                    >
+                                                      <FaEllipsisV />
+                                                    </button>
+                                                    {showMessageActions ===
+                                                      message._id && (
+                                                      <div className='messenger-actions-menu'>
+                                                        <button
+                                                          onClick={() =>
+                                                            startEditing(
+                                                              message
+                                                            )
+                                                          }
+                                                          className='messenger-action-item'
+                                                        >
+                                                          <FaEdit />
+                                                          Chỉnh sửa
+                                                        </button>
+                                                        <button
+                                                          onClick={() =>
+                                                            handleDeleteMessage(
+                                                              message._id
+                                                            )
+                                                          }
+                                                          className='messenger-action-item messenger-delete'
+                                                        >
+                                                          <FaTrash />
+                                                          Xóa
+                                                        </button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Thời gian */}
+                                          <div className='messenger-time'>
+                                            {new Date(
+                                              message.createdAt
+                                            ).toLocaleString('vi-VN', {
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                            })}
+                                            {message.isEdited &&
+                                              message.editedAt && (
+                                                <span className='messenger-time-edited'>
+                                                  {' • Sửa '}
+                                                  {new Date(
+                                                    message.editedAt
+                                                  ).toLocaleString('vi-VN', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                  })}
+                                                </span>
+                                              )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  <div ref={messagesEndRef} />
+                                </>
+                              )}
+                            </div>
+
+                            {/* Message Input */}
+                            {canSendMessage && (
+                              <div className='message-input d-flex gap-2'>
+                                <Form.Control
+                                  type='text'
+                                  placeholder='Nhập tin nhắn...'
+                                  value={newMessage}
+                                  onChange={(e) =>
+                                    setNewMessage(e.target.value)
+                                  }
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSendMessage();
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  variant='primary'
+                                  onClick={handleSendMessage}
+                                  disabled={!newMessage.trim()}
+                                >
+                                  <FaPaperPlane />
+                                </Button>
+                              </div>
+                            )}
+
+                            {!canSendMessage && (
+                              <div
+                                className='text-center text-muted p-2 border rounded'
+                                style={{ backgroundColor: '#f8f9fa' }}
+                              >
+                                Không thể gửi tin nhắn khi sự kiện đã kết thúc
+                                hoặc bị hủy
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {(canModifyEvent(selectedEvent) ||
                     selectedEvent.participants?.some(
@@ -1636,7 +2331,7 @@ const Calendar = () => {
                         selectedEvent.organizer?.userId !== currentUserId
                     )) && (
                     <div className='event-modal-actions'>
-                      {canEditEvent(selectedEvent) && (
+                      {canEditEvent(selectedEvent) && !showChat && (
                         <Button
                           variant='outline-light'
                           onClick={handleEditClick}
@@ -1646,7 +2341,7 @@ const Calendar = () => {
                           Chỉnh sửa
                         </Button>
                       )}
-                      {canDeleteEvent(selectedEvent) && (
+                      {canDeleteEvent(selectedEvent) && !showChat && (
                         <Button
                           variant='outline-danger'
                           onClick={() => setShowDeleteModal(true)}
@@ -1663,17 +2358,18 @@ const Calendar = () => {
                           p.status === 'accepted' &&
                           selectedEvent.organizer?.userId !== currentUserId &&
                           selectedEvent.status === 'scheduled'
-                      ) && (
-                        <Button
-                          variant='outline-warning'
-                          onClick={() => handleOpenCancelModal(selectedEvent)}
-                          disabled={isUpdatingEvent}
-                          className='cancel-participation-btn'
-                        >
-                          <i className='bi bi-x-circle'></i>
-                          Hủy tham gia
-                        </Button>
-                      )}
+                      ) &&
+                        !showChat && (
+                          <Button
+                            variant='outline-warning'
+                            onClick={() => handleOpenCancelModal(selectedEvent)}
+                            disabled={isUpdatingEvent}
+                            className='cancel-participation-btn'
+                          >
+                            <i className='bi bi-x-circle'></i>
+                            Hủy tham gia
+                          </Button>
+                        )}
                     </div>
                   )}
                 </motion.div>

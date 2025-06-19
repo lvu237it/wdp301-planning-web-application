@@ -135,7 +135,6 @@ export const Common = ({ children }) => {
 
     // Kiểm tra nếu userDataLocal chưa được set và không phải force call
     if (!force && !userDataLocal) {
-      console.log('⏳ userDataLocal not set yet, skipping checkGoogleAuth');
       return;
     }
 
@@ -655,11 +654,8 @@ export const Common = ({ children }) => {
       (n) => n.notificationId === notificationId
     );
     if (notification && notification.isRead) {
-      console.log('📖 Notification already marked as read, skipping request');
       return;
     }
-
-    console.log(`📝 Marking notification ${notificationId} as read...`);
 
     try {
       const response = await axios.patch(
@@ -672,7 +668,6 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        console.log('✅ Notification marked as read successfully');
         setNotifications((prev) => {
           const updated = prev.map((n) =>
             n.notificationId === notificationId
@@ -771,13 +766,11 @@ export const Common = ({ children }) => {
   const setupSocketListeners = () => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!userId) {
-      console.log('⚠️ No user ID available for socket listeners');
       return;
     }
 
     try {
       const socket = getSocket();
-      console.log('🔧 Setting up socket listeners for user:', userId);
 
       // Remove existing listeners first to avoid duplicates
       socket.off('new_notification');
@@ -785,6 +778,9 @@ export const Common = ({ children }) => {
       socket.off('connect');
       socket.off('disconnect');
       socket.off('test_pong');
+      socket.off('new_event_message');
+      socket.off('edit_event_message');
+      socket.off('delete_event_message');
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
@@ -866,6 +862,37 @@ export const Common = ({ children }) => {
       // Đăng ký listeners
       socket.on('new_notification', handleNewNotification);
       socket.on('notification_updated', handleNotificationUpdate);
+
+      // Event messaging listeners
+      socket.on('new_event_message', (data) => {
+        console.log('📨 New event message received:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('new_event_message', {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on('edit_event_message', (data) => {
+        console.log('✏️ Event message edited:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('edit_event_message', {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on('delete_event_message', (data) => {
+        console.log('🗑️ Event message deleted:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('delete_event_message', {
+            detail: data,
+          })
+        );
+      });
 
       // Check if socket is already connected
       if (socket.connected) {
@@ -1299,6 +1326,144 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Event messaging functions
+  const sendEventMessage = async (eventId, content) => {
+    if (!accessToken || !eventId || !content?.trim()) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        { content: content.trim() },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return { success: true, message: response.data.data.message };
+      }
+    } catch (error) {
+      console.error('Error sending event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi gửi tin nhắn');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getEventMessages = async (eventId, limit = 50, skip = 0) => {
+    if (!accessToken || !eventId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: { limit, skip },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data,
+          messages: response.data.data.messages,
+          canSendMessage: response.data.data.canSendMessage,
+          pagination: response.data.data.pagination,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting event messages:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const loadMoreEventMessages = async (
+    eventId,
+    currentMessages,
+    limit = 20
+  ) => {
+    if (!accessToken || !eventId) return { success: false };
+
+    try {
+      // Sử dụng cursor-based pagination với timestamp của message cũ nhất
+      const oldestMessage = currentMessages[0];
+      const params = { limit };
+      if (oldestMessage) {
+        params.before = oldestMessage.createdAt;
+      }
+
+      const response = await axios.get(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params,
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          messages: response.data.data.messages,
+          pagination: response.data.data.pagination,
+        };
+      }
+    } catch (error) {
+      console.error('Error loading more event messages:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const editEventMessage = async (messageId, content) => {
+    if (!accessToken || !messageId || !content?.trim())
+      return { success: false };
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/message/${messageId}`,
+        { content: content.trim() },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return { success: true, message: response.data.data.message };
+      }
+    } catch (error) {
+      console.error('Error editing event message:', error);
+      toast.error(
+        error.response?.data?.message || 'Lỗi khi chỉnh sửa tin nhắn'
+      );
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const deleteEventMessage = async (messageId) => {
+    if (!accessToken || !messageId) return { success: false };
+
+    try {
+      const response = await axios.delete(
+        `${apiBaseUrl}/message/${messageId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Tin nhắn đã được xóa');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa tin nhắn');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1354,6 +1519,11 @@ export const Common = ({ children }) => {
         cancelEventParticipation,
         loadMoreNotifications,
         notificationPagination,
+        sendEventMessage,
+        getEventMessages,
+        loadMoreEventMessages,
+        editEventMessage,
+        deleteEventMessage,
       }}
     >
       <Toaster
