@@ -42,6 +42,14 @@ export const Common = ({ children }) => {
     }
   });
 
+  // Notification pagination states
+  const [notificationPagination, setNotificationPagination] = useState({
+    hasMore: true,
+    currentPage: 1,
+    totalCount: 0,
+    loading: false,
+  });
+
   // Enhanced responsive breakpoints
   const isMobile = useMediaQuery({ maxWidth: 768 });
   const isTablet = useMediaQuery({ minWidth: 769, maxWidth: 1024 });
@@ -285,28 +293,28 @@ export const Common = ({ children }) => {
         });
         console.log('✅ Socket initialization completed');
 
-        try {
-          const response = await axios.post(
-            `https://api.cloudinary.com/v1_1/${
-              import.meta.env.VITE_CLOUDINARY_NAME
-            }/image/upload`,
-            formData
-          );
-          console.log(
-            'VITE_CLOUDINARY_NAME',
-            import.meta.env.VITE_CLOUDINARY_NAME
-          );
-          console.log('response', response);
-          console.log('response.data', response.data);
-          console.log('response.data.secureurl', response.data.secure_url);
-          if (response.status === 200) {
-            console.log('oke upload thành công');
-            return response.data.secure_url; // Trả về URL ảnh đã upload
-          }
-        } catch (error) {
-          console.error('Error uploading to Cloudinary:', error);
-          throw new Error('Upload to Cloudinary failed');
-        }
+        // try {
+        //   const response = await axios.post(
+        //     `https://api.cloudinary.com/v1_1/${
+        //       import.meta.env.VITE_CLOUDINARY_NAME
+        //     }/image/upload`,
+        //     formData
+        //   );
+        //   console.log(
+        //     'VITE_CLOUDINARY_NAME',
+        //     import.meta.env.VITE_CLOUDINARY_NAME
+        //   );
+        //   console.log('response', response);
+        //   console.log('response.data', response.data);
+        //   console.log('response.data.secureurl', response.data.secure_url);
+        //   if (response.status === 200) {
+        //     console.log('oke upload thành công');
+        //     return response.data.secure_url; // Trả về URL ảnh đã upload
+        //   }
+        // } catch (error) {
+        //   console.error('Error uploading to Cloudinary:', error);
+        //   throw new Error('Upload to Cloudinary failed');
+        // }
 
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
@@ -340,7 +348,7 @@ export const Common = ({ children }) => {
     // Tải các dữ liệu khác trong background
     setTimeout(async () => {
       try {
-        await Promise.all([fetchNotifications(), getCalendarUser()]);
+        await Promise.all([fetchNotifications(true), getCalendarUser()]);
       } catch (error) {
         console.error('Error loading background data:', error);
       }
@@ -475,6 +483,12 @@ export const Common = ({ children }) => {
     setIsGoogleAuthenticated(false);
     setShowGoogleAuthModal(false);
     setIsCheckingGoogleAuth(false);
+    setNotificationPagination({
+      hasMore: true,
+      currentPage: 1,
+      totalCount: 0,
+      loading: false,
+    });
 
     disconnectSocket();
     socketInitialized.current = false;
@@ -544,27 +558,91 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
+  // Fetch notifications (initial load)
+  const fetchNotifications = async (reset = false) => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) return;
 
     try {
+      const skip = reset ? 0 : notifications.length;
       const response = await axios.get(`${apiBaseUrl}/notification`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        params: { limit: 20, skip },
         timeout: 10000,
       });
 
       if (response.data.status === 'success') {
-        const notifs = response.data.data?.notifications || [];
-        setNotifications(notifs);
-        localStorage.setItem('notifications', JSON.stringify(notifs));
+        const newNotifs = response.data.data?.notifications || [];
+        const pagination = response.data.pagination || {};
+
+        if (reset) {
+          setNotifications(newNotifs);
+          localStorage.setItem('notifications', JSON.stringify(newNotifs));
+        } else {
+          const updatedNotifs = [...notifications, ...newNotifs];
+          setNotifications(updatedNotifs);
+          localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
+        }
+
+        setNotificationPagination({
+          hasMore: pagination.hasMore || false,
+          currentPage: pagination.currentPage || 1,
+          totalCount: pagination.totalCount || 0,
+          loading: false,
+        });
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      setNotifications([]);
-      localStorage.removeItem('notifications');
+      if (reset) {
+        setNotifications([]);
+        localStorage.removeItem('notifications');
+      }
+      setNotificationPagination((prev) => ({ ...prev, loading: false }));
       // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
+    }
+  };
+
+  // Load more notifications for infinite scroll
+  const loadMoreNotifications = async () => {
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (
+      !accessToken ||
+      !userId ||
+      notificationPagination.loading ||
+      !notificationPagination.hasMore
+    ) {
+      return;
+    }
+
+    setNotificationPagination((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const skip = notifications.length;
+      const response = await axios.get(`${apiBaseUrl}/notification`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: { limit: 20, skip },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        const newNotifs = response.data.data?.notifications || [];
+        const pagination = response.data.pagination || {};
+
+        const updatedNotifs = [...notifications, ...newNotifs];
+        setNotifications(updatedNotifs);
+        localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
+
+        setNotificationPagination({
+          hasMore: pagination.hasMore || false,
+          currentPage: pagination.currentPage || 1,
+          totalCount: pagination.totalCount || 0,
+          loading: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading more notifications:', error);
+      setNotificationPagination((prev) => ({ ...prev, loading: false }));
+      toast.error('Không thể tải thêm thông báo');
     }
   };
 
@@ -1130,7 +1208,7 @@ export const Common = ({ children }) => {
       const loadInitialData = async () => {
         try {
           await Promise.all([
-            fetchNotifications(),
+            fetchNotifications(true),
             checkGoogleAuth(),
             getCalendarUser(),
           ]);
@@ -1274,6 +1352,8 @@ export const Common = ({ children }) => {
         fetchUserProfile,
         updateUserProfile,
         cancelEventParticipation,
+        loadMoreNotifications,
+        notificationPagination,
       }}
     >
       <Toaster

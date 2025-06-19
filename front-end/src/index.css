@@ -1118,6 +1118,51 @@ body {
   }
 }
 
+/* Smooth scrolling for notification containers */
+.notification-dropdown-menu > div,
+.modal-body {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for notifications */
+.notification-dropdown-menu > div::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notification-dropdown-menu > div::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.notification-dropdown-menu > div::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.notification-dropdown-menu > div::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Loading animation for notifications */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-item {
+  animation: fadeInUp 0.3s ease-out;
+}
+
 /* Notification dropdown responsive styles */
 @media (min-width: 768px) and (max-width: 1200px) {
   .notification-dropdown-menu {
