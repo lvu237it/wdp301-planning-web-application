@@ -31,37 +31,37 @@ const UpdateWorkspaceModal = ({ show, onHide, workspace }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
+    <Modal show={show} onHide={onHide} centered className='modern-modal'>
       <Form onSubmit={handleSubmit}>
         <Modal.Header closeButton>
           <Modal.Title>Edit Workspace</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group controlId="workspaceName" className="mb-3">
+          <Form.Group controlId='workspaceName' className='mb-3'>
             <Form.Label>Name</Form.Label>
             <Form.Control
-              type="text"
+              type='text'
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               required
             />
           </Form.Group>
-          <Form.Group controlId="workspaceDescription" className="mb-3">
+          <Form.Group controlId='workspaceDescription' className='mb-3'>
             <Form.Label>Description</Form.Label>
             <Form.Control
-              as="textarea"
+              as='textarea'
               rows={3}
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={onHide} disabled={loading}>
+          <Button variant='secondary' onClick={onHide} disabled={loading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? <Spinner animation="border" size="sm" /> : 'Save'}
+          <Button type='submit' variant='primary' disabled={loading}>
+            {loading ? <Spinner animation='border' size='sm' /> : 'Save'}
           </Button>
         </Modal.Footer>
       </Form>

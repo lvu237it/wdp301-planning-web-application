@@ -25,7 +25,7 @@ const InviteResponse = () => {
     try {
       const res = await axios.post(
         `${apiBaseUrl}/workspace/invite-response`,
-        { token, action }, 
+        { token, action },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       setResult(res.data.message);
@@ -41,51 +41,69 @@ const InviteResponse = () => {
 
   if (loading) {
     return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border"/>
-      </Container>
+      <div className='invite-response-page'>
+        <div className='invite-response-loading'>
+          <Spinner animation='border' />
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container className="py-5">
-        <Alert variant="danger">{error}</Alert>
-      </Container>
+      <div className='invite-response-page'>
+        <Container className='py-5'>
+          <Alert variant='danger' className='invite-response-alert error'>
+            {error}
+          </Alert>
+        </Container>
+      </div>
     );
   }
 
   if (result) {
     return (
-      <Container className="py-5">
-        <Alert variant="success">{result}</Alert>
-      </Container>
+      <div className='invite-response-page'>
+        <Container className='py-5'>
+          <Alert variant='success' className='invite-response-alert success'>
+            {result}
+          </Alert>
+        </Container>
+      </div>
     );
   }
 
   return (
-    <Container className="py-5 d-flex justify-content-center">
-      <Card style={{ width: 400 }}>
-        <Card.Body className="text-center">
-          <Card.Title>Xác nhận lời mời</Card.Title>
-          <Card.Text>Bạn có muốn tham gia workspace này?</Card.Text>
-          <div className="d-flex justify-content-around mt-4">
-            <Button
-              variant="success"
-              onClick={() => handleAction('accept')}
-            >
-              Accept
-            </Button>
-            <Button
-              variant="outline-secondary"
-              onClick={() => handleAction('decline')}
-            >
-              Decline
-            </Button>
-          </div>
-        </Card.Body>
-      </Card>
-    </Container>
+    <div className='invite-response-page'>
+      <Container className='py-5 d-flex justify-content-center'>
+        <Card className='invite-response-card'>
+          <Card.Body className='text-center'>
+            <Card.Title className='invite-response-title'>
+              Xác nhận lời mời
+            </Card.Title>
+            <Card.Text className='invite-response-text'>
+              Bạn có muốn tham gia workspace này?
+            </Card.Text>
+            <div className='invite-response-actions'>
+              <Button
+                variant='success'
+                className='invite-response-btn accept'
+                onClick={() => handleAction('accept')}
+              >
+                Accept
+              </Button>
+              <Button
+                variant='outline-secondary'
+                className='invite-response-btn decline'
+                onClick={() => handleAction('decline')}
+              >
+                Decline
+              </Button>
+            </div>
+          </Card.Body>
+        </Card>
+      </Container>
+    </div>
   );
 };
 
