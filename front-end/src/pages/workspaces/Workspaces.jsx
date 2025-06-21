@@ -134,11 +134,11 @@ const Workspaces = () => {
 							<Card className='h-100 d-flex flex-column shadow-sm'>
 								{/* HEADER */}
 								<Card.Header className='d-flex justify-content-between align-items-center h-100'>
-									<Col xs={7}>
+									<Col xs={6}>
 										<Card.Title className='mb-0'>{ws.name}</Card.Title>
 									</Col>
 
-									<Col xs={5}>
+									<Col xs={6}>
 										<Badge pill bg='success'>
 											{isCreator ? 'creatorWorkspace' : 'memberWorkspace'}
 										</Badge>
