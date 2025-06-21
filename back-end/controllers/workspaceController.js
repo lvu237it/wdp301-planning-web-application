@@ -245,9 +245,6 @@ exports.inviteMember = async (req, res) => {
 
 		// 6. Tạo link mời
 		const inviteLink = `${process.env.FRONTEND_URL}/invite-response?token=${token}`;
-		const logoPath = path.join(__dirname, '../images/Logo_email.png');
-		const logoData = fs.readFileSync(logoPath).toString('base64');
-		const logoBase64 = `data:image/png;base64,${logoData}`;
 		const emailHtml = `
 <!DOCTYPE html>
 <html lang="vi">

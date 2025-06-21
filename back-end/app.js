@@ -21,6 +21,7 @@ const calendarRouter = require('./routes/calendarRoutes');
 const eventRouter = require('./routes/eventRoutes');
 const boardRouter = require('./routes/boardRoutes');
 const fileRouter = require('./routes/fileRoutes');
+const skillRouter = require('./routes/skillRoutes');
 const notificationRouter = require('./routes/notificationRoutes');
 const messageRouter = require('./routes/messageRoutes');
 
@@ -110,6 +111,7 @@ app.use('/task', taskRoutes);
 app.use('/workspace', workspaceRouter);
 app.use('/workspace/:workspaceId/board', boardRouter);
 app.use('/files', fileRouter);
+app.use('/skills', skillRouter);
 app.use('/notification', notificationRouter);
 app.use('/message', messageRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
