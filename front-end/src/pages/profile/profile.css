@@ -404,3 +404,34 @@
     justify-content: center;
   }
 }
+/* ===== skill search dropdown ===== */
+.skill-select {
+  position: relative;
+}
+.skill-search-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  z-index: 2000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.skill-search-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.skill-search-item:hover {
+  background-color: #f7f7f7;
+}
+.skill-search-item i,
+.skill-search-item .icon {
+  margin-right: 8px;
+  font-size: 1.1rem;
+}

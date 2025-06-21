@@ -1,5 +1,8 @@
-// src/pages/profile/Profile.jsx
 import React, { useState, useEffect } from "react";
+import { initializeIcons } from "@fluentui/font-icons-mdl2";
+import "devicon/devicon.min.css";
+import { Icon } from "@iconify/react";
+import { SiGoogledocs, SiGooglesheets, SiGoogleslides } from "react-icons/si";
 import {
   Container,
   Row,
@@ -26,6 +29,10 @@ import {
 } from "react-icons/fa";
 import { useCommon } from "../../contexts/CommonContext";
 import "./profile.css";
+import skills from "./skills.json";
+
+// Initialize Fluent UI MDL2 icons (Word/Excel/PowerPoint)
+initializeIcons();
 
 const Profile = () => {
   const {
@@ -50,12 +57,20 @@ const Profile = () => {
     availability: { status: "available", willingToJoin: true },
     expectedWorkDuration: { min: 0, max: 0, unit: "hours" },
   });
+
   const [newSkill, setNewSkill] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
       const user = await fetchUserProfile();
       if (user) {
+        const normalizedSkills = (user.skills || []).map((sk) => {
+          const m = skills.find(
+            (s) => s.name.toLowerCase() === sk.toLowerCase()
+          );
+          return m ? m.name : sk;
+        });
         setProfile(user);
         setFormData({
           avatar: user.avatar || "",
@@ -64,7 +79,7 @@ const Profile = () => {
           email: user.email || "",
           about: user.about || "",
           experience: user.experience || "",
-          skills: user.skills || [],
+          skills: normalizedSkills,
           yearOfExperience: user.yearOfExperience || 0,
           availability: user.availability || {
             status: "available",
@@ -85,53 +100,61 @@ const Profile = () => {
     const { name, value, type, checked } = e.target;
     if (name.includes("availability.")) {
       const key = name.split(".")[1];
-      setFormData((prev) => ({
-        ...prev,
+      setFormData((p) => ({
+        ...p,
         availability: {
-          ...prev.availability,
+          ...p.availability,
           [key]: type === "checkbox" ? checked : value,
         },
       }));
     } else if (name.includes("expectedWorkDuration.")) {
       const key = name.split(".")[1];
-      setFormData((prev) => ({
-        ...prev,
+      setFormData((p) => ({
+        ...p,
         expectedWorkDuration: {
-          ...prev.expectedWorkDuration,
+          ...p.expectedWorkDuration,
           [key]: key === "unit" ? value : Number(value),
         },
       }));
     } else {
-      setFormData((prev) => ({
-        ...prev,
+      setFormData((p) => ({
+        ...p,
         [name]: type === "checkbox" ? checked : value,
       }));
     }
   };
 
-  const handleAddSkill = () => {
-    const s = newSkill.trim();
-    if (s && !formData.skills.includes(s)) {
-      setFormData((prev) => ({ ...prev, skills: [...prev.skills, s] }));
-      setNewSkill("");
-    }
+  // Filter by name OR tag, and exclude already-selected
+  const filteredSkills = skills.filter(
+    (s) =>
+      !formData.skills.some(
+        (fs) => fs.toLowerCase() === s.name.toLowerCase()
+      ) &&
+      (s.name.toLowerCase().includes(newSkill.toLowerCase()) ||
+        s.tags.some((t) => t.toLowerCase().includes(newSkill.toLowerCase())))
+  );
+
+  const handleSearchChange = (e) => {
+    setNewSkill(e.target.value);
+    setShowSuggestions(true);
   };
 
-  const handleRemoveSkill = (skill) => {
-    setFormData((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((s) => s !== skill),
-    }));
+  const handleSelectSkill = (skillName) => {
+    setFormData((p) => ({ ...p, skills: [...p.skills, skillName] }));
+    setNewSkill("");
+    setShowSuggestions(false);
   };
+
+  const handleRemoveSkill = (skill) =>
+    setFormData((p) => ({ ...p, skills: p.skills.filter((s) => s !== skill) }));
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     try {
       const url = await uploadImageToCloudinary(file);
-      setFormData((prev) => ({ ...prev, avatar: url }));
       await updateUserProfile({ avatar: url });
-      setProfile((prev) => ({ ...prev, avatar: url }));
+      setProfile((p) => ({ ...p, avatar: url }));
       toast.success("Avatar updated");
     } catch {
       toast.error("Failed to upload avatar");
@@ -142,7 +165,7 @@ const Profile = () => {
     e.preventDefault();
     const ok = await updateUserProfile(formData);
     if (ok) {
-      setProfile((prev) => ({ ...prev, ...formData }));
+      setProfile((p) => ({ ...p, ...formData }));
       setIsEditing(false);
       toast.success("Profile updated");
     }
@@ -155,6 +178,25 @@ const Profile = () => {
       </div>
     );
   }
+
+  const renderIcon = (iconKey) => {
+    if (iconKey.startsWith("devicon:")) {
+      return <i className={`${iconKey.replace(":", "-")} colored me-1`} />;
+    }
+    if (iconKey.startsWith("fluent-mdl2:")) {
+      const name = iconKey.split(":")[1];
+      return (
+        <i className={`ms-Icon ms-Icon--${name} me-1`} aria-hidden="true" />
+      );
+    }
+    if (iconKey === "si:googledocs")
+      return <SiGoogledocs className="me-1" size={20} />;
+    if (iconKey === "si:googlesheets")
+      return <SiGooglesheets className="me-1" size={20} />;
+    if (iconKey === "si:googleslides")
+      return <SiGoogleslides className="me-1" size={20} />;
+    return <Icon icon={iconKey} width={20} height={20} className="me-1" />;
+  };
 
   return (
     <Container className={`${isMobile ? "mobile" : ""} profile-content`}>
@@ -174,8 +216,8 @@ const Profile = () => {
               <Form.Control
                 type="file"
                 accept="image/*"
-                onChange={handleImageUpload}
                 hidden
+                onChange={handleImageUpload}
               />
               <FaCamera />
             </label>
@@ -267,11 +309,17 @@ const Profile = () => {
             <Card.Header>Skills</Card.Header>
             <Card.Body>
               {profile.skills.length ? (
-                profile.skills.map((s, i) => (
-                  <Badge bg="secondary" key={i} className="me-1">
-                    {s}
-                  </Badge>
-                ))
+                profile.skills.map((s, i) => {
+                  const m = skills.find(
+                    (sk) => sk.name.toLowerCase() === s.toLowerCase()
+                  );
+                  return (
+                    <Badge bg="secondary" key={i} className="me-1 mb-1">
+                      {renderIcon(m?.icon || "")}
+                      <span>{m ? m.name : s}</span>
+                    </Badge>
+                  );
+                })
               ) : (
                 <p>No skills listed.</p>
               )}
@@ -286,7 +334,7 @@ const Profile = () => {
           <Modal.Header closeButton>
             <Modal.Title>Edit Profile</Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
             <Row className="g-3">
               <Col md={6}>
                 <Form.Group>
@@ -422,32 +470,73 @@ const Profile = () => {
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Skills</Form.Label>
-                  <InputGroup className="mb-2">
-                    <FormControl
-                      placeholder="Add a skill"
-                      value={newSkill}
-                      onChange={(e) => setNewSkill(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" &&
-                        (e.preventDefault(), handleAddSkill())
-                      }
-                    />
-                    <Button
-                      variant="outline-secondary"
-                      onClick={handleAddSkill}
-                    >
-                      <FaPlus />
-                    </Button>
-                  </InputGroup>
-                  {formData.skills.map((s, i) => (
-                    <Badge bg="secondary" key={i} className="me-1">
-                      {s}{" "}
-                      <FaTimes
-                        style={{ cursor: "pointer" }}
-                        onClick={() => handleRemoveSkill(s)}
+                  <div className="skill-select">
+                    <InputGroup>
+                      <FormControl
+                        placeholder="Search a skill…"
+                        value={newSkill}
+                        onChange={handleSearchChange}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() =>
+                          setTimeout(() => setShowSuggestions(false), 150)
+                        }
                       />
-                    </Badge>
-                  ))}
+                      <Button
+                        variant="outline-secondary"
+                        disabled={
+                          !skills.find(
+                            (s) =>
+                              s.name.toLowerCase() ===
+                              newSkill.trim().toLowerCase()
+                          )
+                        }
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const match = skills.find(
+                            (s) =>
+                              s.name.toLowerCase() ===
+                              newSkill.trim().toLowerCase()
+                          );
+                          if (match) handleSelectSkill(match.name);
+                        }}
+                      >
+                        <FaPlus />
+                      </Button>
+                    </InputGroup>
+                    {showSuggestions && filteredSkills.length > 0 && (
+                      <div className="skill-search-dropdown">
+                        {filteredSkills.map((s, i) => (
+                          <div
+                            key={i}
+                            className="skill-search-item d-flex justify-content-between align-items-center"
+                            onMouseDown={() => handleSelectSkill(s.name)}
+                          >
+                            <div>
+                              {renderIcon(s.icon)}
+                              <span className="ms-1">{s.name}</span>
+                            </div>
+                            <small className="text-muted">
+                              {s.tags.join(", ")}
+                            </small>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2">
+                    {formData.skills.map((s, i) => (
+                      <Badge bg="secondary" key={i} className="me-1 mb-1">
+                        {renderIcon(
+                          skills.find((sk) => sk.name === s)?.icon || ""
+                        )}
+                        {s}{" "}
+                        <FaTimes
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleRemoveSkill(s)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
                 </Form.Group>
               </Col>
             </Row>

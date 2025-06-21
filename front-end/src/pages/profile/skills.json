@@ -1,0 +1,302 @@
+[
+  {
+    "name": "JavaScript",
+    "icon": "devicon:javascript-plain",
+    "tags": ["dev", "language", "frontend", "backend"]
+  },
+  {
+    "name": "TypeScript",
+    "icon": "devicon:typescript-plain",
+    "tags": ["dev", "language", "frontend", "backend"]
+  },
+  {
+    "name": "Java",
+    "icon": "devicon:java-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "Python",
+    "icon": "devicon:python-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "C#",
+    "icon": "devicon:csharp-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "Go",
+    "icon": "devicon:go-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "PHP",
+    "icon": "devicon:php-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "Ruby",
+    "icon": "devicon:ruby-plain",
+    "tags": ["dev", "language", "backend"]
+  },
+  {
+    "name": "Node.js",
+    "icon": "devicon:nodejs-plain",
+    "tags": ["dev", "runtime", "backend"]
+  },
+  {
+    "name": "React",
+    "icon": "devicon:react-original",
+    "tags": ["dev", "framework", "frontend"]
+  },
+  {
+    "name": "Angular",
+    "icon": "devicon:angularjs-plain",
+    "tags": ["dev", "framework", "frontend"]
+  },
+  {
+    "name": "Vue.js",
+    "icon": "devicon:vuejs-plain",
+    "tags": ["dev", "framework", "frontend"]
+  },
+  {
+    "name": "HTML5",
+    "icon": "devicon:html5-plain",
+    "tags": ["dev", "markup", "frontend"]
+  },
+  {
+    "name": "CSS3",
+    "icon": "devicon:css3-plain",
+    "tags": ["dev", "style", "frontend"]
+  },
+  {
+    "name": "Bootstrap",
+    "icon": "devicon:bootstrap-plain",
+    "tags": ["dev", "framework", "frontend"]
+  },
+  {
+    "name": "Tailwind CSS",
+    "icon": "devicon:tailwindcss-plain",
+    "tags": ["dev", "framework", "frontend"]
+  },
+  {
+    "name": "MySQL",
+    "icon": "devicon:mysql-plain",
+    "tags": ["dev", "database"]
+  },
+  {
+    "name": "PostgreSQL",
+    "icon": "devicon:postgresql-plain",
+    "tags": ["dev", "database"]
+  },
+  {
+    "name": "MongoDB",
+    "icon": "devicon:mongodb-plain",
+    "tags": ["dev", "database"]
+  },
+  {
+    "name": "Redis",
+    "icon": "devicon:redis-plain",
+    "tags": ["dev", "database"]
+  },
+  {
+    "name": "Docker",
+    "icon": "devicon:docker-plain",
+    "tags": ["devops", "infrastructure"]
+  },
+  {
+    "name": "Kubernetes",
+    "icon": "devicon:kubernetes-plain",
+    "tags": ["devops", "infrastructure"]
+  },
+  {
+    "name": "AWS",
+    "icon": "logos:aws",
+    "tags": ["cloud", "infrastructure"]
+  },
+  {
+    "name": "Azure",
+    "icon": "logos:microsoft-azure",
+    "tags": ["cloud", "infrastructure"]
+  },
+  {
+    "name": "Google Cloud",
+    "icon": "logos:google-cloud",
+    "tags": ["cloud", "infrastructure"]
+  },
+  {
+    "name": "Terraform",
+    "icon": "logos:terraform",
+    "tags": ["devops", "infrastructure"]
+  },
+  {
+    "name": "Ansible",
+    "icon": "logos:ansible",
+    "tags": ["devops", "infrastructure"]
+  },
+  {
+    "name": ".NET",
+    "icon": "devicon:dot-net-plain",
+    "tags": ["dev", "framework", "backend"]
+  },
+  {
+    "name": "Spring",
+    "icon": "logos:spring",
+    "tags": ["dev", "framework", "backend"]
+  },
+  {
+    "name": "Django",
+    "icon": "logos:django",
+    "tags": ["dev", "framework", "backend"]
+  },
+  {
+    "name": "Flask",
+    "icon": "logos:flask",
+    "tags": ["dev", "framework", "backend"]
+  },
+  {
+    "name": "GraphQL",
+    "icon": "logos:graphql",
+    "tags": ["dev", "api"]
+  },
+  {
+    "name": "REST API",
+    "icon": "fa-solid:code",
+    "tags": ["dev", "api"]
+  },
+  {
+    "name": "Git",
+    "icon": "devicon:git-plain",
+    "tags": ["dev", "version_control"]
+  },
+  {
+    "name": "GitHub",
+    "icon": "devicon:github-original",
+    "tags": ["dev", "version_control"]
+  },
+  {
+    "name": "Jenkins",
+    "icon": "devicon:jenkins-plain",
+    "tags": ["devops", "ci_cd"]
+  },
+  {
+    "name": "GitHub Actions",
+    "icon": "fa-brands:github",
+    "tags": ["devops", "ci_cd"]
+  },
+  {
+    "name": "Jest",
+    "icon": "logos:jest",
+    "tags": ["testing", "qa"]
+  },
+  {
+    "name": "Selenium",
+    "icon": "logos:selenium",
+    "tags": ["testing", "qa"]
+  },
+  {
+    "name": "Microsoft Word",
+    "icon": "fa-solid:file-word",
+    "tags": ["office", "microsoft"]
+  },
+  {
+    "name": "Microsoft Excel",
+    "icon": "fa-solid:file-excel",
+    "tags": ["office", "microsoft"]
+  },
+  {
+    "name": "Microsoft PowerPoint",
+    "icon": "fa-solid:file-powerpoint",
+    "tags": ["office", "microsoft"]
+  },
+  {
+    "name": "Google Docs",
+    "icon": "si:googledocs",
+    "tags": ["office", "google"]
+  },
+  {
+    "name": "Google Sheets",
+    "icon": "si:googlesheets",
+    "tags": ["office", "google"]
+  },
+  {
+    "name": "Google Slides",
+    "icon": "si:googleslides",
+    "tags": ["office", "google"]
+  },
+  {
+    "name": "Adobe Photoshop",
+    "icon": "logos:adobe-photoshop",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Adobe Illustrator",
+    "icon": "logos:adobe-illustrator",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Adobe InDesign",
+    "icon": "simple-icons:adobeindesign",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Adobe Premiere Pro",
+    "icon": "fa-solid:film",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Adobe After Effects",
+    "icon": "simple-icons:adobeaftereffects",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Adobe Lightroom",
+    "icon": "simple-icons:adobelightroom",
+    "tags": ["design", "adobe"]
+  },
+  {
+    "name": "Figma",
+    "icon": "logos:figma",
+    "tags": ["design", "pm"]
+  },
+  {
+    "name": "Sketch",
+    "icon": "logos:sketch",
+    "tags": ["design"]
+  },
+  {
+    "name": "Jira",
+    "icon": "logos:jira",
+    "tags": ["pm", "ba"]
+  },
+  {
+    "name": "Confluence",
+    "icon": "logos:confluence",
+    "tags": ["pm", "ba"]
+  },
+  {
+    "name": "Trello",
+    "icon": "devicon:trello-plain",
+    "tags": ["pm", "ba"]
+  },
+  {
+    "name": "Miro",
+    "icon": "logos:miro",
+    "tags": ["pm", "ba"]
+  },
+  {
+    "name": "Slack",
+    "icon": "devicon:slack-plain",
+    "tags": ["workflow", "communication"]
+  },
+  {
+    "name": "Postman",
+    "icon": "devicon:postman-plain",
+    "tags": ["testing", "qa"]
+  },
+  {
+    "name": "Cucumber",
+    "icon": "devicon:cucumber-plain",
+    "tags": ["testing", "qa"]
+  }
+]
