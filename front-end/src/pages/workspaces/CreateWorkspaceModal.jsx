@@ -13,7 +13,7 @@ const CreateWorkspaceModal = ({ show, onHide }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await createWorkspace({name, description});
+      await createWorkspace({ name, description });
       toast.success('Tạo workspace thành công!');
       onHide();
       // reset form
@@ -27,39 +27,39 @@ const CreateWorkspaceModal = ({ show, onHide }) => {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
+    <Modal show={show} onHide={onHide} centered className='modern-modal'>
       <Form onSubmit={handleSubmit}>
         <Modal.Header closeButton>
           <Modal.Title>New Workspace</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group className="mb-3">
+          <Form.Group className='mb-3'>
             <Form.Label>Name</Form.Label>
             <Form.Control
-              type="text"
-              placeholder="Enter workspace name"
+              type='text'
+              placeholder='Enter workspace name'
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
             />
           </Form.Group>
-          <Form.Group className="mb-3">
+          <Form.Group className='mb-3'>
             <Form.Label>Description</Form.Label>
             <Form.Control
-              as="textarea"
+              as='textarea'
               rows={3}
-              placeholder="Optional description"
+              placeholder='Optional description'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={onHide} disabled={loading}>
+          <Button variant='secondary' onClick={onHide} disabled={loading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={loading}>
-            {loading ? <Spinner animation="border" size="sm" /> : 'Create'}
+          <Button type='submit' variant='success' disabled={loading}>
+            {loading ? <Spinner animation='border' size='sm' /> : 'Create'}
           </Button>
         </Modal.Footer>
       </Form>
