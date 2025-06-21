@@ -12,30 +12,30 @@ const InviteMemberModal = ({ show, onHide, workspaceId }) => {
   const [submitting, setSubmitting] = useState(false);
 
   // Debounce + fetch gợi ý user theo prefix email
-  useEffect(() => {
-    if (email.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setLoadingSuggest(true);
-      try {
-        const res = await axios.get(
-          `${apiBaseUrl}/users/search`,
-          {
-            params: { query: email },
-            headers: { Authorization: `Bearer ${accessToken}` }
-          }
-        );
-        setSuggestions(res.data.users || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingSuggest(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [email, apiBaseUrl, accessToken]);
+  // useEffect(() => {
+  //   if (email.length < 2) {
+  //     setSuggestions([]);
+  //     return;
+  //   }
+  //   const timer = setTimeout(async () => {
+  //     setLoadingSuggest(true);
+  //     try {
+  //       const res = await axios.get(
+  //         `${apiBaseUrl}/users/search`,
+  //         {
+  //           params: { query: email },
+  //           headers: { Authorization: `Bearer ${accessToken}` }
+  //         }
+  //       );
+  //       setSuggestions(res.data.users || []);
+  //     } catch (err) {
+  //       console.error(err);
+  //     } finally {
+  //       setLoadingSuggest(false);
+  //     }
+  //   }, 300);
+  //   return () => clearTimeout(timer);
+  // }, [email, apiBaseUrl, accessToken]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -1,7 +1,7 @@
 import { FaBell, FaSearch } from 'react-icons/fa';
-import { Dropdown, Modal, Badge } from 'react-bootstrap';
+import { Dropdown, Modal, Badge, Spinner } from 'react-bootstrap';
 import defaultAvatar from '/images/user-avatar-default.png';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useCommon } from '../../contexts/CommonContext';
 
 const Header = () => {
@@ -12,6 +12,8 @@ const Header = () => {
     markNotificationAsRead,
     respondToEventInvitation,
     fetchNotifications,
+    loadMoreNotifications,
+    notificationPagination,
     isAuthenticated,
     userDataLocal,
     formatDateAMPMForVN,
@@ -22,6 +24,10 @@ const Header = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(new Map());
+
+  // Refs for infinite scroll
+  const dropdownScrollRef = useRef(null);
+  const modalScrollRef = useRef(null);
 
   const unreadCount = notifications?.filter((n) => !n.isRead)?.length || 0;
 
@@ -75,15 +81,34 @@ const Header = () => {
     );
 
     try {
-      const success = await respondToEventInvitation(
+      const result = await respondToEventInvitation(
         eventId,
         status,
         notificationId
       );
 
-      if (success) {
+      if (result.success) {
         // Fetch lại notifications mới nhất sau khi respond thành công
-        await fetchNotifications();
+        await fetchNotifications(true);
+      } else if (result.hasConflict && status === 'accepted') {
+        // Show conflict modal for acceptance
+        setLoadingNotifications((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(notificationId);
+          return newMap;
+        });
+
+        // Dispatch event for Calendar to handle conflict modal
+        window.dispatchEvent(
+          new CustomEvent('eventConflict', {
+            detail: {
+              eventId,
+              notificationId,
+              conflictData: result.conflictData,
+            },
+          })
+        );
+        return; // Exit early to prevent removal from loading map again
       }
     } finally {
       // Remove notification khỏi loading map
@@ -134,6 +159,28 @@ const Header = () => {
     setShowNotifDropdown(false);
   };
 
+  // Infinite scroll handler
+  const handleScroll = useCallback(
+    (e) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.target;
+      const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+      // Trigger load more when scrolled 80% down
+      if (
+        scrollPercentage > 0.8 &&
+        notificationPagination.hasMore &&
+        !notificationPagination.loading
+      ) {
+        loadMoreNotifications();
+      }
+    },
+    [
+      notificationPagination.hasMore,
+      notificationPagination.loading,
+      loadMoreNotifications,
+    ]
+  );
+
   const renderNotifications = () => {
     if (!notifications || notifications.length === 0) {
       return (
@@ -144,7 +191,11 @@ const Header = () => {
     }
 
     return (
-      <div style={{ maxHeight: '300px', overflowY: 'auto', width: '300px' }}>
+      <div
+        ref={dropdownScrollRef}
+        style={{ maxHeight: '400px', overflowY: 'auto', width: '320px' }}
+        onScroll={handleScroll}
+      >
         {notifications.map((notif) => (
           <Dropdown.Item
             key={notif.notificationId}
@@ -204,9 +255,7 @@ const Header = () => {
               <small className='notification-content text-wrap'>
                 {notif.content}
               </small>
-              <small className='text-muted mt-1'>
-                {formatDateAMPMForVN(notif.createdAt)}
-              </small>
+              <small className='text-muted mt-1'>{notif.createdAt}</small>
 
               {/* Hiển thị buttons cho event invitation nếu chưa respond */}
               {notif.type === 'event_invitation' &&
@@ -302,6 +351,25 @@ const Header = () => {
             </div>
           </Dropdown.Item>
         ))}
+
+        {/* Loading indicator */}
+        {notificationPagination.loading && (
+          <div className='text-center py-3'>
+            <Spinner animation='border' size='sm' variant='primary' />
+            <div className='text-muted mt-2' style={{ fontSize: '0.85rem' }}>
+              Đang tải thêm thông báo...
+            </div>
+          </div>
+        )}
+
+        {/* End indicator */}
+        {!notificationPagination.hasMore && notifications.length > 0 && (
+          <div className='text-center py-2'>
+            <small className='text-muted'>
+              Đã hiển thị tất cả thông báo ({notificationPagination.totalCount})
+            </small>
+          </div>
+        )}
       </div>
     );
   };
@@ -437,9 +505,9 @@ const Header = () => {
             <div className='avatar-popover'>
               {isAuthenticated && userDataLocal ? (
                 <>
-                  <div className='popover-item' onClick={handleProfileClick}>
+                  {/* <div className='popover-item' onClick={handleProfileClick}>
                     Profile
-                  </div>
+                  </div> */}
                   <div className='popover-item' onClick={handleLogoutClick}>
                     Logout
                   </div>
@@ -470,7 +538,9 @@ const Header = () => {
           <Modal.Title>Thông báo</Modal.Title>
         </Modal.Header>
         <Modal.Body
+          ref={modalScrollRef}
           style={{ maxHeight: '70vh', overflowY: 'auto', padding: '1rem' }}
+          onScroll={handleScroll}
         >
           {notifications && notifications.length > 0 ? (
             notifications.map((notif) => (
@@ -540,9 +610,7 @@ const Header = () => {
                   <small className='notification-content text-wrap'>
                     {notif.content}
                   </small>
-                  <small className='text-muted mt-1'>
-                    {formatDateAMPMForVN(notif.createdAt)}
-                  </small>
+                  <small className='text-muted mt-1'>{notif.createdAt}</small>
 
                   {/* Hiển thị buttons cho event invitation nếu chưa respond */}
                   {notif.type === 'event_invitation' &&
@@ -653,6 +721,26 @@ const Header = () => {
           ) : (
             <div className='text-center text-muted'>
               Bạn không có thông báo nào
+            </div>
+          )}
+
+          {/* Loading indicator for modal */}
+          {notificationPagination.loading && (
+            <div className='text-center py-3'>
+              <Spinner animation='border' size='sm' variant='primary' />
+              <div className='text-muted mt-2' style={{ fontSize: '0.9rem' }}>
+                Đang tải thêm thông báo...
+              </div>
+            </div>
+          )}
+
+          {/* End indicator for modal */}
+          {!notificationPagination.hasMore && notifications.length > 0 && (
+            <div className='text-center py-3'>
+              <small className='text-muted'>
+                Đã hiển thị tất cả thông báo (
+                {notificationPagination.totalCount})
+              </small>
             </div>
           )}
         </Modal.Body>

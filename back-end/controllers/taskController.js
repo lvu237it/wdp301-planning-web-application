@@ -6,7 +6,9 @@ const List = require('../models/listModel');
 
 const notifyAssignedUser = async (task) => {
   try {
-    const assignedUser = await User.findById(task.assignedTo).select('email name');
+    const assignedUser = await User.findById(task.assignedTo).select(
+      'email name'
+    );
     if (!assignedUser || !assignedUser.email) {
       console.warn(`User không tồn tại hoặc chưa có email: ${task.assignedTo}`);
       return;
@@ -37,9 +39,6 @@ const notifyAssignedUser = async (task) => {
   }
 };
 
-
-
-
 exports.getAllTask = async (req, res) => {
   try {
     const tasks = await Task.find({ isDeleted: false }).sort('createdAt');
@@ -61,14 +60,14 @@ exports.getTasksByBoard = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
         status: 'fail',
-        message: 'boardId không hợp lệ'
+        message: 'boardId không hợp lệ',
       });
     }
     const tasks = await Task.find({ boardId, isDeleted: false });
     res.status(200).json({
       status: 'success',
       results: tasks.length,
-      data: tasks
+      data: tasks,
     });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -126,14 +125,16 @@ exports.createTask = async (req, res) => {
       documents,
     } = req.body;
 
-    if (!title || !calendarId || !boardId || !listId || !assignedTo || !assignedBy) {
+    if (!title || !boardId || !listId) {
       return res.status(400).json({
         status: 'fail',
-        message: 'title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc',
+        message:
+          'title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc',
       });
     }
 
-    const requiredIds = { calendarId, boardId, listId, assignedTo, assignedBy };
+    // const requiredIds = { calendarId, boardId, listId, assignedTo, assignedBy };
+    const requiredIds = { boardId, listId };
     for (const [key, value] of Object.entries(requiredIds)) {
       if (!mongoose.Types.ObjectId.isValid(value)) {
         return res.status(400).json({
@@ -143,10 +144,14 @@ exports.createTask = async (req, res) => {
       }
     }
     if (workspaceId && !mongoose.Types.ObjectId.isValid(workspaceId)) {
-      return res.status(400).json({ status: 'fail', message: 'workspaceId không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'workspaceId không hợp lệ' });
     }
     if (eventId && !mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(400).json({ status: 'fail', message: 'eventId không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'eventId không hợp lệ' });
     }
 
     const newTask = await Task.create({
@@ -157,8 +162,8 @@ exports.createTask = async (req, res) => {
       boardId,
       listId,
       eventId: eventId || null,
-      assignedTo,
-      assignedBy,
+      assignedTo: assignedTo || null,
+      assignedBy: assignedBy || null,
       deadline: deadline || null,
       recurrence: recurrence || null,
       reminderSettings: Array.isArray(reminderSettings) ? reminderSettings : [],
@@ -172,7 +177,7 @@ exports.createTask = async (req, res) => {
     await List.findByIdAndUpdate(
       listId,
       { $push: { tasks: newTask._id } },
-      { new: true } 
+      { new: true }
     );
 
     res.status(201).json({
@@ -227,7 +232,15 @@ exports.updateTask = async (req, res) => {
 
     const oldAssignedTo = task.assignedTo.toString();
 
-    const idFields = { calendarId, workspaceId, boardId, listId, eventId, assignedTo, assignedBy };
+    const idFields = {
+      calendarId,
+      workspaceId,
+      boardId,
+      listId,
+      eventId,
+      assignedTo,
+      assignedBy,
+    };
     for (const [key, value] of Object.entries(idFields)) {
       if (value !== undefined && value !== null) {
         if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -308,11 +321,9 @@ exports.updateTask = async (req, res) => {
   }
 };
 
-
 exports.deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         status: 'fail',
@@ -320,6 +331,7 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
+    // 1. Tìm task để lấy listId trước khi xóa
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res.status(404).json({
@@ -328,11 +340,23 @@ exports.deleteTask = async (req, res) => {
       });
     }
 
+    const { listId } = task;
+
+    // 2. Xóa task (hard delete)
     await Task.deleteOne({ _id: id });
+    // Nếu bạn muốn soft-delete, thay bằng:
+    // await Task.findByIdAndUpdate(id, { isDeleted: true, deletedAt: Date.now() });
+
+    // 3. Cập nhật lại mảng tasks trong List: pull id của task vừa xóa
+    await List.findByIdAndUpdate(
+      listId,
+      { $pull: { tasks: task._id } },
+      { new: true }
+    );
 
     res.status(200).json({
       status: 'success',
-      message: 'Xóa task thành công',
+      message: 'Xóa task thành công và cập nhật List.tasks',
     });
   } catch (error) {
     console.error('Error while deleting task:', error);

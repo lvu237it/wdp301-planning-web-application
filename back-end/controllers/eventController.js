@@ -22,33 +22,20 @@ const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
 const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
 // Helper function để xử lý địa chỉ và geocoding
-const processAddressData = async (locationName, addressInput, type) => {
+const processAddressData = async (addressInput, type) => {
   if (type === 'online') {
     return null; // Sự kiện online không cần address
   }
 
-  if (!locationName && !addressInput) {
+  if (!addressInput || addressInput.trim() === '') {
     return null; // Không có thông tin địa chỉ
   }
 
-  // Kết hợp locationName và address thành full address string
-  // Tránh duplicate nếu addressInput đã chứa locationName
-  let fullAddress = '';
-  if (locationName && addressInput) {
-    // Kiểm tra xem addressInput đã chứa locationName chưa
-    if (addressInput.toLowerCase().includes(locationName.toLowerCase())) {
-      fullAddress = addressInput; // Chỉ dùng addressInput nếu đã chứa locationName
-    } else {
-      fullAddress = [locationName, addressInput].join(', '); // Gộp bình thường
-    }
-  } else {
-    fullAddress = [locationName, addressInput].filter(Boolean).join(', ');
-  }
-
-  console.log('Processing address:', fullAddress);
+  const trimmedAddress = addressInput.trim();
+  console.log('Processing address:', trimmedAddress);
 
   // Thử geocoding
-  const geocodedData = await geocodeAddress(fullAddress);
+  const geocodedData = await geocodeAddress(trimmedAddress);
 
   if (geocodedData) {
     // Nếu geocoding thành công, trả về object đầy đủ
@@ -59,7 +46,7 @@ const processAddressData = async (locationName, addressInput, type) => {
     return {
       type: 'Point',
       coordinates: null,
-      formattedAddress: fullAddress,
+      formattedAddress: trimmedAddress,
       placeId: null,
       mapZoomLevel: 15,
     };
@@ -113,9 +100,7 @@ const createGoogleCalendarEvent = async (userId, eventData) => {
       },
       location:
         eventData.type === 'offline'
-          ? `${eventData.locationName || ''} ${
-              eventData.address?.formattedAddress || ''
-            }`.trim()
+          ? eventData.address?.formattedAddress || ''
           : undefined,
       attendees: participantEmails,
     };
@@ -199,9 +184,7 @@ const updateGoogleCalendarEvent = async (userId, googleEventId, eventData) => {
       },
       location:
         eventData.type === 'offline'
-          ? `${eventData.locationName || ''} ${
-              eventData.address?.formattedAddress || ''
-            }`.trim()
+          ? eventData.address?.formattedAddress || ''
           : undefined,
       attendees: participantEmails,
     };
@@ -244,7 +227,6 @@ exports.createEventForCalendar = async (req, res) => {
     const {
       title,
       description,
-      locationName,
       address,
       type,
       startDate,
@@ -259,6 +241,7 @@ exports.createEventForCalendar = async (req, res) => {
       color,
       allDay,
       participantEmails, // New field for emails
+      forceCreate, // New field to bypass conflict check
     } = req.body;
     const { calendarId } = req.params;
     const organizer = req.user._id;
@@ -421,15 +404,33 @@ exports.createEventForCalendar = async (req, res) => {
         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
         status: 400,
       });
-    } else if (type === 'offline' && !locationName && !address) {
+    } else if (type === 'offline' && !address) {
       return res.status(400).json({
-        message: 'Thiếu thông tin địa điểm cho sự kiện offline',
+        message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
         status: 400,
       });
     }
 
+    const now = new Date();
     const start = new Date(startDate);
     const end = new Date(endDate);
+
+    // Kiểm tra startDate không được trong quá khứ
+    if (start < now) {
+      return res.status(400).json({
+        message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
+    // Kiểm tra endDate không được trong quá khứ
+    if (end < now) {
+      return res.status(400).json({
+        message: 'Thời gian kết thúc không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
     if (!allDay && start >= end) {
       return res.status(400).json({
         message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
@@ -437,12 +438,197 @@ exports.createEventForCalendar = async (req, res) => {
       });
     }
 
+    // Kiểm tra xung đột thời gian khi tạo sự kiện mới
+    if (!forceCreate) {
+      try {
+        let conflictQuery;
+
+        if (allDay) {
+          // Nếu sự kiện mới là allDay, check xem trong ngày đó có sự kiện nào khác không
+          // Chuẩn hóa ngày để so sánh (00:00:00 đến 23:59:59)
+          const dayStart = new Date(start);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(start);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              // Case 1: Sự kiện hiện có cũng là allDay và cùng ngày
+              {
+                allDay: true,
+                $expr: {
+                  $eq: [
+                    {
+                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+                    },
+                    {
+                      $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: start,
+                      },
+                    },
+                  ],
+                },
+              },
+              // Case 2: Sự kiện hiện có không phải allDay nhưng có overlap với ngày này
+              {
+                allDay: { $ne: true },
+                $and: [
+                  { startDate: { $lte: dayEnd } },
+                  { endDate: { $gte: dayStart } },
+                ],
+              },
+            ],
+          };
+        } else {
+          // Nếu sự kiện mới không phải allDay, check overlap với tất cả sự kiện
+          const startDay = new Date(start);
+          startDay.setHours(0, 0, 0, 0);
+          const startDayEnd = new Date(start);
+          startDayEnd.setHours(23, 59, 59, 999);
+
+          const endDay = new Date(end);
+          endDay.setHours(0, 0, 0, 0);
+          const endDayEnd = new Date(end);
+          endDayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              // Case 1: Sự kiện hiện có là allDay và overlap với ngày của sự kiện mới
+              {
+                allDay: true,
+                $or: [
+                  // AllDay event trong ngày bắt đầu của sự kiện mới
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: start,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  // AllDay event trong ngày kết thúc của sự kiện mới (nếu khác ngày bắt đầu)
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: end,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              // Case 2: Sự kiện hiện có không phải allDay và có overlap time
+              {
+                allDay: { $ne: true },
+                startDate: { $lt: end },
+                endDate: { $gt: start },
+              },
+            ],
+          };
+        }
+
+        console.log('CREATE EVENT - Checking conflict for:', {
+          organizer,
+          allDay,
+          startDate,
+          endDate,
+        });
+        console.log(
+          'CREATE EVENT - Conflict query:',
+          JSON.stringify(conflictQuery, null, 2)
+        );
+
+        const conflictingEvents = await Event.find(conflictQuery)
+          .populate('calendarId', 'name')
+          .select('title startDate endDate calendarId allDay');
+
+        console.log(
+          'CREATE EVENT - Found conflicting events:',
+          conflictingEvents.length
+        );
+        if (conflictingEvents.length > 0) {
+          console.log(
+            'CREATE EVENT - Conflicting events details:',
+            conflictingEvents.map((e) => ({
+              title: e.title,
+              allDay: e.allDay,
+              startDate: e.startDate,
+              endDate: e.endDate,
+            }))
+          );
+        }
+
+        if (conflictingEvents.length > 0) {
+          // Có xung đột thời gian
+          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+            id: conflictEvent._id,
+            title: conflictEvent.title,
+            startDate: conflictEvent.startDate,
+            endDate: conflictEvent.endDate,
+            allDay: conflictEvent.allDay,
+            // calendarName:
+            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
+          }));
+
+          return res.status(409).json({
+            message:
+              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+            status: 409,
+            hasConflict: true,
+            conflictingEvents: conflictDetails,
+            newEvent: {
+              title: title,
+              startDate: startDate,
+              endDate: endDate,
+              allDay: allDay,
+            },
+          });
+        }
+      } catch (conflictError) {
+        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+        // Không làm gián đoạn quá trình tạo event nếu có lỗi kiểm tra xung đột
+      }
+    }
+
     // Xử lý địa chỉ và geocoding
-    const processedAddress = await processAddressData(
-      locationName,
-      address,
-      type
-    );
+    const processedAddress = await processAddressData(address, type);
 
     if (
       status &&
@@ -470,7 +656,6 @@ exports.createEventForCalendar = async (req, res) => {
       title,
       description,
       calendarId,
-      locationName: type === 'offline' ? locationName : null,
       address: processedAddress,
       type,
       startDate,
@@ -525,7 +710,6 @@ exports.createEventForCalendar = async (req, res) => {
         endDate: savedEvent.endDate,
         allDay: savedEvent.allDay,
         type: savedEvent.type,
-        locationName: savedEvent.locationName,
         address: savedEvent.address,
         onlineUrl: savedEvent.onlineUrl,
         timeZone: savedEvent.timeZone,
@@ -568,9 +752,7 @@ exports.createEventForCalendar = async (req, res) => {
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
             title: 'Lời mời tham gia sự kiện',
-            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${
-              organizerUser.username || organizerUser.email
-            }.`,
+            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
             type: 'event_invitation',
             targetUserId: participant.userId,
             createdBy: organizer,
@@ -647,7 +829,7 @@ exports.getEventById = async (req, res) => {
       .populate('workspaceId', 'name');
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -665,7 +847,6 @@ exports.getEventById = async (req, res) => {
       rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
       extendedProps: {
         description: event.description,
-        locationName: event.locationName,
         address: event.address,
         type: event.type,
         onlineUrl: event.onlineUrl,
@@ -908,7 +1089,6 @@ exports.updateEvent = async (req, res) => {
     const {
       title,
       description,
-      locationName,
       address,
       type,
       startDate,
@@ -933,7 +1113,7 @@ exports.updateEvent = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -970,7 +1150,6 @@ exports.updateEvent = async (req, res) => {
       //   event.meetingCode = meetingCode;
       // }
       event.address = null; // Đặt address là null nếu là sự kiện online
-      event.locationName = null; // Đặt locationName là null nếu là sự kiện online
 
       //Nếu sự kiện online nhưng chưa có onlineUrl thì cần tạo một Meet link mới
       if (!event.onlineUrl) {
@@ -998,10 +1177,10 @@ exports.updateEvent = async (req, res) => {
         }
       }
     } else if (type === 'offline') {
-      //Nếu sự kiện offline thì có thể cập nhật address, locationName
-      if (!address && !locationName) {
+      //Nếu sự kiện offline thì có thể cập nhật address
+      if (!address) {
         return res.status(400).json({
-          message: 'Thiếu thông tin địa điểm cho sự kiện offline',
+          message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
           status: 400,
         });
       }
@@ -1010,24 +1189,15 @@ exports.updateEvent = async (req, res) => {
 
       // Chỉ xử lý address mới nếu thực sự có thay đổi
       // So sánh với dữ liệu hiện tại để tránh duplicate
-      const currentLocationName = event.locationName || '';
       const currentFormattedAddress = event.address?.formattedAddress || '';
-
-      const hasLocationNameChanged = locationName !== currentLocationName;
       const hasAddressChanged = address !== currentFormattedAddress;
 
-      if (hasLocationNameChanged || hasAddressChanged) {
+      if (hasAddressChanged) {
         // Chỉ khi có thay đổi thực sự mới gọi processAddressData
-        const processedAddress = await processAddressData(
-          locationName,
-          address,
-          'offline'
-        );
+        const processedAddress = await processAddressData(address, 'offline');
         event.address = processedAddress;
       }
 
-      // Cập nhật locationName
-      event.locationName = locationName || event.locationName;
       event.onlineUrl = null; // Đặt onlineUrl là null nếu là sự kiện offline
       event.meetingCode = null; // Đặt meetingCode là null nếu là sự kiện offline
     } else {
@@ -1038,12 +1208,31 @@ exports.updateEvent = async (req, res) => {
     }
 
     // Chỉ cập nhật startDate và endDate nếu chúng được gửi trong request
+    const now = new Date();
+
     if (startDate !== undefined) {
       const start = new Date(startDate);
+
+      // Kiểm tra startDate không được trong quá khứ
+      if (start < now) {
+        return res.status(400).json({
+          message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+          status: 400,
+        });
+      }
 
       // Kiểm tra thời gian bắt đầu và kết thúc nếu không phải sự kiện cả ngày
       if (allDay === false && endDate !== undefined) {
         const end = new Date(endDate);
+
+        // Kiểm tra endDate không được trong quá khứ
+        if (end < now) {
+          return res.status(400).json({
+            message: 'Thời gian kết thúc không được chọn trong quá khứ',
+            status: 400,
+          });
+        }
+
         if (start >= end) {
           return res.status(400).json({
             message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
@@ -1066,6 +1255,14 @@ exports.updateEvent = async (req, res) => {
 
     if (endDate !== undefined && startDate === undefined) {
       const end = new Date(endDate);
+
+      // Kiểm tra endDate không được trong quá khứ
+      if (end < now) {
+        return res.status(400).json({
+          message: 'Thời gian kết thúc không được chọn trong quá khứ',
+          status: 400,
+        });
+      }
 
       // Nếu chỉ có endDate mà không có startDate, kiểm tra với startDate hiện tại
       if (allDay === false && event.startDate >= end) {
@@ -1165,6 +1362,7 @@ exports.updateEvent = async (req, res) => {
             console.log(
               `Mời lại người dùng ${user.email} (từ declined -> pending)`
             );
+            console.log('req.user', req.user);
           } else if (existingParticipant.status === 'accepted') {
             // Nếu đã chấp nhận, giữ nguyên status
             console.log(
@@ -1223,9 +1421,7 @@ exports.updateEvent = async (req, res) => {
 
             // Gửi thông báo cho từng participant
             for (const participantId of notificationTargetIds) {
-              const notificationContent = `Bạn được mời tham gia sự kiện "${
-                event.title
-              }" bởi ${organizerUser.username || organizerUser.email}.`;
+              const notificationContent = `Bạn được mời tham gia sự kiện "${event.title}" bởi ${organizerUser.username}.`;
 
               await NotificationService.createPersonalNotification({
                 title: 'Lời mời tham gia sự kiện',
@@ -1292,9 +1488,7 @@ exports.updateEvent = async (req, res) => {
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
             title: 'Sự kiện đã được cập nhật',
-            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${
-              organizerUser.username || organizerUser.email
-            }.`,
+            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${organizerUser.username}.`,
             type: 'event_update',
             targetUserId: participant.userId,
             createdBy: req.user._id,
@@ -1432,7 +1626,7 @@ exports.inviteToBecomeParticipant = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1564,10 +1758,11 @@ exports.inviteToBecomeParticipant = async (req, res) => {
   }
 };
 
-exports.updateParticipantStatus = async (req, res) => {
+//Accept - Decline an invitation to an event
+exports.acceptOrDeclineParticipantStatus = async (req, res) => {
   try {
     const { id, userId } = req.params;
-    const { status } = req.body;
+    const { status, forceAccept } = req.body;
 
     //Kiểm tra sự kiện có tồn tại không
     if (!id || !userId) {
@@ -1598,7 +1793,7 @@ exports.updateParticipantStatus = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1618,6 +1813,201 @@ exports.updateParticipantStatus = async (req, res) => {
         status: 404,
       });
     }
+
+    // Kiểm tra xung đột thời gian khi chấp nhận sự kiện
+    if (status === 'accepted' && !forceAccept) {
+      try {
+        let conflictQuery;
+
+        if (event.allDay) {
+          // Nếu sự kiện hiện tại là allDay, check xem trong ngày đó có sự kiện nào khác không
+          const dayStart = new Date(event.startDate);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(event.startDate);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              // Case 1: Sự kiện khác cũng là allDay và cùng ngày
+              {
+                allDay: true,
+                $expr: {
+                  $eq: [
+                    {
+                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+                    },
+                    {
+                      $dateToString: {
+                        format: '%Y-%m-%d',
+                        date: event.startDate,
+                      },
+                    },
+                  ],
+                },
+              },
+              // Case 2: Sự kiện khác không phải allDay nhưng có overlap với ngày này
+              {
+                allDay: { $ne: true },
+                $and: [
+                  { startDate: { $lte: dayEnd } },
+                  { endDate: { $gte: dayStart } },
+                ],
+              },
+            ],
+          };
+        } else {
+          // Nếu sự kiện hiện tại không phải allDay, check overlap với tất cả sự kiện
+          const startDay = new Date(event.startDate);
+          startDay.setHours(0, 0, 0, 0);
+          const startDayEnd = new Date(event.startDate);
+          startDayEnd.setHours(23, 59, 59, 999);
+
+          const endDay = new Date(event.endDate);
+          endDay.setHours(0, 0, 0, 0);
+          const endDayEnd = new Date(event.endDate);
+          endDayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              // Case 1: Sự kiện khác là allDay và overlap với ngày của sự kiện hiện tại
+              {
+                allDay: true,
+                $or: [
+                  // AllDay event trong ngày bắt đầu của sự kiện hiện tại
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: event.startDate,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                  // AllDay event trong ngày kết thúc của sự kiện hiện tại (nếu khác ngày bắt đầu)
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: event.endDate,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              // Case 2: Sự kiện khác không phải allDay và có overlap time
+              {
+                allDay: { $ne: true },
+                startDate: { $lt: event.endDate },
+                endDate: { $gt: event.startDate },
+              },
+            ],
+          };
+        }
+
+        console.log('ACCEPT EVENT - Checking conflict for:', {
+          userId,
+          currentEvent: {
+            id: event._id,
+            allDay: event.allDay,
+            startDate: event.startDate,
+            endDate: event.endDate,
+          },
+        });
+        console.log(
+          'ACCEPT EVENT - Conflict query:',
+          JSON.stringify(conflictQuery, null, 2)
+        );
+
+        const conflictingEvents = await Event.find(conflictQuery)
+          .populate('calendarId', 'name')
+          .select('title startDate endDate calendarId allDay');
+
+        console.log(
+          'ACCEPT EVENT - Found conflicting events:',
+          conflictingEvents.length
+        );
+        if (conflictingEvents.length > 0) {
+          console.log(
+            'ACCEPT EVENT - Conflicting events details:',
+            conflictingEvents.map((e) => ({
+              title: e.title,
+              allDay: e.allDay,
+              startDate: e.startDate,
+              endDate: e.endDate,
+            }))
+          );
+        }
+
+        if (conflictingEvents.length > 0) {
+          // Có xung đột thời gian
+          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+            id: conflictEvent._id,
+            title: conflictEvent.title,
+            startDate: conflictEvent.startDate,
+            endDate: conflictEvent.endDate,
+            allDay: conflictEvent.allDay,
+            // calendarName:
+            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
+          }));
+
+          return res.status(409).json({
+            message:
+              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+            status: 409,
+            hasConflict: true,
+            conflictingEvents: conflictDetails,
+            currentEvent: {
+              id: event._id,
+              title: event.title,
+              startDate: event.startDate,
+              endDate: event.endDate,
+              allDay: event.allDay,
+            },
+          });
+        }
+      } catch (conflictError) {
+        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+        // Không làm gián đoạn quá trình chấp nhận nếu có lỗi kiểm tra xung đột
+      }
+    }
+
     // Cập nhật trạng thái người tham gia
     event.participants[participantIndex].status = status;
     await event.save();
@@ -1645,7 +2035,11 @@ exports.updateParticipantStatus = async (req, res) => {
       let statusText = '';
       switch (status) {
         case 'accepted':
+          // statusText = forceAccept
+          //   ? 'đã chấp nhận (dù có xung đột thời gian)'
+          //   : 'đã chấp nhận';
           statusText = 'đã chấp nhận';
+
           break;
         case 'declined':
           statusText = 'đã từ chối';
@@ -1659,9 +2053,7 @@ exports.updateParticipantStatus = async (req, res) => {
 
       await NotificationService.createPersonalNotification({
         title: 'Phản hồi lời mời tham gia sự kiện',
-        content: `${
-          participantUser.username || participantUser.email
-        } ${statusText} tham gia sự kiện "${event.title}".`,
+        content: `${participantUser.username} ${statusText} tham gia sự kiện "${event.title}".`,
         type: 'event_status_update',
         targetUserId: event.organizer,
         createdBy: req.user._id,
@@ -1695,6 +2087,7 @@ exports.updateParticipantStatus = async (req, res) => {
   }
 };
 
+// Organizer removes a participant from an event
 exports.removeParticipant = async (req, res) => {
   try {
     const { id, userId } = req.params;
@@ -1711,7 +2104,7 @@ exports.removeParticipant = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1744,7 +2137,7 @@ exports.removeParticipant = async (req, res) => {
       participants: [
         {
           userId: removedParticipant.userId,
-          status: 'rejected',
+          status: 'removed',
         },
       ],
     });
@@ -1756,6 +2149,181 @@ exports.removeParticipant = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi xóa người tham gia:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+//Cancel an invitation and give a reason
+exports.cancelAnInvitationWhenAcceptBefore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user._id;
+
+    // Validate required fields
+    if (!id || !reason) {
+      return res.status(400).json({
+        message: 'Thiếu id sự kiện hoặc lý do hủy tham gia',
+        status: 400,
+      });
+    }
+
+    // Find the event
+    const event = await Event.findById(id);
+    if (!event || event.isDeleted) {
+      return res.status(404).json({
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
+        status: 404,
+      });
+    }
+
+    // Check if user is a participant and has previously accepted
+    const participantIndex = event.participants.findIndex(
+      (p) =>
+        p.userId.toString() === userId.toString() && p.status === 'accepted'
+    );
+
+    if (participantIndex === -1) {
+      return res.status(403).json({
+        message:
+          'Bạn không phải là người tham gia đã chấp nhận của sự kiện này',
+        status: 403,
+      });
+    }
+
+    // Check if event is not completed or cancelled
+    if (['completed', 'cancelled'].includes(event.status)) {
+      return res.status(400).json({
+        message: 'Không thể hủy tham gia sự kiện đã hoàn thành hoặc đã hủy',
+        status: 400,
+      });
+    }
+
+    // Check if event hasn't started yet
+    const now = new Date();
+    const eventStart = new Date(event.startDate);
+    if (now >= eventStart) {
+      return res.status(400).json({
+        message: 'Không thể hủy tham gia sự kiện đã bắt đầu',
+        status: 400,
+      });
+    }
+
+    // Update participant status to declined and save reason
+    event.participants[participantIndex].status = 'declined';
+    event.participants[participantIndex].cancelReason = reason;
+    event.participants[participantIndex].cancelledAt = new Date();
+
+    await event.save();
+
+    // Create event history record
+    await EventHistory.create({
+      eventId: event._id,
+      action: 'cancel_participation',
+      participants: [
+        {
+          userId: userId,
+          status: 'declined',
+          reason: reason,
+        },
+      ],
+    });
+
+    // Send notification to event organizer and other accepted participants
+    try {
+      const participantUser = await User.findById(userId, 'username email');
+      const formattedEventStartDate = formatDateToTimeZone(
+        event.startDate,
+        event.timeZone || 'Asia/Ho_Chi_Minh'
+      );
+
+      // Get all accepted participants except the one who is cancelling
+      const acceptedParticipants = event.participants.filter(
+        (p) =>
+          p.status === 'accepted' && p.userId.toString() !== userId.toString()
+      );
+
+      // First, notify the organizer with a special message
+      await NotificationService.createPersonalNotification({
+        title: 'Đã có người huỷ tham gia sự kiện',
+        content: `${participantUser.username} đã hủy tham gia sự kiện "${
+          event.title
+        }" với lý do: ${reason.substring(0, 100)}...`,
+        type: 'event_cancellation',
+        targetUserId: event.organizer,
+        createdBy: userId,
+        relatedUserId: userId,
+        eventId: event._id,
+      });
+
+      // Then, notify all other accepted participants
+      for (const participant of acceptedParticipants) {
+        // Skip if participant is the organizer (already notified)
+        if (participant.userId.toString() === event.organizer.toString()) {
+          continue;
+        }
+
+        await NotificationService.createPersonalNotification({
+          title: 'Thông báo về sự kiện',
+          content: `${participantUser.username} đã huỷ tham gia sự kiện "${event.title}"`,
+          type: 'event_participant_cancelled',
+          targetUserId: participant.userId,
+          createdBy: userId,
+          relatedUserId: userId,
+          eventId: event._id,
+        });
+      }
+
+      console.log(
+        `Đã gửi thông báo hủy tham gia sự kiện cho organizer ${event.organizer} và ${acceptedParticipants.length} người tham gia khác`
+      );
+    } catch (notificationError) {
+      console.error(
+        'Lỗi khi gửi thông báo hủy tham gia sự kiện:',
+        notificationError
+      );
+      // Don't throw error, continue with the cancellation process
+    }
+
+    // If event has Google Calendar sync, update it
+    if (event.googleEventId) {
+      try {
+        await updateGoogleCalendarEvent(event.organizer, event.googleEventId, {
+          title: event.title,
+          description: event.description,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          allDay: event.allDay,
+          type: event.type,
+          locationName: event.locationName,
+          address: event.address,
+          onlineUrl: event.onlineUrl,
+          timeZone: event.timeZone,
+          participants: event.participants,
+        });
+        console.log('Event updated on Google Calendar successfully');
+      } catch (error) {
+        console.warn('Failed to update Google Calendar event:', error.message);
+      }
+    }
+
+    res.status(200).json({
+      message: 'Hủy tham gia sự kiện thành công',
+      status: 200,
+      data: {
+        eventId: event._id,
+        userId: userId,
+        status: 'declined',
+        reason: reason,
+        cancelledAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi khi hủy tham gia sự kiện:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
@@ -1779,7 +2347,7 @@ exports.getEventHistory = async (req, res) => {
       .populate('participants.userId', 'name email'); // Populate participants để kiểm tra quyền
     if (!event) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1868,7 +2436,7 @@ exports.sendEventReminder = async (req, res) => {
     const event = await Event.findById(id).populate('participants.userId');
     if (!event) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1955,7 +2523,158 @@ const determineEventStatus = (startDate, endDate, currentStatus) => {
   return currentStatus;
 };
 
-// Cập nhật trạng thái sự kiện dựa trên thời gian
+// Cập nhật trạng thái tất cả sự kiện liên quan đến user dựa trên thời gian
+exports.updateAllUserEventsStatusByTime = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+
+    // Lấy tất cả sự kiện mà user có liên quan (organizer hoặc participant)
+    // Chỉ lấy sự kiện chưa bị xóa và có status không phải 'cancelled'
+    const userEvents = await Event.find({
+      $and: [
+        { isDeleted: false },
+        { status: { $ne: 'cancelled' } }, // Không cập nhật sự kiện đã hủy
+        {
+          $or: [
+            { organizer: userId }, // Sự kiện do user tạo
+            {
+              participants: {
+                $elemMatch: {
+                  userId: userId,
+                  status: { $in: ['accepted', 'pending'] }, // Chỉ cập nhật sự kiện user đã tham gia hoặc đang chờ
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }).select('title startDate endDate status allDay organizer participants');
+
+    if (userEvents.length === 0) {
+      return res.status(200).json({
+        message: 'Không có sự kiện nào cần cập nhật trạng thái',
+        status: 200,
+        data: {
+          totalEvents: 0,
+          updatedEvents: 0,
+          events: [],
+        },
+      });
+    }
+
+    // Phân loại và cập nhật sự kiện theo batch
+    const eventsToUpdate = [];
+    const eventUpdates = [];
+
+    for (const event of userEvents) {
+      const newStatus = determineEventStatus(
+        event.startDate,
+        event.endDate,
+        event.status
+      );
+
+      if (newStatus !== event.status) {
+        eventsToUpdate.push({
+          eventId: event._id,
+          oldStatus: event.status,
+          newStatus: newStatus,
+          title: event.title,
+        });
+
+        eventUpdates.push({
+          updateOne: {
+            filter: { _id: event._id },
+            update: {
+              $set: {
+                status: newStatus,
+                updatedAt: now,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    let updatedCount = 0;
+    const historyRecords = [];
+
+    // Thực hiện batch update nếu có sự kiện cần cập nhật
+    if (eventUpdates.length > 0) {
+      try {
+        const bulkResult = await Event.bulkWrite(eventUpdates, {
+          ordered: false,
+        });
+        updatedCount = bulkResult.modifiedCount;
+
+        // Tạo event history records cho những sự kiện đã được cập nhật
+        for (const eventUpdate of eventsToUpdate) {
+          const event = userEvents.find(
+            (e) => e._id.toString() === eventUpdate.eventId.toString()
+          );
+
+          historyRecords.push({
+            eventId: eventUpdate.eventId,
+            action: 'auto_update_status_bulk',
+            participants: event.participants.map((p) => ({
+              userId: p.userId,
+              status: p.status,
+            })),
+          });
+        }
+
+        // Batch insert event history
+        if (historyRecords.length > 0) {
+          await EventHistory.insertMany(historyRecords);
+        }
+
+        console.log(
+          `✅ Bulk updated ${updatedCount} events status for user ${userId}`
+        );
+
+        // Gửi thông báo real-time cho user qua socket
+        try {
+          const { emitToUser } = require('../utils/socket');
+          emitToUser(userId.toString(), 'events_status_updated', {
+            updatedCount,
+            events: eventsToUpdate,
+          });
+        } catch (socketError) {
+          console.warn('Failed to emit socket event:', socketError.message);
+        }
+      } catch (bulkError) {
+        console.error('❌ Bulk update failed:', bulkError);
+        return res.status(500).json({
+          message: 'Lỗi khi cập nhật hàng loạt sự kiện',
+          status: 500,
+          error: bulkError.message,
+        });
+      }
+    }
+
+    res.status(200).json({
+      message:
+        updatedCount > 0
+          ? `Đã cập nhật trạng thái cho ${updatedCount} sự kiện`
+          : 'Tất cả sự kiện đã có trạng thái chính xác',
+      status: 200,
+      data: {
+        totalEvents: userEvents.length,
+        updatedEvents: updatedCount,
+        events: eventsToUpdate,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi cập nhật trạng thái sự kiện hàng loạt:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+// Cập nhật trạng thái sự kiện dựa trên thời gian (legacy - giữ lại để backward compatibility)
 exports.updateEventStatusByTime = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1970,7 +2689,7 @@ exports.updateEventStatusByTime = async (req, res) => {
     const event = await Event.findById(id);
     if (!event || event.isDeleted) {
       return res.status(404).json({
-        message: 'Không tìm thấy sự kiện',
+        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
         status: 404,
       });
     }
@@ -1996,10 +2715,14 @@ exports.updateEventStatusByTime = async (req, res) => {
       event.status
     );
 
+    let updated = false;
     // Chỉ cập nhật nếu trạng thái thực sự thay đổi
     if (newStatus !== event.status) {
+      const oldStatus = event.status;
       event.status = newStatus;
+      event.updatedAt = new Date();
       await event.save();
+      updated = true;
 
       // Ghi lịch sử thay đổi trạng thái
       await EventHistory.create({
@@ -2012,8 +2735,21 @@ exports.updateEventStatusByTime = async (req, res) => {
       });
 
       console.log(
-        `Auto-updated event ${event._id} status from ${event.status} to ${newStatus}`
+        `✅ Auto-updated event ${event._id} status from ${oldStatus} to ${newStatus}`
       );
+
+      // Emit socket event for real-time update
+      try {
+        const { emitToUser } = require('../utils/socket');
+        emitToUser(userId.toString(), 'event_status_updated', {
+          eventId: event._id,
+          oldStatus,
+          newStatus,
+          title: event.title,
+        });
+      } catch (socketError) {
+        console.warn('Failed to emit socket event:', socketError.message);
+      }
     }
 
     res.status(200).json({
@@ -2023,11 +2759,11 @@ exports.updateEventStatusByTime = async (req, res) => {
         eventId: event._id,
         oldStatus: event.status,
         newStatus: newStatus,
-        updated: newStatus !== event.status,
+        updated: updated,
       },
     });
   } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái sự kiện:', error);
+    console.error('❌ Lỗi khi cập nhật trạng thái sự kiện:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,

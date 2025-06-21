@@ -7,14 +7,22 @@ const Event = require('../models/eventModel');
 
 exports.getUserNotifications = async (req, res, next) => {
   try {
-    const userId = req.user._id; // Lấy userId từ token xác thực
-    const { limit = 50, skip = 0 } = req.query; // Lấy query params cho phân trang
+    const userId = req.user._id;
+    const { limit = 50, skip = 0 } = req.query;
+    const limitNum = parseInt(limit);
+    const skipNum = parseInt(skip);
 
     // Kiểm tra userId hợp lệ
     const user = await User.findOne({ _id: userId, isDeleted: false });
     if (!user) {
       return next(new AppError('Người dùng không hợp lệ hoặc đã bị xóa', 400));
     }
+
+    // Đếm tổng số thông báo
+    const totalCount = await NotificationUser.countDocuments({
+      userId,
+      isDeleted: false,
+    });
 
     // Truy vấn thông báo với phân trang
     const notifications = await NotificationUser.find({
@@ -26,16 +34,46 @@ exports.getUserNotifications = async (req, res, next) => {
         match: { isDeleted: false },
         select:
           'title content type targetUserId targetWorkspaceId createdBy audienceType createdAt eventId taskId messageId',
+        populate: [
+          {
+            path: 'messageId',
+            model: 'Message',
+            select: 'content userId eventId taskId createdAt',
+            match: { isDeleted: false },
+            populate: [
+              {
+                path: 'userId',
+                model: 'User',
+                select: 'fullname avatar',
+              },
+              {
+                path: 'eventId',
+                model: 'Event',
+                select: 'title',
+              },
+              {
+                path: 'taskId',
+                model: 'Task',
+                select: 'title',
+              },
+            ],
+          },
+          {
+            path: 'createdBy',
+            model: 'User',
+            select: 'fullname avatar',
+          },
+        ],
       })
       .sort({ createdAt: -1 })
-      .skip(parseInt(skip))
-      .limit(parseInt(limit))
+      .skip(skipNum)
+      .limit(limitNum)
       .lean();
 
-    // Lọc và định dạng kết quả, bao gồm cả participant status cho event invitations
+    // Định dạng kết quả
     const formattedNotifications = await Promise.all(
       notifications
-        .filter((n) => n.notificationId) // Loại bỏ nếu notificationId không tồn tại
+        .filter((n) => n.notificationId)
         .map(async (n) => {
           const baseNotification = {
             notificationId: n.notificationId._id,
@@ -44,9 +82,13 @@ exports.getUserNotifications = async (req, res, next) => {
             type: n.notificationId.type,
             targetUserId: n.notificationId.targetUserId,
             targetWorkspaceId: n.notificationId.targetWorkspaceId,
-            createdBy: n.notificationId.createdBy,
+            createdBy: {
+              userId: n.notificationId.createdBy?._id,
+              fullname: n.notificationId.createdBy?.fullname,
+              avatar: n.notificationId.createdBy?.avatar,
+            },
             audienceType: n.notificationId.audienceType,
-            createdAt: n.notificationId.createdAt,
+            createdAt: formatDateToTimeZone(n.notificationId.createdAt),
             eventId: n.notificationId.eventId,
             taskId: n.notificationId.taskId,
             messageId: n.notificationId.messageId,
@@ -55,7 +97,7 @@ exports.getUserNotifications = async (req, res, next) => {
             relatedUserId: n.relatedUserId,
           };
 
-          // Nếu là event invitation, lấy participant status từ Event
+          // Nếu là event invitation, lấy participant status
           if (
             n.notificationId.type === 'event_invitation' &&
             n.notificationId.eventId
@@ -73,17 +115,58 @@ exports.getUserNotifications = async (req, res, next) => {
               }
             } catch (error) {
               console.warn('Error fetching event participant status:', error);
-              // Tiếp tục mà không có responseStatus nếu có lỗi
             }
+          }
+
+          // Nếu là thông báo liên quan đến tin nhắn
+          if (
+            n.notificationId.type === 'new_message' &&
+            n.notificationId.messageId &&
+            typeof n.notificationId.messageId === 'object'
+          ) {
+            baseNotification.message = {
+              content: n.notificationId.messageId.content,
+              sender: {
+                userId: n.notificationId.messageId.userId?._id,
+                fullname: n.notificationId.messageId.userId?.fullname,
+                avatar: n.notificationId.messageId.userId?.avatar,
+              },
+              event: n.notificationId.messageId.eventId
+                ? {
+                    eventId: n.notificationId.messageId.eventId._id,
+                    title: n.notificationId.messageId.eventId.title,
+                  }
+                : null,
+              task: n.notificationId.messageId.taskId
+                ? {
+                    taskId: n.notificationId.messageId.taskId._id,
+                    title: n.notificationId.messageId.taskId.title,
+                  }
+                : null,
+              createdAt: n.notificationId.messageId.createdAt,
+            };
           }
 
           return baseNotification;
         })
     );
 
+    // Tính toán pagination info
+    const hasMore = skipNum + limitNum < totalCount;
+    const currentPage = Math.floor(skipNum / limitNum) + 1;
+    const totalPages = Math.ceil(totalCount / limitNum);
+
     res.status(200).json({
       status: 'success',
       results: formattedNotifications.length,
+      pagination: {
+        currentPage,
+        totalPages,
+        totalCount,
+        hasMore,
+        limit: limitNum,
+        skip: skipNum,
+      },
       data: {
         notifications: formattedNotifications,
       },
