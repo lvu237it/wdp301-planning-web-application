@@ -57,6 +57,8 @@ exports.createEventMessage = async (req, res, next) => {
 
     // Gửi thông báo real-time cho các participants khác
     const io = getIO();
+
+    // ✅ Logic đúng: Lấy tất cả participants đã accepted, trừ người gửi
     const acceptedParticipants = event.participants
       .filter(
         (p) =>
@@ -64,10 +66,17 @@ exports.createEventMessage = async (req, res, next) => {
       )
       .map((p) => p.userId.toString());
 
-    // Thêm organizer nếu không phải là người gửi
+    // ✅ Logic đúng: Thêm organizer nếu không phải là người gửi
     if (event.organizer.toString() !== userId.toString()) {
       acceptedParticipants.push(event.organizer.toString());
     }
+
+    console.log(
+      `📢 Gửi thông báo message tới ${acceptedParticipants.length} participants (trừ sender)`
+    );
+    console.log(`🔍 Debug - Sender ID: ${userId.toString()}`);
+    console.log(`🔍 Debug - Organizer ID: ${event.organizer.toString()}`);
+    console.log(`🔍 Debug - Accepted participants:`, acceptedParticipants);
 
     // Emit tin nhắn real-time qua custom event
     acceptedParticipants.forEach((participantId) => {
@@ -87,25 +96,8 @@ exports.createEventMessage = async (req, res, next) => {
       });
     });
 
-    // Gửi thông báo real-time tới notification bell cho tất cả user (cả online và offline)
-    const senderName =
-      message.userId.fullname || message.userId.username || 'Ai đó';
-    const notificationData = {
-      eventId: eventId,
-      title: `Tin nhắn mới trong sự kiện "${event.title}"`,
-      content: `${senderName} đã gửi: ${message.content.substring(0, 80)}${
-        message.content.length > 80 ? '...' : ''
-      }`,
-      type: 'new_message',
-      createdBy: message.userId._id,
-      messageId: message._id,
-    };
-
-    acceptedParticipants.forEach((participantId) => {
-      io.to(participantId).emit('new_notification', notificationData);
-    });
-
-    // Tạo thông báo cho tất cả người tham gia (cả online và offline)
+    // ✅ Logic đúng: Tạo thông báo persistent cho tất cả người tham gia (trừ sender)
+    // Persistent notification sẽ tự động emit real-time qua NotificationService
     await exports.createMessageNotification(message, eventId, null);
 
     res.status(201).json({
@@ -232,6 +224,8 @@ exports.editEventMessage = async (req, res, next) => {
       return next(new AppError('Tin nhắn không tồn tại', 404));
     }
 
+    console.log('Debug message edit ', message);
+
     // Chỉ người gửi mới có thể chỉnh sửa
     if (message.userId.toString() !== userId.toString()) {
       return next(
@@ -251,6 +245,8 @@ exports.editEventMessage = async (req, res, next) => {
     // Emit real-time update
     const io = getIO();
     const event = message.eventId;
+
+    // ✅ Logic đúng: Chỉ thông báo participants đã accepted, trừ người edit
     const acceptedParticipants = event.participants
       .filter(
         (p) =>
@@ -258,10 +254,14 @@ exports.editEventMessage = async (req, res, next) => {
       )
       .map((p) => p.userId.toString());
 
-    // Thêm organizer nếu không phải là người edit
+    // ✅ Logic đúng: Thêm organizer nếu không phải là người edit
     if (event.organizer.toString() !== userId.toString()) {
       acceptedParticipants.push(event.organizer.toString());
     }
+
+    console.log(
+      `✏️ Gửi thông báo edit message tới ${acceptedParticipants.length} participants`
+    );
 
     acceptedParticipants.forEach((participantId) => {
       io.to(participantId).emit('edit_event_message', {
@@ -335,6 +335,8 @@ exports.deleteEventMessage = async (req, res, next) => {
     // Emit real-time deletion
     const io = getIO();
     const event = message.eventId;
+
+    // ✅ Logic đúng: Chỉ thông báo participants đã accepted, trừ người delete
     const acceptedParticipants = event.participants
       .filter(
         (p) =>
@@ -342,10 +344,14 @@ exports.deleteEventMessage = async (req, res, next) => {
       )
       .map((p) => p.userId.toString());
 
-    // Thêm organizer nếu không phải là người delete
+    // ✅ Logic đúng: Thêm organizer nếu không phải là người delete
     if (event.organizer.toString() !== userId.toString()) {
       acceptedParticipants.push(event.organizer.toString());
     }
+
+    console.log(
+      `🗑️ Gửi thông báo delete message tới ${acceptedParticipants.length} participants`
+    );
 
     acceptedParticipants.forEach((participantId) => {
       io.to(participantId).emit('delete_event_message', {
@@ -369,6 +375,9 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
   session.startTransaction();
 
   try {
+    console.log('🔍 Debug - Message:', message);
+    console.log('message _id', message._id);
+
     let targetUsers = [];
     let contextTitle = '';
 
@@ -377,34 +386,60 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
       const event = await Event.findById(eventId).session(session);
       if (event) {
         contextTitle = event.title;
+        // ✅ Logic đúng: Chỉ lấy participants đã accepted, trừ người gửi tin nhắn
         targetUsers = event.participants
           .filter(
             (p) =>
               p.status === 'accepted' &&
-              p.userId.toString() !== message.userId.toString()
+              p.userId.toString() !== message.userId._id.toString()
           )
           .map((p) => p.userId);
+
+        // ✅ Logic đúng: Thêm organizer nếu không phải là người gửi
+        if (event.organizer.toString() !== message.userId._id.toString()) {
+          targetUsers.push(event.organizer);
+        }
+
+        // Remove duplicate users (just in case)
+        targetUsers = [...new Set(targetUsers.map((u) => u.toString()))].map(
+          (id) => {
+            return targetUsers.find((u) => u.toString() === id);
+          }
+        );
       }
     } else if (taskId) {
       const task = await Task.findById(taskId).session(session);
       if (task && task.assignedTo) {
         contextTitle = task.title;
+        // ✅ Logic đúng: Chỉ gửi cho người được assign task, trừ người gửi
         targetUsers = [task.assignedTo].filter(
-          (userId) => userId.toString() !== message.userId.toString()
+          (userId) => userId.toString() !== message.userId._id.toString()
         );
       }
     }
 
     if (targetUsers.length === 0) {
+      console.log('⚠️ Không có người dùng nào để gửi thông báo');
       await session.abortTransaction();
       session.endSession();
       return;
     }
 
-    // Gửi notification cho tất cả người dùng (cả online và offline)
+    console.log(
+      `📧 Tạo persistent notification cho ${targetUsers.length} người dùng`
+    );
+    console.log(
+      `🔍 Debug - Message sender ID: ${message.userId._id.toString()}`
+    );
+    console.log(
+      `🔍 Debug - Target users for notification:`,
+      targetUsers.map((u) => u.toString())
+    );
+
+    // ✅ Gửi notification cho tất cả người dùng (cả online và offline)
     // Vì thông báo sẽ hiển thị trong notification bell ngay cả khi user đang online
     const notificationPromises = targetUsers.map(async (userId) => {
-      const user = await User.findById(message.userId, 'username fullname');
+      const user = await User.findById(message.userId._id, 'username fullname');
       const senderName = user?.fullname || user?.username || 'Ai đó';
 
       return NotificationService.createPersonalNotification({
@@ -416,8 +451,8 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
         }`,
         type: 'new_message',
         targetUserId: userId,
-        createdBy: message.userId,
-        relatedUserId: message.userId,
+        createdBy: message.userId._id,
+        relatedUserId: message.userId._id,
         eventId: eventId || null,
         taskId: taskId || null,
         messageId: message._id,

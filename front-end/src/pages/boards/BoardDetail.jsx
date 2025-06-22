@@ -6,7 +6,7 @@ import { useCommon } from '../../contexts/CommonContext';
 
 const BoardDetail = () => {
   const { workspaceId, boardId } = useParams();
-  const { setCurrentWorkspaceId } = useCommon();
+  const { setCurrentWorkspaceId, navigate } = useCommon();
 
   useEffect(() => {
     if (workspaceId) {
@@ -17,8 +17,14 @@ const BoardDetail = () => {
   return (
     <div className='board-detail-page'>
       <div className='board-detail-header'>
-        <div className='container'>
-          <h2 className='board-title'>Danh sách của Board</h2>
+        <div className='container d-flex justify-content-between'>
+          <h2 className='board-title'>List of boards</h2>
+          <div
+            className='btn-create-workspace btn btn-success'
+            onClick={() => navigate(`/board-calendar/${boardId}`)}
+          >
+            View on calendar
+          </div>
         </div>
       </div>
 
