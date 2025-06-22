@@ -24,6 +24,9 @@ const Header = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(new Map());
+  const [respondedNotifications, setRespondedNotifications] = useState(
+    new Set()
+  );
 
   // Refs for infinite scroll
   const dropdownScrollRef = useRef(null);
@@ -88,8 +91,22 @@ const Header = () => {
       );
 
       if (result.success) {
+        // Mark notification as responded immediately for UI
+        setRespondedNotifications((prev) => new Set([...prev, notificationId]));
+
         // Fetch lại notifications mới nhất sau khi respond thành công
         await fetchNotifications(true);
+
+        // Force re-render để đảm bảo UI cập nhật ngay lập tức
+        setTimeout(() => {
+          if (result.success) {
+            toast.success(
+              status === 'accepted'
+                ? 'Đã chấp nhận lời mời sự kiện'
+                : 'Đã từ chối lời mời sự kiện'
+            );
+          }
+        }, 100);
       } else if (result.hasConflict && status === 'accepted') {
         // Show conflict modal for acceptance
         setLoadingNotifications((prev) => {
@@ -259,8 +276,8 @@ const Header = () => {
 
               {/* Hiển thị buttons cho event invitation nếu chưa respond */}
               {notif.type === 'event_invitation' &&
-                (!notif.responseStatus ||
-                  notif.responseStatus === 'pending') && (
+                (!notif.responseStatus || notif.responseStatus === 'pending') &&
+                !respondedNotifications.has(notif.notificationId) && (
                   <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
                     <button
                       className='btn btn-success btn-sm'
@@ -615,7 +632,8 @@ const Header = () => {
                   {/* Hiển thị buttons cho event invitation nếu chưa respond */}
                   {notif.type === 'event_invitation' &&
                     (!notif.responseStatus ||
-                      notif.responseStatus === 'pending') && (
+                      notif.responseStatus === 'pending') &&
+                    !respondedNotifications.has(notif.notificationId) && (
                       <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
                         <button
                           className='btn btn-success btn-sm'

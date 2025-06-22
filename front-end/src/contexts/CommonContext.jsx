@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, useState, useRef } from "react";
-import axios from "axios";
-import { useMediaQuery } from "react-responsive";
-import { Toaster, toast } from "sonner";
-import { useLocation, useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import axios from 'axios';
+import { useMediaQuery } from 'react-responsive';
+import { Toaster, toast } from 'sonner';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   initSocketClient,
   getSocket,
   disconnectSocket,
-} from "../utils/socketClient";
-import { formatDateAMPMForVN } from "../utils/dateUtils";
+} from '../utils/socketClient';
+import { formatDateAMPMForVN } from '../utils/dateUtils';
 
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
@@ -21,23 +21,23 @@ export const Common = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   // Get previous location from state, default to '/'
-  const from = location.state?.from?.pathname || "/";
+  const from = location.state?.from?.pathname || '/';
 
   const socketInitialized = useRef(false);
   const [socketConnected, setSocketConnected] = useState(false);
 
   const [accessToken, setAccessToken] = useState(
-    () => localStorage.getItem("accessToken") || null
+    () => localStorage.getItem('accessToken') || null
   );
   const [userDataLocal, setUserDataLocal] = useState(() => {
-    return JSON.parse(localStorage.getItem("userData")) || null;
+    return JSON.parse(localStorage.getItem('userData')) || null;
   });
   const [notifications, setNotifications] = useState(() => {
     try {
-      const storedNotifications = localStorage.getItem("notifications");
+      const storedNotifications = localStorage.getItem('notifications');
       return storedNotifications ? JSON.parse(storedNotifications) : [];
     } catch (error) {
-      console.error("Error parsing notifications from localStorage:", error);
+      console.error('Error parsing notifications from localStorage:', error);
       return [];
     }
   });
@@ -77,7 +77,7 @@ export const Common = ({ children }) => {
 
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("accessToken") && !!localStorage.getItem("userData")
+    !!localStorage.getItem('accessToken') && !!localStorage.getItem('userData')
   );
 
   // Tạo ref để track đã thực hiện redirect hay chưa
@@ -103,15 +103,15 @@ export const Common = ({ children }) => {
       !isInitialLoad.current &&
       isAuthenticated &&
       userDataLocal &&
-      (location.pathname === "/login" ||
-        location.pathname === "/register" ||
-        location.pathname === "/") &&
-      !location.pathname.includes("/google-callback") &&
+      (location.pathname === '/login' ||
+        location.pathname === '/register' ||
+        location.pathname === '/') &&
+      !location.pathname.includes('/google-callback') &&
       !hasRedirected.current &&
       !isProcessingAuth.current
     ) {
       hasRedirected.current = true;
-      navigate("/dashboard"); // Redirect to dashboard instead of root
+      navigate('/dashboard'); // Redirect to dashboard instead of root
     }
 
     // Mark as not initial load after first effect run
@@ -148,12 +148,12 @@ export const Common = ({ children }) => {
         }
       );
 
-      console.log("🔍 Google auth check response:", response.data);
+      console.log('🔍 Google auth check response:', response.data);
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         if (response.data.hasValidTokens) {
           // User có tất cả token Google hợp lệ
-          console.log("✅ User has all valid Google tokens");
+          console.log('✅ User has all valid Google tokens');
           setIsGoogleAuthenticated(true);
           setShowGoogleAuthModal(false);
         } else if (
@@ -163,69 +163,69 @@ export const Common = ({ children }) => {
           // User có token Google nhưng cần refresh hoặc thêm scopes
           // Đánh dấu là authenticated và không hiện modal vì user đã từng auth Google
           console.log(
-            "🔄 User has Google tokens but needs refresh/additional scopes"
+            '🔄 User has Google tokens but needs refresh/additional scopes'
           );
           setIsGoogleAuthenticated(true);
           setShowGoogleAuthModal(false);
         } else {
           // Trường hợp có response success nhưng không có valid tokens
-          console.log("⚠️ Success response but no valid tokens");
+          console.log('⚠️ Success response but no valid tokens');
           setIsGoogleAuthenticated(false);
 
           // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
           const hasExistingTokens = response.data.existingTokens > 0;
           if (!userDataLocal?.googleId && !hasExistingTokens) {
             console.log(
-              "🔑 Showing Google auth modal - no tokens and not Google user"
+              '🔑 Showing Google auth modal - no tokens and not Google user'
             );
             setShowGoogleAuthModal(true);
           } else {
-            console.log("🤝 Not showing auth modal - user has Google history");
+            console.log('🤝 Not showing auth modal - user has Google history');
             setShowGoogleAuthModal(false);
           }
         }
       } else {
         // Response status không phải success
-        console.log("❌ Google auth check failed:", response.data.message);
+        console.log('❌ Google auth check failed:', response.data.message);
         setIsGoogleAuthenticated(false);
 
         // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
         const hasExistingTokens = response.data.existingTokens > 0;
         if (!userDataLocal?.googleId && !hasExistingTokens) {
           console.log(
-            "🔑 Showing Google auth modal - check failed and no Google history"
+            '🔑 Showing Google auth modal - check failed and no Google history'
           );
           setShowGoogleAuthModal(true);
         } else {
           console.log(
-            "🤝 Not showing auth modal - user has Google account or tokens"
+            '🤝 Not showing auth modal - user has Google account or tokens'
           );
           setShowGoogleAuthModal(false);
         }
       }
     } catch (error) {
-      console.error("❌ Error checking Google auth:", error);
+      console.error('❌ Error checking Google auth:', error);
       setIsGoogleAuthenticated(false);
 
       // Xử lý các trường hợp lỗi
       if (error.response?.status === 401) {
         // 401 có thể có nghĩa là user chưa có token hoặc token hết hạn
-        console.log("🔐 401 error - checking for existing tokens");
+        console.log('🔐 401 error - checking for existing tokens');
         const errorData = error.response?.data;
         const hasExistingTokens = errorData?.existingTokens > 0;
 
         if (!userDataLocal?.googleId && !hasExistingTokens) {
           console.log(
-            "🔑 Showing Google auth modal - 401 and no Google history"
+            '🔑 Showing Google auth modal - 401 and no Google history'
           );
           setShowGoogleAuthModal(true);
         } else {
-          console.log("🤝 Not showing auth modal - user has Google account");
+          console.log('🤝 Not showing auth modal - user has Google account');
           setShowGoogleAuthModal(false);
         }
       } else {
         // Lỗi khác (network, server error)
-        console.log("🚫 Other error, not showing auth modal");
+        console.log('🚫 Other error, not showing auth modal');
         setShowGoogleAuthModal(false);
       }
     } finally {
@@ -248,11 +248,11 @@ export const Common = ({ children }) => {
         const { accessToken, user } = response.data;
         return await handleLoginSuccess(accessToken, user);
       } else {
-        throw new Error(response.data.message || "Login failed");
+        throw new Error(response.data.message || 'Login failed');
       }
     } catch (error) {
-      console.error("Login error:", error);
-      toast.error(error.response?.data?.message || "Login failed");
+      console.error('Login error:', error);
+      toast.error(error.response?.data?.message || 'Login failed');
       return false;
     }
   };
@@ -266,8 +266,8 @@ export const Common = ({ children }) => {
     // Đánh dấu đang xử lý auth để tránh conflicts
     isProcessingAuth.current = true;
 
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("userData", JSON.stringify(user));
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('userData', JSON.stringify(user));
 
     setAccessToken(accessToken);
     setUserDataLocal(user);
@@ -277,10 +277,10 @@ export const Common = ({ children }) => {
 
     // Khởi tạo socket với callback cải thiện
     if (userId && !socketInitialized.current) {
-      console.log("🔌 Initializing socket for user:", userId);
+      console.log('🔌 Initializing socket for user:', userId);
       try {
         await initSocketClient(userId, apiBaseUrl, () => {
-          console.log("🎯 Socket connected callback triggered");
+          console.log('🎯 Socket connected callback triggered');
           socketInitialized.current = true;
 
           // Thiết lập socket listeners ngay khi callback được gọi
@@ -288,9 +288,9 @@ export const Common = ({ children }) => {
 
           // Set connected state ngay lập tức
           setSocketConnected(true);
-          console.log("✅ Socket connection status set to true");
+          console.log('✅ Socket connection status set to true');
         });
-        console.log("✅ Socket initialization completed");
+        console.log('✅ Socket initialization completed');
 
         // try {
         //   const response = await axios.post(
@@ -320,28 +320,28 @@ export const Common = ({ children }) => {
           try {
             const socket = getSocket();
             if (socket && socket.connected) {
-              console.log("🔗 Secondary socket verification: connected");
+              console.log('🔗 Secondary socket verification: connected');
               setSocketConnected(true);
             } else {
-              console.log("⚠️ Secondary socket verification: not connected");
+              console.log('⚠️ Secondary socket verification: not connected');
               setSocketConnected(false);
             }
           } catch (error) {
-            console.error("❌ Error in secondary socket check:", error);
+            console.error('❌ Error in secondary socket check:', error);
           }
         }, 1000);
       } catch (error) {
-        console.error("❌ Socket initialization failed:", error);
+        console.error('❌ Socket initialization failed:', error);
         setSocketConnected(false);
       }
     }
 
     // Gọi checkGoogleAuth ngay lập tức để modal hiển thị ngay
-    console.log("🔍 Calling checkGoogleAuth immediately after login");
+    console.log('🔍 Calling checkGoogleAuth immediately after login');
     try {
       await checkGoogleAuth(true); // Force check even if userDataLocal might not be fully updated in state yet
     } catch (error) {
-      console.error("Error checking Google auth immediately:", error);
+      console.error('Error checking Google auth immediately:', error);
     }
 
     // Tải các dữ liệu khác trong background
@@ -349,7 +349,7 @@ export const Common = ({ children }) => {
       try {
         await Promise.all([fetchNotifications(true), getCalendarUser()]);
       } catch (error) {
-        console.error("Error loading background data:", error);
+        console.error('Error loading background data:', error);
       }
     }, 100);
 
@@ -359,10 +359,10 @@ export const Common = ({ children }) => {
         try {
           const socket = getSocket();
           const isConnected = socket && socket.connected;
-          console.log("🔗 Final socket status verification:", isConnected);
+          console.log('🔗 Final socket status verification:', isConnected);
           setSocketConnected(isConnected);
         } catch (error) {
-          console.error("❌ Error in final socket verification:", error);
+          console.error('❌ Error in final socket verification:', error);
           setSocketConnected(false);
         }
       }
@@ -403,10 +403,10 @@ export const Common = ({ children }) => {
 
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
-      toast.success("Login successful!");
+      toast.success('Login successful!');
       // Chỉ navigate nếu đang ở auth pages
-      if (location.pathname === "/login" || location.pathname === "/register") {
-        navigate("/dashboard");
+      if (location.pathname === '/login' || location.pathname === '/register') {
+        navigate('/dashboard');
       }
     }
 
@@ -423,8 +423,8 @@ export const Common = ({ children }) => {
       // Chuyển hướng đến backend để bắt đầu Google OAuth
       window.location.href = `${apiBaseUrl}/google/login`;
     } catch (error) {
-      console.error("Google login error:", error);
-      toast.error("Failed to initiate Google login");
+      console.error('Google login error:', error);
+      toast.error('Failed to initiate Google login');
       return false;
     }
   };
@@ -446,16 +446,16 @@ export const Common = ({ children }) => {
         }
       );
 
-      console.log("🔍 Registration response:", response.data);
-      console.log("response.data.status", response.data.status);
+      console.log('🔍 Registration response:', response.data);
+      console.log('response.data.status', response.data.status);
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         const { token, data } = response.data;
         return await handleLoginSuccess(token, data.user);
       }
     } catch (error) {
-      console.error("Registration error:", error);
-      toast.error(error.response?.data?.message || "Registration failed");
+      console.error('Registration error:', error);
+      toast.error(error.response?.data?.message || 'Registration failed');
       return false;
     }
   };
@@ -467,12 +467,12 @@ export const Common = ({ children }) => {
         withCredentials: true, // Include cookies
       });
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error('Logout error:', error);
     }
 
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("userData");
-    localStorage.removeItem("notifications");
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('notifications');
 
     setAccessToken(null);
     setUserDataLocal(null);
@@ -493,13 +493,13 @@ export const Common = ({ children }) => {
     socketInitialized.current = false;
     setSocketConnected(false);
 
-    navigate("/login");
+    navigate('/login');
   };
 
   // Fetch user profile
   const fetchUserProfile = async () => {
     if (!accessToken) {
-      console.log("⚠️ No access token, skipping fetchUserProfile");
+      console.log('⚠️ No access token, skipping fetchUserProfile');
       return null;
     }
 
@@ -509,17 +509,17 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         const user = response.data.data.user;
         setUserDataLocal(user);
-        localStorage.setItem("userData", JSON.stringify(user));
+        localStorage.setItem('userData', JSON.stringify(user));
         return user;
       } else {
-        throw new Error(response.data.message || "Failed to fetch profile");
+        throw new Error(response.data.message || 'Failed to fetch profile');
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch profile");
+      console.error('Error fetching user profile:', error);
+      toast.error(error.response?.data?.message || 'Failed to fetch profile');
       return null;
     }
   };
@@ -527,7 +527,7 @@ export const Common = ({ children }) => {
   // Update user profile
   const updateUserProfile = async (profileData) => {
     if (!accessToken) {
-      console.log("⚠️ No access token, skipping updateUserProfile");
+      console.log('⚠️ No access token, skipping updateUserProfile');
       return false;
     }
 
@@ -541,18 +541,18 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         const updatedUser = response.data.data.user;
         setUserDataLocal(updatedUser);
-        localStorage.setItem("userData", JSON.stringify(updatedUser));
-        toast.success("Profile updated successfully!");
+        localStorage.setItem('userData', JSON.stringify(updatedUser));
+        toast.success('Profile updated successfully!');
         return true;
       } else {
-        throw new Error(response.data.message || "Failed to update profile");
+        throw new Error(response.data.message || 'Failed to update profile');
       }
     } catch (error) {
-      console.error("Error updating user profile:", error);
-      toast.error(error.response?.data?.message || "Failed to update profile");
+      console.error('Error updating user profile:', error);
+      toast.error(error.response?.data?.message || 'Failed to update profile');
       return false;
     }
   };
@@ -570,17 +570,17 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         const newNotifs = response.data.data?.notifications || [];
         const pagination = response.data.pagination || {};
 
         if (reset) {
           setNotifications(newNotifs);
-          localStorage.setItem("notifications", JSON.stringify(newNotifs));
+          localStorage.setItem('notifications', JSON.stringify(newNotifs));
         } else {
           const updatedNotifs = [...notifications, ...newNotifs];
           setNotifications(updatedNotifs);
-          localStorage.setItem("notifications", JSON.stringify(updatedNotifs));
+          localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
         }
 
         setNotificationPagination({
@@ -591,10 +591,10 @@ export const Common = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      console.error('Error fetching notifications:', error);
       if (reset) {
         setNotifications([]);
-        localStorage.removeItem("notifications");
+        localStorage.removeItem('notifications');
       }
       setNotificationPagination((prev) => ({ ...prev, loading: false }));
       // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
@@ -623,13 +623,13 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         const newNotifs = response.data.data?.notifications || [];
         const pagination = response.data.pagination || {};
 
         const updatedNotifs = [...notifications, ...newNotifs];
         setNotifications(updatedNotifs);
-        localStorage.setItem("notifications", JSON.stringify(updatedNotifs));
+        localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
 
         setNotificationPagination({
           hasMore: pagination.hasMore || false,
@@ -639,9 +639,9 @@ export const Common = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error("Error loading more notifications:", error);
+      console.error('Error loading more notifications:', error);
       setNotificationPagination((prev) => ({ ...prev, loading: false }));
-      toast.error("Không thể tải thêm thông báo");
+      toast.error('Không thể tải thêm thông báo');
     }
   };
 
@@ -667,19 +667,19 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         setNotifications((prev) => {
           const updated = prev.map((n) =>
             n.notificationId === notificationId
               ? { ...n, isRead: true, readAt: formatDateAMPMForVN(new Date()) }
               : n
           );
-          localStorage.setItem("notifications", JSON.stringify(updated));
+          localStorage.setItem('notifications', JSON.stringify(updated));
           return updated;
         });
       }
     } catch (error) {
-      console.error("❌ Error marking notification as read:", error);
+      console.error('❌ Error marking notification as read:', error);
       // toast.error(
       //   error.response?.data?.message ||
       //     'Không thể đánh dấu thông báo là đã đọc'
@@ -711,15 +711,11 @@ export const Common = ({ children }) => {
         // Mark notification as read
         await markNotificationAsRead(notificationId);
 
-        toast.success(
-          status === "accepted"
-            ? "Đã chấp nhận lời mời tham gia sự kiện"
-            : "Đã từ chối lời mời tham gia sự kiện"
-        );
+        // Không hiển thị toast ở đây nữa, để Header.jsx handle
         return { success: true };
       }
     } catch (error) {
-      console.error("❌ Error responding to event invitation:", error);
+      console.error('❌ Error responding to event invitation:', error);
 
       // Handle conflict case
       if (error.response?.status === 409 && error.response?.data?.hasConflict) {
@@ -732,7 +728,7 @@ export const Common = ({ children }) => {
 
       toast.error(
         error.response?.data?.message ||
-          "Không thể phản hồi lời mời tham gia sự kiện"
+          'Không thể phản hồi lời mời tham gia sự kiện'
       );
       return { success: false };
     }
@@ -759,7 +755,7 @@ export const Common = ({ children }) => {
         return response.data.data;
       }
     } catch (error) {
-      console.error("❌ Error updating all user events status by time:", error);
+      console.error('❌ Error updating all user events status by time:', error);
       // Không hiển thị toast error vì đây là background process
       return null;
     }
@@ -783,7 +779,7 @@ export const Common = ({ children }) => {
         return response.data.data;
       }
     } catch (error) {
-      console.error("❌ Error updating event status by time:", error);
+      console.error('❌ Error updating event status by time:', error);
       // Không hiển thị toast error vì đây là background process
       return null;
     }
@@ -800,14 +796,14 @@ export const Common = ({ children }) => {
       const socket = getSocket();
 
       // Remove existing listeners first to avoid duplicates
-      socket.off("new_notification");
-      socket.off("notification_updated");
-      socket.off("connect");
-      socket.off("disconnect");
-      socket.off("test_pong");
-      socket.off("new_event_message");
-      socket.off("edit_event_message");
-      socket.off("delete_event_message");
+      socket.off('new_notification');
+      socket.off('notification_updated');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('test_pong');
+      socket.off('new_event_message');
+      socket.off('edit_event_message');
+      socket.off('delete_event_message');
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
@@ -817,16 +813,16 @@ export const Common = ({ children }) => {
             ...prev,
           ];
           localStorage.setItem(
-            "notifications",
+            'notifications',
             JSON.stringify(newNotifications)
           );
           return newNotifications;
         });
 
         if (
-          notification.type === "event_invitation" ||
-          notification.type === "event_update" ||
-          notification.type === "event_status_update"
+          notification.type === 'event_invitation' ||
+          notification.type === 'event_update' ||
+          notification.type === 'event_status_update'
         ) {
           {
             toast.info(notification.title, {
@@ -834,12 +830,12 @@ export const Common = ({ children }) => {
               duration: 3000,
             });
           }
-        } else if (notification.type === "new_message") {
+        } else if (notification.type === 'new_message') {
           // Thông báo tin nhắn mới với icon đặc biệt
           toast(notification.title, {
             description: notification.content,
             duration: 4000,
-            icon: "💬",
+            icon: '💬',
           });
         } else {
           toast.success(notification.title, {
@@ -849,9 +845,9 @@ export const Common = ({ children }) => {
         }
 
         // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
-        if (notification.type === "event_update") {
+        if (notification.type === 'event_update') {
           window.dispatchEvent(
-            new CustomEvent("eventUpdated", {
+            new CustomEvent('eventUpdated', {
               detail: { eventId: notification.eventId },
             })
           );
@@ -870,59 +866,59 @@ export const Common = ({ children }) => {
                 }
               : n
           );
-          localStorage.setItem("notifications", JSON.stringify(updated));
+          localStorage.setItem('notifications', JSON.stringify(updated));
           return updated;
         });
       };
 
       // Listen for actual socket connection events
-      socket.on("connect", () => {
-        console.log("🔗 Socket connected event received");
+      socket.on('connect', () => {
+        console.log('🔗 Socket connected event received');
         setSocketConnected(true);
       });
 
-      socket.on("disconnect", () => {
-        console.log("❌ Socket disconnected event received");
+      socket.on('disconnect', () => {
+        console.log('❌ Socket disconnected event received');
         setSocketConnected(false);
       });
 
       // Test pong listener để verify connection
-      socket.on("test_pong", (data) => {
-        console.log("🏓 Received test pong from backend:", data);
+      socket.on('test_pong', (data) => {
+        console.log('🏓 Received test pong from backend:', data);
         // Đảm bảo connection status được update khi nhận được pong
         setSocketConnected(true);
       });
 
       // Đăng ký listeners
-      socket.on("new_notification", handleNewNotification);
-      socket.on("notification_updated", handleNotificationUpdate);
+      socket.on('new_notification', handleNewNotification);
+      socket.on('notification_updated', handleNotificationUpdate);
 
       // Event messaging listeners
-      socket.on("new_event_message", (data) => {
-        console.log("📨 New event message received:", data);
+      socket.on('new_event_message', (data) => {
+        console.log('📨 New event message received:', data);
         // Emit custom event for Calendar component to handle
         window.dispatchEvent(
-          new CustomEvent("new_event_message", {
+          new CustomEvent('new_event_message', {
             detail: data,
           })
         );
       });
 
-      socket.on("edit_event_message", (data) => {
-        console.log("✏️ Event message edited:", data);
+      socket.on('edit_event_message', (data) => {
+        console.log('✏️ Event message edited:', data);
         // Emit custom event for Calendar component to handle
         window.dispatchEvent(
-          new CustomEvent("edit_event_message", {
+          new CustomEvent('edit_event_message', {
             detail: data,
           })
         );
       });
 
-      socket.on("delete_event_message", (data) => {
-        console.log("🗑️ Event message deleted:", data);
+      socket.on('delete_event_message', (data) => {
+        console.log('🗑️ Event message deleted:', data);
         // Emit custom event for Calendar component to handle
         window.dispatchEvent(
-          new CustomEvent("delete_event_message", {
+          new CustomEvent('delete_event_message', {
             detail: data,
           })
         );
@@ -930,19 +926,19 @@ export const Common = ({ children }) => {
 
       // Check if socket is already connected
       if (socket.connected) {
-        console.log("🔗 Socket already connected during setup");
+        console.log('🔗 Socket already connected during setup');
         setSocketConnected(true);
       }
 
       // Test ping để verify connection
-      socket.emit("test_ping", {
-        message: "Hello from frontend",
+      socket.emit('test_ping', {
+        message: 'Hello from frontend',
         userId: userId,
       });
 
-      console.log("✅ Socket listeners registered successfully");
+      console.log('✅ Socket listeners registered successfully');
     } catch (error) {
-      console.error("❌ Error setting up socket listeners:", error);
+      console.error('❌ Error setting up socket listeners:', error);
       setSocketConnected(false);
     }
   };
@@ -953,9 +949,9 @@ export const Common = ({ children }) => {
       const response = await axios.post(
         `${apiBaseUrl}/calendar`,
         {
-          name: "Personal Working Calendar",
-          description: "A calendar for each user in system",
-          ownerType: "user",
+          name: 'Personal Working Calendar',
+          description: 'A calendar for each user in system',
+          ownerType: 'user',
         },
         {
           headers: {
@@ -983,7 +979,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error(
-        "Lỗi khi lấy lịch user:",
+        'Lỗi khi lấy lịch user:',
         error.response?.data?.message || error.message
       );
       if (error.response?.status === 404) {
@@ -991,7 +987,7 @@ export const Common = ({ children }) => {
         const created = await createInitialCalendar();
         if (!created) {
           // toast.error('Không thể tạo lịch cá nhân');
-          console.error("Không thể tạo lịch cá nhân");
+          console.error('Không thể tạo lịch cá nhân');
         }
       }
     }
@@ -1005,20 +1001,20 @@ export const Common = ({ children }) => {
         timeout: 10000,
       });
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         window.location.href = response.data.data.authUrl; // Redirect đến Google
       }
     } catch (error) {
-      toast.error("Lỗi khi khởi tạo xác thực Google");
+      toast.error('Lỗi khi khởi tạo xác thực Google');
     }
   };
 
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append('file', file);
     formData.append(
-      "upload_preset",
-      "sdn302-recipes-sharing-web-single-image-for-recipe"
+      'upload_preset',
+      'sdn302-recipes-sharing-web-single-image-for-recipe'
     );
 
     try {
@@ -1029,17 +1025,17 @@ export const Common = ({ children }) => {
         formData,
         { timeout: 10000 }
       );
-      console.log("VITE_CLOUDINARY_NAME", import.meta.env.VITE_CLOUDINARY_NAME);
-      console.log("response", response);
-      console.log("response.data", response.data);
-      console.log("response.data.secureurl", response.data.secure_url);
+      console.log('VITE_CLOUDINARY_NAME', import.meta.env.VITE_CLOUDINARY_NAME);
+      console.log('response', response);
+      console.log('response.data', response.data);
+      console.log('response.data.secureurl', response.data.secure_url);
       if (response.status === 200) {
-        console.log("oke upload thành công");
+        console.log('oke upload thành công');
         return response.data.secure_url; // Trả về URL ảnh đã upload
       }
     } catch (error) {
-      console.error("Error uploading to Cloudinary:", error);
-      throw new Error("Upload to Cloudinary failed");
+      console.error('Error uploading to Cloudinary:', error);
+      throw new Error('Upload to Cloudinary failed');
     }
   };
 
@@ -1080,7 +1076,7 @@ export const Common = ({ children }) => {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (res.status !== 201) {
-      throw new Error(res.data.message || "Tạo workspace thất bại");
+      throw new Error(res.data.message || 'Tạo workspace thất bại');
     }
     +(
       // refetch toàn bộ để đảm bảo members đã populate
@@ -1091,7 +1087,7 @@ export const Common = ({ children }) => {
 
   // **Update workspace**:
   const updateWorkspace = async (workspaceId, updates) => {
-    console.log("updateWorkspace", workspaceId, updates);
+    console.log('updateWorkspace', workspaceId, updates);
 
     const res = await axios.put(
       `${apiBaseUrl}/workspace/${workspaceId}`,
@@ -1099,7 +1095,7 @@ export const Common = ({ children }) => {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (res.status !== 200) {
-      throw new Error(res.data.message || "Cập nhật workspace thất bại");
+      throw new Error(res.data.message || 'Cập nhật workspace thất bại');
     }
 
     const updated = res.data.workspace;
@@ -1120,11 +1116,11 @@ export const Common = ({ children }) => {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (res.status !== 200) {
-      throw new Error(res.data.message || "Đóng workspace thất bại");
+      throw new Error(res.data.message || 'Đóng workspace thất bại');
     }
     // Loại bỏ workspace đã đóng khỏi state
     setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
-    toast.success("Workspace đã được đóng thành công");
+    toast.success('Workspace đã được đóng thành công');
     return res.data.workspace;
   };
 
@@ -1134,11 +1130,11 @@ export const Common = ({ children }) => {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (res.status !== 200) {
-      throw new Error(res.data.message || "Xóa workspace thất bại");
+      throw new Error(res.data.message || 'Xóa workspace thất bại');
     }
     // remove khỏi state
     setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
-    toast.success("Workspace đã bị xóa vĩnh viễn");
+    toast.success('Workspace đã bị xóa vĩnh viễn');
     return true;
   };
 
@@ -1174,7 +1170,7 @@ export const Common = ({ children }) => {
       socketInitialized.current &&
       !socketConnected
     ) {
-      console.log("🔄 Setting up socket listeners for existing connection");
+      console.log('🔄 Setting up socket listeners for existing connection');
       setupSocketListeners();
     }
   }, [isAuthenticated, userDataLocal, socketConnected]);
@@ -1182,9 +1178,9 @@ export const Common = ({ children }) => {
   // Lưu thông báo vào localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("notifications", JSON.stringify(notifications));
+      localStorage.setItem('notifications', JSON.stringify(notifications));
     } catch (error) {
-      console.error("Error saving notifications to localStorage:", error);
+      console.error('Error saving notifications to localStorage:', error);
     }
   }, [notifications]);
 
@@ -1206,16 +1202,16 @@ export const Common = ({ children }) => {
 
           // Log detailed status for debugging
           if (isConnected) {
-            console.log("✅ Socket status updated to connected");
+            console.log('✅ Socket status updated to connected');
           } else {
-            console.log("❌ Socket status updated to disconnected");
+            console.log('❌ Socket status updated to disconnected');
           }
         }
       } catch (error) {
         // Socket not initialized yet, set to false
         if (socketConnected) {
           console.log(
-            "⚠️ Socket not accessible, setting status to disconnected"
+            '⚠️ Socket not accessible, setting status to disconnected'
           );
           setSocketConnected(false);
         }
@@ -1240,17 +1236,17 @@ export const Common = ({ children }) => {
       !socketInitialized.current &&
       !isProcessingAuth.current
     ) {
-      console.log("🔄 Reinitializing socket after page reload");
+      console.log('🔄 Reinitializing socket after page reload');
       const initSocket = async () => {
         try {
           await initSocketClient(userId, apiBaseUrl, () => {
-            console.log("🎯 Socket reconnected callback triggered");
+            console.log('🎯 Socket reconnected callback triggered');
             socketInitialized.current = true;
             setupSocketListeners();
           });
-          console.log("✅ Socket reinitialization completed");
+          console.log('✅ Socket reinitialization completed');
         } catch (error) {
-          console.error("❌ Socket reinitialization failed:", error);
+          console.error('❌ Socket reinitialization failed:', error);
         }
       };
       initSocket();
@@ -1274,7 +1270,7 @@ export const Common = ({ children }) => {
             getCalendarUser(),
           ]);
         } catch (error) {
-          console.error("Error loading initial data:", error);
+          console.error('Error loading initial data:', error);
         }
       };
 
@@ -1293,7 +1289,7 @@ export const Common = ({ children }) => {
       !isGoogleAuthenticated &&
       !showGoogleAuthModal
     ) {
-      console.log("🔄 Fallback: Checking Google auth for modal display");
+      console.log('🔄 Fallback: Checking Google auth for modal display');
       const timer = setTimeout(() => {
         checkGoogleAuth();
       }, 2000); // Delay for fallback check
@@ -1312,15 +1308,15 @@ export const Common = ({ children }) => {
   // Xử lý query parameter khi quay lại từ Google OAuth
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    const error = query.get("error");
-    const message = query.get("message");
+    const error = query.get('error');
+    const message = query.get('message');
 
-    if (error === "google_auth_failed") {
+    if (error === 'google_auth_failed') {
       toast.error(
-        message || "Email tài khoản đã tồn tại."
+        message || 'Email tài khoản đã tồn tại.'
         // Vui lòng đăng nhập thủ công và kết nối với tài khoản Google của bạn.
       );
-      navigate("/login", { replace: true });
+      navigate('/login', { replace: true });
     }
   }, [location, navigate]);
 
@@ -1339,11 +1335,11 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200) {
-        toast.success("Đã hủy tham gia sự kiện thành công");
+        toast.success('Đã hủy tham gia sự kiện thành công');
 
         // Trigger calendar refresh
         window.dispatchEvent(
-          new CustomEvent("eventUpdated", {
+          new CustomEvent('eventUpdated', {
             detail: { eventId: eventId },
           })
         );
@@ -1352,9 +1348,9 @@ export const Common = ({ children }) => {
       }
       return false;
     } catch (error) {
-      console.error("Error canceling event participation:", error);
+      console.error('Error canceling event participation:', error);
       toast.error(
-        error.response?.data?.message || "Không thể hủy tham gia sự kiện"
+        error.response?.data?.message || 'Không thể hủy tham gia sự kiện'
       );
       return false;
     }
@@ -1374,12 +1370,12 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         return { success: true, message: response.data.data.message };
       }
     } catch (error) {
-      console.error("Error sending event message:", error);
-      toast.error(error.response?.data?.message || "Lỗi khi gửi tin nhắn");
+      console.error('Error sending event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi gửi tin nhắn');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1397,7 +1393,7 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         return {
           success: true,
           data: response.data.data,
@@ -1407,7 +1403,7 @@ export const Common = ({ children }) => {
         };
       }
     } catch (error) {
-      console.error("Error getting event messages:", error);
+      console.error('Error getting event messages:', error);
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1436,7 +1432,7 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         return {
           success: true,
           messages: response.data.data.messages,
@@ -1444,7 +1440,7 @@ export const Common = ({ children }) => {
         };
       }
     } catch (error) {
-      console.error("Error loading more event messages:", error);
+      console.error('Error loading more event messages:', error);
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1463,13 +1459,13 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
+      if (response.data.status === 'success') {
         return { success: true, message: response.data.data.message };
       }
     } catch (error) {
-      console.error("Error editing event message:", error);
+      console.error('Error editing event message:', error);
       toast.error(
-        error.response?.data?.message || "Lỗi khi chỉnh sửa tin nhắn"
+        error.response?.data?.message || 'Lỗi khi chỉnh sửa tin nhắn'
       );
       return { success: false, error: error.response?.data?.message };
     }
@@ -1487,13 +1483,13 @@ export const Common = ({ children }) => {
         }
       );
 
-      if (response.data.status === "success") {
-        toast.success("Tin nhắn đã được xóa");
+      if (response.data.status === 'success') {
+        toast.success('Tin nhắn đã được xóa');
         return { success: true };
       }
     } catch (error) {
-      console.error("Error deleting event message:", error);
-      toast.error(error.response?.data?.message || "Lỗi khi xóa tin nhắn");
+      console.error('Error deleting event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa tin nhắn');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1563,7 +1559,7 @@ export const Common = ({ children }) => {
     >
       <Toaster
         richColors
-        position="top-center"
+        position='top-center'
         expand={true}
         visibleToasts={3}
         toastOptions={{

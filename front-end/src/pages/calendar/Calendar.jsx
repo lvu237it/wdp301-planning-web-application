@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCommon } from '../../contexts/CommonContext';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
+import '../../styles/calendar.css';
 
 // Hàm chuyển đổi ngày giờ sang định dạng ISO cho backend
 const toISODateTime = (dateTime) => {
@@ -552,9 +553,9 @@ const Calendar = () => {
   // Reset chat when modal closes and manage body scroll
   useEffect(() => {
     if (showEventModal) {
-      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.classList.remove('modal-open');
+      document.body.style.overflow = 'unset';
       setShowChat(false);
       setMessages([]);
       setNewMessage('');
@@ -569,7 +570,7 @@ const Calendar = () => {
 
     // Cleanup function để đảm bảo body được reset khi component unmount
     return () => {
-      document.body.classList.remove('modal-open');
+      document.body.style.overflow = 'unset';
     };
   }, [showEventModal]);
 
