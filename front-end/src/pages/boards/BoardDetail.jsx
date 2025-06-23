@@ -1,18 +1,46 @@
 // src/pages/boards/BoardDetail.jsx
 import { useParams } from 'react-router-dom';
 import React, { useEffect } from 'react';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import List from '../lists/List';
 import { useCommon } from '../../contexts/CommonContext';
 
 const BoardDetail = () => {
   const { workspaceId, boardId } = useParams();
-  const { setCurrentWorkspaceId, navigate } = useCommon();
+  const {
+    setCurrentWorkspaceId,
+    navigate,
+    getBoardCalendar,
+    calendarBoard,
+    setCalendarBoard,
+  } = useCommon();
+
+  // useEffect(() => {
+  //   if (workspaceId) {
+  //     console.log('workspaceId in boardDetail', workspaceId);
+  //     setCurrentWorkspaceId(workspaceId);
+  //   }
+  // }, [workspaceId]);
+
+  // useEffect(() => {
+  //   console.log('worspacekId', workspaceId);
+  // }, []);
 
   useEffect(() => {
-    if (workspaceId) {
-      setCurrentWorkspaceId(workspaceId);
+    if (boardId) {
+      //Lấy calendar của board, nếu không tìm thấy thì tự động tạo mới
+      getBoardCalendar(boardId);
     }
-  }, [workspaceId, setCurrentWorkspaceId]);
+  }, [boardId]);
+
+  // Make toast available globally for List component
+  useEffect(() => {
+    window.toast = toast;
+    return () => {
+      delete window.toast;
+    };
+  }, []);
 
   return (
     <div className='board-detail-page'>
@@ -33,6 +61,20 @@ const BoardDetail = () => {
           <List boardId={boardId} />
         </div>
       </div>
+
+      {/* Toast Container */}
+      {/* <ToastContainer
+        position='top-right'
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme='light'
+      /> */}
     </div>
   );
 };
