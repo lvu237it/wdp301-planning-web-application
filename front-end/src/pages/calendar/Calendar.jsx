@@ -212,13 +212,13 @@ const Calendar = () => {
   const eventTypes = useMemo(
     () => ({
       online: {
-        label: 'Trực tuyến',
+        label: 'Online',
         color: '#2196F3',
         icon: '🌐',
         description: 'Sự kiện diễn ra trực tuyến',
       },
       offline: {
-        label: 'Trực tiếp',
+        label: 'Offline',
         color: '#4CAF50',
         icon: '📍',
         description: 'Sự kiện tại địa điểm cụ thể',
@@ -1983,7 +1983,7 @@ const Calendar = () => {
                             className='mt-2'
                           >
                             <FaPlus className='me-2' />
-                            Tạo sự kiện mới
+                            Create new event
                           </Button>
                         </motion.div>
                       )}
@@ -2561,21 +2561,21 @@ const Calendar = () => {
             size='lg'
           >
             <Modal.Header className='mx-3' closeButton>
-              <Modal.Title>Tạo sự kiện mới</Modal.Title>
+              <Modal.Title>Create new event</Modal.Title>
             </Modal.Header>
             <Modal.Body>
               <Form onSubmit={handleCreateSubmit}>
                 <Row>
                   <Col>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Tiêu đề *</Form.Label>
+                      <Form.Label>Title *</Form.Label>
                       <Form.Control
                         type='text'
                         value={formData.title}
                         onChange={(e) =>
                           setFormData({ ...formData, title: e.target.value })
                         }
-                        placeholder='Nhập tiêu đề sự kiện...'
+                        placeholder='Input title...'
                         required
                       />
                     </Form.Group>
@@ -2601,7 +2601,7 @@ const Calendar = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Thời gian bắt đầu *</Form.Label>
+                      <Form.Label>Start date *</Form.Label>
                       <Form.Control
                         type={formData.allDay ? 'date' : 'datetime-local'}
                         value={
@@ -2629,7 +2629,7 @@ const Calendar = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Thời gian kết thúc *</Form.Label>
+                      <Form.Label>End date *</Form.Label>
                       <Form.Control
                         type={formData.allDay ? 'date' : 'datetime-local'}
                         value={
@@ -2659,7 +2659,7 @@ const Calendar = () => {
                 <Form.Group className='mb-3'>
                   <Form.Check
                     type='checkbox'
-                    label='Sự kiện cả ngày'
+                    label='All day'
                     checked={formData.allDay}
                     onChange={(e) =>
                       setFormData({ ...formData, allDay: e.target.checked })
@@ -2667,7 +2667,7 @@ const Calendar = () => {
                   />
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Mô tả</Form.Label>
+                  <Form.Label>Description</Form.Label>
                   <Form.Control
                     as='textarea'
                     rows={3}
@@ -2675,11 +2675,11 @@ const Calendar = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    placeholder='Mô tả chi tiết về sự kiện...'
+                    placeholder='Describe details of event...'
                   />
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Loại sự kiện</Form.Label>
+                  <Form.Label>Type of event</Form.Label>
                   <Form.Select
                     value={formData.type}
                     onChange={(e) =>
@@ -2693,34 +2693,17 @@ const Calendar = () => {
                     ))}
                   </Form.Select>
                 </Form.Group>
-                {/* {formData.type === 'online' && (
-                <>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Mật khẩu cuộc họp</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={formData.meetingCode}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          meetingCode: e.target.value,
-                        })
-                      }
-                      placeholder='Nhập mã cuộc họp (nếu có)...'
-                    />
-                  </Form.Group>
-                </>
-              )} */}
+
                 {formData.type === 'offline' && (
                   <Form.Group className='mb-3'>
-                    <Form.Label>Địa chỉ *</Form.Label>
+                    <Form.Label>Address *</Form.Label>
                     <Form.Control
                       type='text'
                       value={formData.address}
                       onChange={(e) =>
                         setFormData({ ...formData, address: e.target.value })
                       }
-                      placeholder='Ví dụ: Phòng họp A, Trường FPT, 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      placeholder='Example: Trường Đại học FPT Hà Nội'
                       required
                     />
                     <Form.Text className='text-muted'>
@@ -2746,7 +2729,7 @@ const Calendar = () => {
               </Form.Group> */}
                 <Form.Group className='mb-3'>
                   <Form.Label>
-                    Mời người tham gia (email ngăn cách bởi dấu phẩy)
+                    Invite other people (emails separated by commas)
                   </Form.Label>
                   <Form.Control
                     type='text'
@@ -2757,7 +2740,7 @@ const Calendar = () => {
                         participantEmails: e.target.value,
                       })
                     }
-                    placeholder='Nhập email người tham gia để mời, cách nhau bằng dấu phẩy...'
+                    placeholder='Input email(s) to invite, separated by commas'
                   />
                   <Form.Text className='text-muted'>
                     Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự
@@ -2772,7 +2755,7 @@ const Calendar = () => {
                     type='button'
                     disabled={isCreatingEvent}
                   >
-                    Hủy
+                    Cancel
                   </Button>
                   <Button
                     variant='primary'
@@ -2789,12 +2772,12 @@ const Calendar = () => {
                           aria-hidden='true'
                           className='me-2'
                         />
-                        Đang tạo...
+                        Creating...
                       </>
                     ) : (
                       <>
                         <FaPlus className='me-2' />
-                        Tạo sự kiện
+                        Create
                       </>
                     )}
                   </Button>
@@ -2815,7 +2798,7 @@ const Calendar = () => {
             <Modal.Header closeButton>
               <Modal.Title>
                 <FaEdit className='me-2' />
-                Chỉnh sửa sự kiện
+                Edit event
               </Modal.Title>
             </Modal.Header>
             <Modal.Body>
@@ -2823,7 +2806,7 @@ const Calendar = () => {
                 <Row>
                   <Col>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Tiêu đề *</Form.Label>
+                      <Form.Label>Title *</Form.Label>
                       <Form.Control
                         type='text'
                         value={editFormData.title || ''}
@@ -2833,7 +2816,7 @@ const Calendar = () => {
                             title: e.target.value,
                           })
                         }
-                        placeholder='Nhập tiêu đề sự kiện...'
+                        placeholder='Input title...'
                         required
                       />
                     </Form.Group>
@@ -2862,7 +2845,7 @@ const Calendar = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Thời gian bắt đầu *</Form.Label>
+                      <Form.Label>Start date *</Form.Label>
                       <Form.Control
                         type={editFormData.allDay ? 'date' : 'datetime-local'}
                         value={
@@ -2890,7 +2873,7 @@ const Calendar = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className='mb-3'>
-                      <Form.Label>Thời gian kết thúc *</Form.Label>
+                      <Form.Label>End date *</Form.Label>
                       <Form.Control
                         type={editFormData.allDay ? 'date' : 'datetime-local'}
                         value={
@@ -2920,7 +2903,7 @@ const Calendar = () => {
                 <Form.Group className='mb-3'>
                   <Form.Check
                     type='checkbox'
-                    label='Sự kiện cả ngày'
+                    label='All day'
                     checked={editFormData.allDay || false}
                     onChange={(e) =>
                       setEditFormData({
@@ -2931,7 +2914,7 @@ const Calendar = () => {
                   />
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Mô tả</Form.Label>
+                  <Form.Label>Description</Form.Label>
                   <Form.Control
                     as='textarea'
                     rows={3}
@@ -2942,11 +2925,11 @@ const Calendar = () => {
                         description: e.target.value,
                       })
                     }
-                    placeholder='Mô tả chi tiết về sự kiện...'
+                    placeholder='Describe details of event...'
                   />
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Loại sự kiện</Form.Label>
+                  <Form.Label>Type of event</Form.Label>
                   <Form.Select
                     value={editFormData.type || 'offline'}
                     onChange={(e) =>
@@ -2960,41 +2943,10 @@ const Calendar = () => {
                     ))}
                   </Form.Select>
                 </Form.Group>
-                {/* {editFormData.type === 'online' && (
-                <>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Link sự kiện</Form.Label>
-                    <Form.Control
-                      type='url'
-                      value={editFormData.onlineUrl || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          onlineUrl: e.target.value,
-                        })
-                      }
-                      placeholder='Nhập URL sự kiện trực tuyến...'
-                    />
-                  </Form.Group>
-                  <Form.Group className='mb-3'>
-                    <Form.Label>Mã cuộc họp</Form.Label>
-                    <Form.Control
-                      type='text'
-                      value={editFormData.meetingCode || ''}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          meetingCode: e.target.value,
-                        })
-                      }
-                      placeholder='Nhập mã cuộc họp (nếu có)...'
-                    />
-                  </Form.Group>
-                </>
-              )} */}
+
                 {editFormData.type === 'offline' && (
                   <Form.Group className='mb-3'>
-                    <Form.Label>Địa chỉ *</Form.Label>
+                    <Form.Label>Address *</Form.Label>
                     <Form.Control
                       type='text'
                       value={editFormData.address || ''}
@@ -3004,7 +2956,7 @@ const Calendar = () => {
                           address: e.target.value,
                         })
                       }
-                      placeholder='Ví dụ: Phòng họp A, Trường FPT, 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội'
+                      placeholder='Example: Trường Đại học FPT Hà Nội'
                       required
                     />
                     <Form.Text className='text-muted'>
@@ -3033,7 +2985,7 @@ const Calendar = () => {
               </Form.Group> */}
                 <Form.Group className='mb-3'>
                   <Form.Label>
-                    Thêm người tham gia mới (email ngăn cách bởi dấu phẩy)
+                    Invite other people (emails separated by commas)
                   </Form.Label>
                   <Form.Control
                     type='text'
@@ -3044,7 +2996,7 @@ const Calendar = () => {
                         participantEmails: e.target.value,
                       })
                     }
-                    placeholder='Nhập email người tham gia mới để mời thêm...'
+                    placeholder='Input email(s) to invite, separated by commas'
                   />
                 </Form.Group>
                 <div className='d-flex justify-content-end gap-2'>
@@ -3054,7 +3006,7 @@ const Calendar = () => {
                     type='button'
                     disabled={isUpdatingEvent}
                   >
-                    Hủy
+                    Cancel
                   </Button>
                   <Button
                     variant='success'
@@ -3071,12 +3023,12 @@ const Calendar = () => {
                           aria-hidden='true'
                           className='me-2'
                         />
-                        Đang cập nhật...
+                        Updating...
                       </>
                     ) : (
                       <>
                         <FaEdit className='me-2' />
-                        Cập nhật
+                        Update
                       </>
                     )}
                   </Button>
@@ -3093,20 +3045,18 @@ const Calendar = () => {
             backdrop='static'
           >
             <Modal.Header closeButton>
-              <Modal.Title>Xác nhận xóa sự kiện</Modal.Title>
+              <Modal.Title>Confirm to delete event</Modal.Title>
             </Modal.Header>
-            <Modal.Body>
-              Bạn có chắc chắn muốn xóa sự kiện này không?
-            </Modal.Body>
+            <Modal.Body>Are you sure to delete this event?</Modal.Body>
             <Modal.Footer>
               <Button
                 variant='secondary'
                 onClick={() => setShowDeleteModal(false)}
               >
-                Hủy
+                Cancel
               </Button>
               <Button variant='danger' onClick={handleDeleteEvent}>
-                Xóa
+                Delete
               </Button>
             </Modal.Footer>
           </Modal>
@@ -3124,7 +3074,7 @@ const Calendar = () => {
           >
             <Modal.Header closeButton>
               <Modal.Title className='text-black'>
-                ⚠️ Xung đột giữa các cuộc hẹn
+                ⚠️ Conflict with available event(s)
               </Modal.Title>
             </Modal.Header>
             <Modal.Body>
@@ -3135,7 +3085,7 @@ const Calendar = () => {
                   </div>
 
                   <div className='mb-3'>
-                    <h6>Cuộc hẹn bạn muốn tham gia:</h6>
+                    <h6>Event you want to join:</h6>
                     <div className='border rounded p-2 bg-light'>
                       <strong>{conflictEventData.currentEvent?.title}</strong>
                       <br />
@@ -3153,7 +3103,7 @@ const Calendar = () => {
                                 conflictEventData.currentEvent?.startDate
                               )
                             )}{' '}
-                            <span className='text-info'>(cả ngày)</span>
+                            <span className='text-info'>(all day)</span>
                           </>
                         ) : (
                           <>
@@ -3173,7 +3123,7 @@ const Calendar = () => {
                   </div>
 
                   <div className='mb-3'>
-                    <h6>Cuộc hẹn đang có:</h6>
+                    <h6>Available event(s):</h6>
                     {conflictEventData.conflictingEvents?.map(
                       (event, index) => (
                         <div
@@ -3192,7 +3142,7 @@ const Calendar = () => {
                                   day: 'numeric',
                                   timeZone: 'Asia/Ho_Chi_Minh',
                                 }).format(new Date(event.startDate))}{' '}
-                                <span className='text-info'>(cả ngày)</span>
+                                <span className='text-info'>(all day)</span>
                               </>
                             ) : (
                               <>
@@ -3212,9 +3162,9 @@ const Calendar = () => {
 
                   <div className='alert alert-info'>
                     <small>
-                      <i className='bi bi-info-circle'></i> Bạn vẫn có thể chấp
-                      nhận tham gia sự kiện này, nhưng hãy đảm bảo bạn có thể
-                      sắp xếp thời gian phù hợp.
+                      <i className='bi bi-info-circle'></i> You can still accept
+                      to attend this event, but make sure you can arrange the
+                      time accordingly.
                     </small>
                   </div>
                 </div>
@@ -3226,7 +3176,7 @@ const Calendar = () => {
                 onClick={handleCloseConflictModal}
                 disabled={isSubmitting}
               >
-                Hủy bỏ
+                Cancel
               </Button>
               <Button
                 variant='warning'
@@ -3243,10 +3193,10 @@ const Calendar = () => {
                       aria-hidden='true'
                       className='me-2'
                     />
-                    Đang xử lý...
+                    Processing...
                   </>
                 ) : (
-                  'Vẫn tham gia'
+                  'Still join'
                 )}
               </Button>
             </Modal.Footer>
@@ -3262,7 +3212,7 @@ const Calendar = () => {
           >
             <Modal.Header closeButton>
               <Modal.Title className='text-black'>
-                ⚠️ Xung đột giữa các cuộc hẹn
+                ⚠️ Conflict with available event(s)
               </Modal.Title>
             </Modal.Header>
             <Modal.Body>
@@ -3273,7 +3223,7 @@ const Calendar = () => {
                   </div>
 
                   <div className='mb-3'>
-                    <h6>Cuộc hẹn bạn muốn tạo:</h6>
+                    <h6>Event you want to create:</h6>
                     <div className='border rounded p-2 bg-light'>
                       <strong>{createConflictData.newEvent?.title}</strong>
                       <br />
@@ -3289,7 +3239,7 @@ const Calendar = () => {
                             }).format(
                               new Date(createConflictData.newEvent?.startDate)
                             )}{' '}
-                            <span className='text-info'>(cả ngày)</span>
+                            <span className='text-info'>(all day)</span>
                           </>
                         ) : (
                           <>
@@ -3307,7 +3257,7 @@ const Calendar = () => {
                   </div>
 
                   <div className='mb-3'>
-                    <h6>Cuộc hẹn đang có:</h6>
+                    <h6>Available event(s):</h6>
                     {createConflictData.conflictingEvents?.map(
                       (event, index) => (
                         <div
@@ -3326,7 +3276,7 @@ const Calendar = () => {
                                   day: 'numeric',
                                   timeZone: 'Asia/Ho_Chi_Minh',
                                 }).format(new Date(event.startDate))}{' '}
-                                <span className='text-info'>(cả ngày)</span>
+                                <span className='text-info'>(all day)</span>
                               </>
                             ) : (
                               <>
@@ -3346,9 +3296,8 @@ const Calendar = () => {
 
                   <div className='alert alert-info'>
                     <small>
-                      <i className='bi bi-info-circle'></i> Bạn vẫn có thể tạo
-                      sự kiện này, nhưng hãy đảm bảo bạn có thể sắp xếp thời
-                      gian phù hợp.
+                      <i className='bi bi-info-circle'></i> You can still create
+                      this event, but make sure you can schedule it accordingly.
                     </small>
                   </div>
                 </div>
@@ -3360,7 +3309,7 @@ const Calendar = () => {
                 onClick={handleCloseCreateConflictModal}
                 disabled={isCreatingEvent}
               >
-                Hủy bỏ
+                Cancel
               </Button>
               <Button
                 variant='warning'
@@ -3380,7 +3329,7 @@ const Calendar = () => {
                     Đang tạo...
                   </>
                 ) : (
-                  'Vẫn tạo sự kiện'
+                  'Still creating'
                 )}
               </Button>
             </Modal.Footer>

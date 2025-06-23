@@ -612,7 +612,7 @@ exports.createEventForCalendar = async (req, res) => {
 
           return res.status(409).json({
             message:
-              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+              'You have an appointment within this time frame, so please consider carefully.',
             status: 409,
             hasConflict: true,
             conflictingEvents: conflictDetails,
@@ -1992,7 +1992,7 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
 
           return res.status(409).json({
             message:
-              'Bạn đã có cuộc hẹn nằm trong khung giờ này, vì vậy hãy cân nhắc kĩ lưỡng',
+              'You have an appointment within this time frame, so please consider carefully.',
             status: 409,
             hasConflict: true,
             conflictingEvents: conflictDetails,
