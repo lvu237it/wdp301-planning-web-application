@@ -902,6 +902,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: 90px;
 }
 
 .workspace-card-title-section {
@@ -941,12 +942,12 @@
   color: #e74c3c;
   cursor: pointer;
   transition: all 0.2s ease;
-  padding: 0.2rem;
+  padding: 0.1rem;
 }
 
 .workspace-delete-btn:hover {
   color: #c0392b;
-  transform: scale(1.1);
+  transform: scale(1.4);
 }
 
 .workspace-card-body {
