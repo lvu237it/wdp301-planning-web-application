@@ -1197,6 +1197,7 @@ export const Common = ({ children }) => {
       // console.error('Error creating calendar:', error.response?.data?.message);
     }
   };
+
   //close board
   const closeBoard = async (workspaceId, boardId) => {
     try {
