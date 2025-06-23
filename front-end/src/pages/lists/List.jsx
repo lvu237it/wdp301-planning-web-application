@@ -1,5 +1,7 @@
 // src/components/lists/List.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import { Modal, Form, Button } from 'react-bootstrap';
+import { FaTrash } from 'react-icons/fa';
 import '../../styles/board.css';
 import { useCommon } from '../../contexts/CommonContext';
 import TaskModal from '../tasks/Task';
@@ -10,6 +12,9 @@ const List = ({ boardId }) => {
     userDataLocal: currentUser,
     calendarUser,
     currentWorkspaceId,
+    createTaskFromCalendar,
+    updateTask,
+    deleteTask: deleteTaskFromCommon,
   } = useCommon();
 
   const [lists, setLists] = useState([]);
@@ -21,8 +26,38 @@ const List = ({ boardId }) => {
   const [addingTaskTo, setAddingTaskTo] = useState(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
+
+  // Modal states for detailed task creation
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    listId: '',
+    deadline: '',
+    assignedTo: '',
+    priority: 'medium',
+  });
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [boardMembers, setBoardMembers] = useState([]);
+
   const menuRefs = useRef({});
-  console.log(currentWorkspaceId);
+
+  // Format datetime for input
+  const formatDateTimeForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const offset = d.getTimezoneOffset();
+    d.setMinutes(d.getMinutes() - offset);
+    return d.toISOString().slice(0, 16);
+  };
+
+  const priorityOptions = [
+    { value: 'low', label: '🟢 Thấp' },
+    { value: 'medium', label: '🟡 Vừa' },
+    { value: 'high', label: '🔴 Cao' },
+    { value: 'urgent', label: '🚨 Khẩn cấp' },
+  ];
+  // console.log('currentWorkspaceId', currentWorkspaceId);
 
   useEffect(() => {
     console.log('selectedTask changed:', selectedTask);
@@ -61,11 +96,24 @@ const List = ({ boardId }) => {
             tasks: tasksByList[l._id.toString()] || [],
           }))
         );
+
+        // Fetch board members
+        const r3 = await fetch(
+          `${apiBaseUrl}/workspace/${currentWorkspaceId}/board/${boardId}`,
+          {
+            credentials: 'include',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const j3 = await r3.json();
+        if (r3.ok && j3.board && j3.board.members) {
+          setBoardMembers(j3.board.members);
+        }
       } catch (err) {
         console.error(err);
       }
     })();
-  }, [boardId, apiBaseUrl, accessToken]);
+  }, [boardId, apiBaseUrl, accessToken, currentWorkspaceId]);
 
   // Tạo list mới
   const createList = async (position) => {
@@ -137,60 +185,194 @@ const List = ({ boardId }) => {
     }
   };
 
-  // Tạo task mới
+  // Quick create task (simple version)
   const createTask = async (listId) => {
     const title = newTaskTitle.trim();
     if (!title) return;
     console.log(currentWorkspaceId);
 
-    const payload = {
+    const taskData = {
       title,
       description: '',
-      calendarId: calendarUser?._id,
-      workspaceId: currentWorkspaceId || null,
       boardId,
       listId,
-      eventId: null,
-      assignedTo: currentUser._id,
-      assignedBy: currentUser._id,
       deadline: null,
-      recurrence: null,
-      reminderSettings: [],
-      checklist: [],
-      labels: [],
-      documents: [],
+      assignedTo: currentUser._id,
     };
 
     try {
-      const res = await fetch(`${apiBaseUrl}/task/createTask`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      const js = await res.json();
-      if (!res.ok) throw new Error(js.message);
+      // Sử dụng createTaskFromCalendar để thống nhất logic với BoardCalendar
+      const result = await createTaskFromCalendar(taskData);
 
-      setLists(
-        lists.map((l) => {
-          if (l._id === listId) {
-            return {
-              ...l,
-              tasks: [...(l.tasks || []), js.data],
-            };
+      if (result.success) {
+        // Send notification if task is assigned to someone other than creator
+        if (taskData.assignedTo && taskData.assignedTo !== currentUser._id) {
+          try {
+            await fetch(`${apiBaseUrl}/notification/personal`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                title: `Task mới được gán: ${taskData.title}`,
+                content: `Bạn đã được gán task "${
+                  taskData.title
+                }" trong board. Hạn: ${
+                  taskData.deadline
+                    ? new Date(taskData.deadline).toLocaleDateString('vi-VN')
+                    : 'Không xác định'
+                }`,
+                type: 'task_assigned',
+                targetUserId: taskData.assignedTo,
+                relatedUserId: currentUser._id,
+                taskId: result.data._id || result.data.id,
+              }),
+            });
+          } catch (notifError) {
+            console.warn('Could not send notification:', notifError);
           }
-          return l;
-        })
-      );
-      setAddingTaskTo(null);
-      setNewTaskTitle('');
-      setMenuOpenId(null);
+        }
+
+        // Update local state
+        setLists(
+          lists.map((l) => {
+            if (l._id === listId) {
+              return {
+                ...l,
+                tasks: [...(l.tasks || []), result.data],
+              };
+            }
+            return l;
+          })
+        );
+        setAddingTaskTo(null);
+        setNewTaskTitle('');
+        setMenuOpenId(null);
+
+        // Show success message using toast if available
+        if (window.toast && window.toast.success) {
+          window.toast.success('Task đã được tạo!');
+        }
+      }
     } catch (err) {
-      alert(err.message);
+      console.error('Error creating task:', err);
+      alert(err.message || 'Không thể tạo task');
     }
+  };
+
+  // Open detailed task creation modal
+  const openTaskModal = (listId = '') => {
+    setTaskForm({
+      title: '',
+      description: '',
+      listId: listId,
+      deadline: formatDateTimeForInput(new Date()),
+      assignedTo: currentUser._id,
+      priority: 'medium',
+    });
+    setShowTaskModal(true);
+  };
+
+  // Handle detailed task form submission
+  const handleTaskSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!accessToken) {
+      if (window.toast && window.toast.error) {
+        window.toast.error('Vui lòng đăng nhập lại');
+      } else {
+        alert('Vui lòng đăng nhập lại');
+      }
+      return;
+    }
+
+    setIsCreatingTask(true);
+
+    try {
+      const taskData = {
+        ...taskForm,
+        boardId,
+        deadline: taskForm.deadline || null,
+      };
+
+      const result = await createTaskFromCalendar(taskData);
+
+      if (result.success) {
+        // Send notification if task is assigned to someone
+        if (taskForm.assignedTo && taskForm.assignedTo !== currentUser._id) {
+          try {
+            await fetch(`${apiBaseUrl}/notification/personal`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                title: `Task mới được gán: ${taskForm.title}`,
+                content: `Bạn đã được gán task "${
+                  taskForm.title
+                }" trong board. Hạn: ${
+                  taskForm.deadline
+                    ? new Date(taskForm.deadline).toLocaleDateString('vi-VN')
+                    : 'Không xác định'
+                }`,
+                type: 'task_assigned',
+                targetUserId: taskForm.assignedTo,
+                relatedUserId: currentUser._id,
+                taskId: result.data._id || result.data.id,
+              }),
+            });
+          } catch (notifError) {
+            console.warn('Could not send notification:', notifError);
+          }
+        }
+
+        // Update local state
+        setLists(
+          lists.map((l) => {
+            if (l._id === taskForm.listId) {
+              return {
+                ...l,
+                tasks: [...(l.tasks || []), result.data],
+              };
+            }
+            return l;
+          })
+        );
+
+        handleCloseTaskModal();
+
+        if (window.toast && window.toast.success) {
+          window.toast.success('Task đã được tạo!');
+        } else {
+          alert('Task đã được tạo!');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving task:', error);
+      if (window.toast && window.toast.error) {
+        window.toast.error('Không thể tạo task');
+      } else {
+        alert('Không thể tạo task');
+      }
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
+
+  const handleCloseTaskModal = () => {
+    setShowTaskModal(false);
+    setTaskForm({
+      title: '',
+      description: '',
+      listId: '',
+      deadline: formatDateTimeForInput(new Date()),
+      assignedTo: currentUser._id,
+      priority: 'medium',
+    });
   };
 
   // hàm update task
@@ -291,7 +473,15 @@ const List = ({ boardId }) => {
                           setMenuOpenId(null);
                         }}
                       >
-                        Create task
+                        Create task (quick)
+                      </li>
+                      <li
+                        onClick={() => {
+                          openTaskModal(list._id);
+                          setMenuOpenId(null);
+                        }}
+                      >
+                        Create task (detailed)
                       </li>
                     </ul>
                   )}
@@ -388,12 +578,157 @@ const List = ({ boardId }) => {
         )}
       </div>
 
+      {/* Task Detail Modal */}
       <TaskModal
         isOpen={!!selectedTask}
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
         onUpdate={handleTaskUpdated}
       />
+
+      {/* Detailed Task Creation Modal */}
+      <Modal
+        show={showTaskModal}
+        onHide={handleCloseTaskModal}
+        size='lg'
+        className='board-calendar-modal'
+        backdrop='static'
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>📋 Tạo Task mới</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleTaskSubmit}>
+          <Modal.Body>
+            <Form.Group className='mb-3'>
+              <Form.Label>Tiêu đề *</Form.Label>
+              <Form.Control
+                type='text'
+                value={taskForm.title}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, title: e.target.value })
+                }
+                required
+                placeholder='Nhập tiêu đề task...'
+              />
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label>Mô tả</Form.Label>
+              <Form.Control
+                as='textarea'
+                rows={3}
+                value={taskForm.description}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, description: e.target.value })
+                }
+                placeholder='Mô tả chi tiết về task...'
+              />
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label>List *</Form.Label>
+              <Form.Select
+                value={taskForm.listId}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, listId: e.target.value })
+                }
+                className='list-selector'
+                required
+              >
+                <option value=''>Chọn list...</option>
+                {lists.map((list) => (
+                  <option key={list._id} value={list._id}>
+                    📝 {list.title}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label>Deadline</Form.Label>
+              <Form.Control
+                type='datetime-local'
+                value={taskForm.deadline}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, deadline: e.target.value })
+                }
+              />
+              <Form.Text className='text-muted'>
+                Để trống nếu không có deadline cụ thể
+              </Form.Text>
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label>Độ ưu tiên</Form.Label>
+              <Form.Select
+                value={taskForm.priority}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, priority: e.target.value })
+                }
+              >
+                {priorityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label>Gán cho</Form.Label>
+              <Form.Select
+                value={taskForm.assignedTo}
+                onChange={(e) =>
+                  setTaskForm({ ...taskForm, assignedTo: e.target.value })
+                }
+              >
+                <option value=''>Chưa gán</option>
+                <option value={currentUser._id}>
+                  👤 {currentUser.username || currentUser.email} (Tôi)
+                </option>
+                {boardMembers
+                  .filter((member) => member._id !== currentUser._id)
+                  .map((member) => (
+                    <option key={member._id} value={member._id}>
+                      👤 {member.username || member.email}
+                    </option>
+                  ))}
+              </Form.Select>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              onClick={handleCloseTaskModal}
+              disabled={isCreatingTask}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant='primary'
+              type='submit'
+              disabled={isCreatingTask || !taskForm.title || !taskForm.listId}
+            >
+              {isCreatingTask ? (
+                <>
+                  <span
+                    className='spinner-border spinner-border-sm me-2'
+                    role='status'
+                    aria-hidden='true'
+                  ></span>
+                  Đang tạo...
+                </>
+              ) : (
+                <>
+                  <i className='bi bi-plus-circle me-1'></i>
+                  Tạo Task
+                </>
+              )}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
     </div>
   );
 };

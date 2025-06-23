@@ -11,24 +11,26 @@ const calendarSchema = new mongoose.Schema(
     },
     ownerType: {
       type: String,
-      enum: ['user', 'workspace'],
+      enum: ['user', 'board'], //chuyển từ workpsace sang board, vì cần phân biệt rõ từng calendar cho riêng từng board
       required: [
         true,
-        'Owner type - Lịch cần xác định thuộc về user hoặc workspace',
+        'Owner type - Lịch cần xác định thuộc về user hoặc board',
       ],
     },
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: [true, 'Lịch cần thuộc về 1 người dùng hoặc workspace cụ thể'],
+      required: [true, 'Lịch cần thuộc về 1 người dùng hoặc board cụ thể'],
       refPath: 'ownerType',
     },
     events: [
+      //các sự kiện cá nhân tạo ra hoặc sự kiện của 1 board tạo ra
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Event',
       },
     ],
     tasks: [
+      //Các task từ các list của board - tách riêng, ko phụ thuộc vào event
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Task',

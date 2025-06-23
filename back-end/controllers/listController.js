@@ -9,15 +9,16 @@ exports.getAllList = async (req, res) => {
     if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
         status: 'fail',
-        message: 'boardId không hợp lệ'
+        message: 'boardId không hợp lệ',
       });
     }
-    const lists = await List.find({ boardId, isDeleted: false })
-                            .sort('position');
+    const lists = await List.find({ boardId, isDeleted: false }).sort(
+      'position'
+    );
     res.status(200).json({
       status: 'success',
       results: lists.length,
-      data: lists
+      data: lists,
     });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
@@ -31,14 +32,20 @@ exports.getListById = async (req, res) => {
     const { boardId } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ status: 'fail', message: 'ID không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'ID không hợp lệ' });
     }
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
-      return res.status(404).json({ status: 'fail', message: 'Không tìm thấy danh sách' });
+      return res
+        .status(404)
+        .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
     }
     if (boardId && list.boardId.toString() !== boardId) {
-      return res.status(400).json({ status: 'fail', message: 'boardId không khớp' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'boardId không khớp' });
     }
 
     res.status(200).json({ status: 'success', data: list });
@@ -53,10 +60,14 @@ exports.createList = async (req, res) => {
   try {
     const { title, boardId, position } = req.body;
     if (!title || !boardId) {
-      return res.status(400).json({ status: 'fail', message: 'title và boardId là bắt buộc' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'title và boardId là bắt buộc' });
     }
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
-      return res.status(400).json({ status: 'fail', message: 'boardId không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'boardId không hợp lệ' });
     }
 
     // shift existing lists
@@ -68,7 +79,13 @@ exports.createList = async (req, res) => {
     }
 
     // create
-    const newList = await List.create({ title, boardId, position: typeof position === 'number' ? position : 0, tasks: [], isDeleted: false });
+    const newList = await List.create({
+      title,
+      boardId,
+      position: typeof position === 'number' ? position : 0,
+      tasks: [],
+      isDeleted: false,
+    });
 
     // push to Board.lists array
     await Board.findByIdAndUpdate(boardId, { $push: { lists: newList._id } });
@@ -76,7 +93,9 @@ exports.createList = async (req, res) => {
     res.status(201).json({ status: 'success', data: newList });
   } catch (error) {
     console.error('Error while creating list:', error);
-    res.status(500).json({ status: 'error', message: 'Có lỗi xảy ra khi tạo danh sách' });
+    res
+      .status(500)
+      .json({ status: 'error', message: 'Có lỗi xảy ra khi tạo danh sách' });
   }
 };
 
@@ -87,11 +106,15 @@ exports.updateList = async (req, res) => {
     const { title, position } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ status: 'fail', message: 'ID không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'ID không hợp lệ' });
     }
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
-      return res.status(404).json({ status: 'fail', message: 'Không tìm thấy danh sách' });
+      return res
+        .status(404)
+        .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
     }
 
     // reposition within same board
@@ -101,12 +124,20 @@ exports.updateList = async (req, res) => {
       const newPos = position < 0 ? 0 : position;
       if (newPos > oldPos) {
         await List.updateMany(
-          { boardId, position: { $gt: oldPos, $lte: newPos }, isDeleted: false },
+          {
+            boardId,
+            position: { $gt: oldPos, $lte: newPos },
+            isDeleted: false,
+          },
           { $inc: { position: -1 } }
         );
       } else {
         await List.updateMany(
-          { boardId, position: { $gte: newPos, $lt: oldPos }, isDeleted: false },
+          {
+            boardId,
+            position: { $gte: newPos, $lt: oldPos },
+            isDeleted: false,
+          },
           { $inc: { position: 1 } }
         );
       }
@@ -122,7 +153,10 @@ exports.updateList = async (req, res) => {
     res.status(200).json({ status: 'success', data: updatedList });
   } catch (error) {
     console.error('Error while updating list:', error);
-    res.status(500).json({ status: 'error', message: 'Có lỗi xảy ra khi cập nhật danh sách' });
+    res.status(500).json({
+      status: 'error',
+      message: 'Có lỗi xảy ra khi cập nhật danh sách',
+    });
   }
 };
 
@@ -131,16 +165,19 @@ exports.deleteList = async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ status: 'fail', message: 'ID không hợp lệ' });
+      return res
+        .status(400)
+        .json({ status: 'fail', message: 'ID không hợp lệ' });
     }
 
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
-      return res.status(404).json({ status: 'fail', message: 'Không tìm thấy danh sách' });
+      return res
+        .status(404)
+        .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
     }
     const { boardId, position: delPos } = list;
 
-    
     await List.deleteOne({ _id: id });
 
     await Board.findByIdAndUpdate(
@@ -154,9 +191,38 @@ exports.deleteList = async (req, res) => {
       { $inc: { position: -1 } }
     );
 
-    res.status(200).json({ status: 'success', message: 'Xóa danh sách thành công' });
+    res
+      .status(200)
+      .json({ status: 'success', message: 'Xóa danh sách thành công' });
   } catch (error) {
     console.error('Error while deleting list:', error);
-    res.status(500).json({ status: 'error', message: 'Có lỗi xảy ra khi xóa danh sách' });
+    res
+      .status(500)
+      .json({ status: 'error', message: 'Có lỗi xảy ra khi xóa danh sách' });
+  }
+};
+
+// GET lists by boardId - API đặc biệt cho BoardCalendar
+exports.getListsByBoard = async (req, res) => {
+  try {
+    const { boardId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(boardId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'boardId không hợp lệ',
+      });
+    }
+
+    const lists = await List.find({ boardId, isDeleted: false })
+      .sort('position')
+      .select('_id title color position');
+
+    res.status(200).json({
+      status: 'success',
+      results: lists.length,
+      data: lists,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };

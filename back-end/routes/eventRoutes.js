@@ -8,6 +8,11 @@ router.post(
   auth.protect,
   eventController.createEventForCalendar //ok
 );
+router.post(
+  '/check-conflicts',
+  auth.protect,
+  eventController.checkEventConflicts
+);
 router.get('/', auth.protect, eventController.getAllEvents); //ok
 router.get(
   '/participated',

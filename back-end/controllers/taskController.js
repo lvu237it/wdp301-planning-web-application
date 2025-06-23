@@ -74,6 +74,100 @@ exports.getTasksByBoard = async (req, res) => {
   }
 };
 
+// API mới để lấy tasks theo format calendar cho BoardCalendar
+exports.getBoardTasksForCalendar = async (req, res) => {
+  try {
+    const { boardId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(boardId)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'boardId không hợp lệ',
+      });
+    }
+
+    // Tạo query cho tasks
+    const query = {
+      boardId,
+      isDeleted: false,
+    };
+
+    // Lọc theo thời gian nếu có
+    if (startDate && endDate) {
+      query.deadline = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    const tasks = await Task.find(query)
+      .populate('assignedTo', 'username email avatar')
+      .populate('listId', 'name color')
+      .populate('boardId', 'name')
+      .select('-isDeleted -deletedAt');
+
+    // Format tasks như events cho FullCalendar
+    const calendarTasks = tasks.map((task) => {
+      const now = new Date();
+      // Nếu task có deadline, sử dụng làm endDate, startDate mặc định là hiện tại hoặc 1 ngày trước deadline
+      const endDate =
+        task.deadline || new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const startDate = task.deadline
+        ? new Date(task.deadline.getTime() - 24 * 60 * 60 * 1000)
+        : now;
+
+      return {
+        id: `${task._id.toString()}`,
+        title: task.title,
+        start: startDate,
+        end: endDate,
+        allDay: !task.deadline || false,
+        backgroundColor: task.listId?.color || '#6c757d',
+        borderColor: task.listId?.color || '#6c757d',
+        textColor: '#ffffff',
+        className: 'task-event',
+        extendedProps: {
+          type: 'task',
+          description: task.description,
+          listId: task.listId?._id,
+          listName: task.listId?.name,
+          assignedTo: task.assignedTo
+            ? {
+                id: task.assignedTo._id,
+                username: task.assignedTo.username,
+                email: task.assignedTo.email,
+                avatar: task.assignedTo.avatar,
+              }
+            : null,
+          deadline: task.deadline,
+          progress: task.progress,
+          checklist: task.checklist,
+          labels: task.labels,
+          board: {
+            id: task.boardId._id,
+            name: task.boardId.name,
+          },
+          isTask: true,
+        },
+      };
+    });
+
+    return res.status(200).json({
+      message: `Lấy danh sách tasks từ board ${boardId} thành công`,
+      status: 200,
+      data: calendarTasks,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách tasks cho calendar:', error);
+    return res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
 exports.getTaskId = async (req, res) => {
   try {
     const { id } = req.params;
@@ -110,11 +204,11 @@ exports.createTask = async (req, res) => {
     const {
       title,
       description,
-      calendarId,
+      // calendarId,
       workspaceId,
       boardId,
       listId,
-      eventId,
+      // eventId,
       assignedTo,
       assignedBy,
       deadline,
@@ -129,7 +223,8 @@ exports.createTask = async (req, res) => {
       return res.status(400).json({
         status: 'fail',
         message:
-          'title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc',
+          // 'title, calendarId, boardId, listId, assignedTo và assignedBy là bắt buộc',
+          'title, boardId, listId là bắt buộc',
       });
     }
 
@@ -148,20 +243,15 @@ exports.createTask = async (req, res) => {
         .status(400)
         .json({ status: 'fail', message: 'workspaceId không hợp lệ' });
     }
-    if (eventId && !mongoose.Types.ObjectId.isValid(eventId)) {
-      return res
-        .status(400)
-        .json({ status: 'fail', message: 'eventId không hợp lệ' });
-    }
 
     const newTask = await Task.create({
       title,
       description: description || '',
-      calendarId,
+      // calendarId,
       workspaceId: workspaceId || null,
       boardId,
       listId,
-      eventId: eventId || null,
+      // eventId: eventId || null,
       assignedTo: assignedTo || null,
       assignedBy: assignedBy || null,
       deadline: deadline || null,
@@ -199,11 +289,11 @@ exports.updateTask = async (req, res) => {
     const {
       title,
       description,
-      calendarId,
+      // calendarId,
       workspaceId,
       boardId,
       listId,
-      eventId,
+      // eventId,
       assignedTo,
       assignedBy,
       deadline,
@@ -230,14 +320,14 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    const oldAssignedTo = task.assignedTo.toString();
+    const oldAssignedTo = task.assignedTo ? task.assignedTo.toString() : null;
 
     const idFields = {
-      calendarId,
+      // calendarId,
       workspaceId,
       boardId,
       listId,
-      eventId,
+      // eventId,
       assignedTo,
       assignedBy,
     };
@@ -258,9 +348,9 @@ exports.updateTask = async (req, res) => {
     if (typeof description === 'string') {
       task.description = description;
     }
-    if (calendarId) {
-      task.calendarId = calendarId;
-    }
+    // if (calendarId) {
+    //   task.calendarId = calendarId;
+    // }
     if (workspaceId !== undefined) {
       task.workspaceId = workspaceId;
     }
@@ -270,9 +360,9 @@ exports.updateTask = async (req, res) => {
     if (listId) {
       task.listId = listId;
     }
-    if (eventId !== undefined) {
-      task.eventId = eventId;
-    }
+    // if (eventId !== undefined) {
+    //   task.eventId = eventId;
+    // }
     if (assignedTo) {
       task.assignedTo = assignedTo;
     }
@@ -303,7 +393,9 @@ exports.updateTask = async (req, res) => {
 
     const updatedTask = await task.save();
 
-    const newAssignedTo = updatedTask.assignedTo.toString();
+    const newAssignedTo = updatedTask.assignedTo
+      ? updatedTask.assignedTo.toString()
+      : null;
     if (assignedTo && newAssignedTo !== oldAssignedTo) {
       await notifyAssignedUser(updatedTask);
     }
@@ -363,6 +455,75 @@ exports.deleteTask = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Có lỗi xảy ra khi xóa task',
+    });
+  }
+};
+
+// API để tạo task từ calendar view
+exports.createTaskFromCalendar = async (req, res) => {
+  try {
+    const { title, description, boardId, listId, deadline, assignedTo } =
+      req.body;
+    const assignedBy = req.user._id;
+
+    if (!title || !boardId || !listId) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'title, boardId, và listId là bắt buộc',
+      });
+    }
+
+    const requiredIds = { boardId, listId };
+    for (const [key, value] of Object.entries(requiredIds)) {
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        return res.status(400).json({
+          status: 'fail',
+          message: `${key} không hợp lệ`,
+        });
+      }
+    }
+
+    if (assignedTo && !mongoose.Types.ObjectId.isValid(assignedTo)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'assignedTo không hợp lệ',
+      });
+    }
+
+    const newTask = await Task.create({
+      title,
+      description: description || '',
+      boardId,
+      listId,
+      assignedTo: assignedTo || null,
+      assignedBy,
+      deadline: deadline || null,
+      isDeleted: false,
+    });
+
+    // Cập nhật list để thêm task mới
+    await List.findByIdAndUpdate(
+      listId,
+      { $push: { tasks: newTask._id } },
+      { new: true }
+    );
+
+    // Populate để trả về đầy đủ thông tin
+    const populatedTask = await Task.findById(newTask._id)
+      .populate('assignedTo', 'username email avatar')
+      .populate('listId', 'name color')
+      .populate('boardId', 'name');
+
+    res.status(201).json({
+      status: 'success',
+      data: populatedTask,
+      message: 'Tạo task từ calendar thành công',
+    });
+  } catch (error) {
+    console.error('Error while creating task from calendar:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Có lỗi xảy ra khi tạo task từ calendar',
     });
   }
 };

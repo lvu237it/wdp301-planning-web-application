@@ -1,6 +1,7 @@
 const Calendar = require('../models/calendarModel');
 const Event = require('../models/eventModel');
 const Task = require('../models/taskModel');
+const Board = require('../models/boardModel');
 const mongoose = require('mongoose');
 
 exports.createCalendar = async (req, res) => {
@@ -13,6 +14,7 @@ exports.createCalendar = async (req, res) => {
       timeZone,
       color,
       isPublic,
+      boardId,
     } = req.body;
     const ownerId = req.user._id;
 
@@ -25,9 +27,9 @@ exports.createCalendar = async (req, res) => {
     }
 
     // Kiểm tra ownerType hợp lệ
-    if (!['user', 'workspace'].includes(ownerType)) {
+    if (!['user', 'board'].includes(ownerType)) {
       return res.status(400).json({
-        message: 'ownerType không hợp lệ. Phải là "user" hoặc "workspace"',
+        message: 'ownerType không hợp lệ. Phải là "user" hoặc "board"',
         status: 400,
       });
     }
@@ -64,25 +66,57 @@ exports.createCalendar = async (req, res) => {
         status: 201,
         data: newCalendar,
       });
+    } else if (ownerType === 'board') {
+      //Kiểm tra lịch board hiện tại đã có tồn tại calendar nào đi kèm hay chưa
+      const boardCalendar = await Calendar.find({
+        ownerId: boardId,
+        isDeleted: false,
+      });
+
+      if (boardCalendar.length > 0) {
+        console.log('Lịch của board đã tồn tại');
+        return res.status(409).json({
+          message: 'Board này đã có lịch được tạo trước đó',
+          status: 409,
+        });
+      }
+
+      // Tạo lịch mới
+      const newCalendar = await Calendar.create({
+        name,
+        description,
+        ownerType,
+        ownerId: boardId,
+        defaultView: defaultView || 'dayGridMonth',
+        timeZone: timeZone || 'Asia/Ho_Chi_Minh',
+        color: color || '#378006',
+        isPublic: isPublic || false,
+      });
+
+      return res.status(201).json({
+        message: 'Tạo lịch cá nhân thành công',
+        status: 201,
+        data: newCalendar,
+      });
     }
 
-    // Tạo lịch mới
-    const newCalendar = await Calendar.create({
-      name,
-      description,
-      ownerType,
-      ownerId,
-      defaultView: defaultView || 'dayGridMonth',
-      timeZone: timeZone || 'Asia/Ho_Chi_Minh',
-      color: color || '#378006',
-      isPublic: isPublic || false,
-    });
+    // // Tạo lịch mới
+    // const newCalendar = await Calendar.create({
+    //   name,
+    //   description,
+    //   ownerType,
+    //   ownerId,
+    //   defaultView: defaultView || 'dayGridMonth',
+    //   timeZone: timeZone || 'Asia/Ho_Chi_Minh',
+    //   color: color || '#378006',
+    //   isPublic: isPublic || false,
+    // });
 
-    return res.status(201).json({
-      message: 'Tạo lịch thành công',
-      status: 201,
-      data: newCalendar,
-    });
+    // return res.status(201).json({
+    //   message: 'Tạo lịch thành công',
+    //   status: 201,
+    //   data: newCalendar,
+    // });
   } catch (error) {
     console.error('Lỗi khi tạo lịch:', error);
     return res.status(500).json({
@@ -153,6 +187,41 @@ exports.getCalendarByUserId = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch của người dùng:', error);
+    return res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
+exports.getCalendarByBoardId = async (req, res) => {
+  try {
+    const { boardId } = req.params;
+
+    const calendars = await Calendar.find({
+      ownerId: boardId,
+      ownerType: 'board',
+      isDeleted: false,
+    })
+      .populate('events')
+      .populate('tasks')
+      .select('-isDeleted -deletedAt');
+
+    if (!calendars.length) {
+      return res.status(404).json({
+        message: 'Không tìm thấy lịch cho board này',
+        status: 404,
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Lấy danh sách lịch board thành công',
+      status: 200,
+      data: calendars,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thông tin lịch của board:', error);
     return res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,

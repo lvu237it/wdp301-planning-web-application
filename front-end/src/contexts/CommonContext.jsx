@@ -61,6 +61,7 @@ export const Common = ({ children }) => {
   // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
+  const [calendarBoard, setCalendarBoard] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
@@ -368,39 +369,6 @@ export const Common = ({ children }) => {
       }
     }, 2000);
 
-    const fetchBoards = async (workspaceId) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await axios.get(
-          `${apiBaseUrl}/workspace/${workspaceId}/board`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            withCredentials: true, // ← gửi cookie kèm request
-          }
-        );
-
-        // lấy mảng boards từ payload
-        const raw = res.data.boards || [];
-        // chuẩn hóa các trường luôn luôn có mảng và có listsCount
-        const norm = raw.map((board) => ({
-          ...board,
-          members: board.members || [],
-          tasks: board.tasks || [],
-          listsCount: board.listsCount || 0,
-        }));
-
-        setBoards(norm);
-      } catch (err) {
-        setError(err.response?.data?.message || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
       toast.success('Login successful!');
@@ -479,6 +447,7 @@ export const Common = ({ children }) => {
     setIsAuthenticated(false);
     setNotifications([]);
     setCalendarUser(null);
+    setCalendarBoard(null);
     setIsGoogleAuthenticated(false);
     setShowGoogleAuthModal(false);
     setIsCheckingGoogleAuth(false);
@@ -993,6 +962,50 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Get board calendar
+  const getBoardCalendar = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/calendar/get-by-board/${boardId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200 && response.data.data?.length > 0) {
+        console.log('lich cua board', response.data.data[0]);
+        setCalendarBoard(response.data.data[0]);
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      } else {
+        return {
+          success: true,
+          data: [],
+        };
+      }
+    } catch (error) {
+      console.error(
+        'Lỗi khi lấy lịch board:',
+        error.response?.data?.message || error.message
+      );
+      if (error.response?.status === 404) {
+        // Không tìm thấy lịch, thử tạo mới
+        const created = await createInitialCalendarForBoard(boardId);
+        if (created) {
+          return { success: true, data: [created] };
+        }
+      }
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   // Xử lý xác thực Google
   const handleGoogleAuth = async () => {
     try {
@@ -1161,6 +1174,30 @@ export const Common = ({ children }) => {
     }
   };
 
+
+  //Tạo calendar riêng cho từng board (nếu chưa có) sau khi fetch toàn bộ boards của user
+  const createInitialCalendarForBoard = async (boardId) => {
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/calendar`,
+        {
+          name: 'Board Calendar',
+          description: 'A calendar for board',
+          ownerType: 'board',
+          boardId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            timeout: 10000,
+          },
+        }
+      );
+    } catch (error) {
+      // console.error('Error creating calendar:', error.response?.data?.message);
+    }
+  };
+
   //close board
   const closeBoard = async (workspaceId, boardId) => {
   try {
@@ -1197,6 +1234,7 @@ const deleteBoard = async (workspaceId, boardId) => {
     throw err;
   }
 };
+
 
   // Check if need to setup socket listeners when user changes
   useEffect(() => {
@@ -1531,6 +1569,161 @@ const deleteBoard = async (workspaceId, boardId) => {
     }
   };
 
+  // ============= TASK FUNCTIONS FOR BOARD CALENDAR SYNC =============
+
+  const getBoardTasks = async (boardId, startDate, endDate) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const response = await axios.get(
+        `${apiBaseUrl}/task/calendar/board/${boardId}?${params}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200 || response.status === 200) {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      } else {
+        console.error('API response not successful:', response.data);
+        return { success: false, error: 'API response not successful' };
+      }
+    } catch (error) {
+      console.error('Error getting board tasks:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const createTaskFromCalendar = async (taskData) => {
+    if (!accessToken) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/task/calendar/create`,
+        taskData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Tạo task thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error creating task from calendar:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi tạo task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const updateTask = async (taskId, taskData) => {
+    if (!accessToken || !taskId) return { success: false };
+
+    try {
+      const response = await axios.put(
+        `${apiBaseUrl}/task/updateTask/${taskId}`,
+        taskData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Cập nhật task thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    if (!accessToken || !taskId) return { success: false };
+
+    try {
+      const response = await axios.delete(
+        `${apiBaseUrl}/task/deleteTask/${taskId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Xóa task thành công');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getBoardLists = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/list/board/${boardId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting board lists:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getBoardDetails = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/workspace/board/${boardId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        return {
+          success: true,
+          data: response.data.board || response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting board details:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1550,9 +1743,13 @@ const deleteBoard = async (workspaceId, boardId) => {
         googleLogin,
         handleLoginSuccess,
         createInitialCalendar,
+        createInitialCalendarForBoard,
         getCalendarUser,
+        getBoardCalendar,
         calendarUser,
         setCalendarUser,
+        calendarBoard,
+        setCalendarBoard,
         showGoogleAuthModal,
         setShowGoogleAuthModal,
         handleGoogleAuth,
@@ -1594,6 +1791,13 @@ const deleteBoard = async (workspaceId, boardId) => {
         loadMoreEventMessages,
         editEventMessage,
         deleteEventMessage,
+        // Task functions for board calendar sync
+        getBoardTasks,
+        createTaskFromCalendar,
+        updateTask,
+        deleteTask,
+        getBoardLists,
+        getBoardDetails,
       }}
     >
       <Toaster

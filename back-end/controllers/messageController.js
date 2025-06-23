@@ -57,29 +57,53 @@ exports.createEventMessage = async (req, res, next) => {
 
     // Gửi thông báo real-time cho các participants khác
     const io = getIO();
+    let realtimeTargets = [];
 
-    // ✅ Logic đúng: Lấy tất cả participants đã accepted, trừ người gửi
-    const acceptedParticipants = event.participants
-      .filter(
-        (p) =>
-          p.status === 'accepted' && p.userId.toString() !== userId.toString()
-      )
-      .map((p) => p.userId.toString());
+    // ✅ Nếu event thuộc về board, chỉ gửi cho board members
+    if (event.boardId) {
+      console.log(
+        `📋 Event thuộc board ${event.boardId}, chỉ gửi realtime cho board members`
+      );
 
-    // ✅ Logic đúng: Thêm organizer nếu không phải là người gửi
-    if (event.organizer.toString() !== userId.toString()) {
-      acceptedParticipants.push(event.organizer.toString());
+      const BoardMembership = require('../models/boardMembershipModel');
+
+      // Lấy tất cả board members đã accepted, trừ người gửi
+      const boardMembers = await BoardMembership.find({
+        boardId: event.boardId,
+        applicationStatus: 'accepted',
+        isDeleted: false,
+        userId: { $ne: userId }, // Loại trừ người gửi
+      });
+
+      realtimeTargets = boardMembers.map((member) => member.userId.toString());
+
+      console.log(
+        `📢 Gửi thông báo realtime message tới ${realtimeTargets.length} board members (trừ sender)`
+      );
+    } else {
+      // ✅ Logic cũ cho events không thuộc board: Lấy tất cả participants đã accepted, trừ người gửi
+      realtimeTargets = event.participants
+        .filter(
+          (p) =>
+            p.status === 'accepted' && p.userId.toString() !== userId.toString()
+        )
+        .map((p) => p.userId.toString());
+
+      // ✅ Logic cũ: Thêm organizer nếu không phải là người gửi
+      if (event.organizer.toString() !== userId.toString()) {
+        realtimeTargets.push(event.organizer.toString());
+      }
+
+      console.log(
+        `📢 Gửi thông báo message tới ${realtimeTargets.length} participants (trừ sender)`
+      );
     }
 
-    console.log(
-      `📢 Gửi thông báo message tới ${acceptedParticipants.length} participants (trừ sender)`
-    );
     console.log(`🔍 Debug - Sender ID: ${userId.toString()}`);
-    console.log(`🔍 Debug - Organizer ID: ${event.organizer.toString()}`);
-    console.log(`🔍 Debug - Accepted participants:`, acceptedParticipants);
+    console.log(`🔍 Debug - Realtime targets:`, realtimeTargets);
 
     // Emit tin nhắn real-time qua custom event
-    acceptedParticipants.forEach((participantId) => {
+    realtimeTargets.forEach((participantId) => {
       io.to(participantId).emit('new_event_message', {
         eventId,
         message: {
@@ -245,25 +269,41 @@ exports.editEventMessage = async (req, res, next) => {
     // Emit real-time update
     const io = getIO();
     const event = message.eventId;
+    let realtimeTargets = [];
 
-    // ✅ Logic đúng: Chỉ thông báo participants đã accepted, trừ người edit
-    const acceptedParticipants = event.participants
-      .filter(
-        (p) =>
-          p.status === 'accepted' && p.userId.toString() !== userId.toString()
-      )
-      .map((p) => p.userId.toString());
+    // ✅ Nếu event thuộc về board, chỉ gửi cho board members
+    if (event.boardId) {
+      const BoardMembership = require('../models/boardMembershipModel');
 
-    // ✅ Logic đúng: Thêm organizer nếu không phải là người edit
-    if (event.organizer.toString() !== userId.toString()) {
-      acceptedParticipants.push(event.organizer.toString());
+      // Lấy tất cả board members đã accepted, trừ người edit
+      const boardMembers = await BoardMembership.find({
+        boardId: event.boardId,
+        applicationStatus: 'accepted',
+        isDeleted: false,
+        userId: { $ne: userId }, // Loại trừ người edit
+      });
+
+      realtimeTargets = boardMembers.map((member) => member.userId.toString());
+    } else {
+      // ✅ Logic cũ: Chỉ thông báo participants đã accepted, trừ người edit
+      realtimeTargets = event.participants
+        .filter(
+          (p) =>
+            p.status === 'accepted' && p.userId.toString() !== userId.toString()
+        )
+        .map((p) => p.userId.toString());
+
+      // ✅ Logic cũ: Thêm organizer nếu không phải là người edit
+      if (event.organizer.toString() !== userId.toString()) {
+        realtimeTargets.push(event.organizer.toString());
+      }
     }
 
     console.log(
-      `✏️ Gửi thông báo edit message tới ${acceptedParticipants.length} participants`
+      `✏️ Gửi thông báo edit message tới ${realtimeTargets.length} participants`
     );
 
-    acceptedParticipants.forEach((participantId) => {
+    realtimeTargets.forEach((participantId) => {
       io.to(participantId).emit('edit_event_message', {
         eventId: event._id,
         message: {
@@ -335,25 +375,41 @@ exports.deleteEventMessage = async (req, res, next) => {
     // Emit real-time deletion
     const io = getIO();
     const event = message.eventId;
+    let realtimeTargets = [];
 
-    // ✅ Logic đúng: Chỉ thông báo participants đã accepted, trừ người delete
-    const acceptedParticipants = event.participants
-      .filter(
-        (p) =>
-          p.status === 'accepted' && p.userId.toString() !== userId.toString()
-      )
-      .map((p) => p.userId.toString());
+    // ✅ Nếu event thuộc về board, chỉ gửi cho board members
+    if (event.boardId) {
+      const BoardMembership = require('../models/boardMembershipModel');
 
-    // ✅ Logic đúng: Thêm organizer nếu không phải là người delete
-    if (event.organizer.toString() !== userId.toString()) {
-      acceptedParticipants.push(event.organizer.toString());
+      // Lấy tất cả board members đã accepted, trừ người delete
+      const boardMembers = await BoardMembership.find({
+        boardId: event.boardId,
+        applicationStatus: 'accepted',
+        isDeleted: false,
+        userId: { $ne: userId }, // Loại trừ người delete
+      });
+
+      realtimeTargets = boardMembers.map((member) => member.userId.toString());
+    } else {
+      // ✅ Logic cũ: Chỉ thông báo participants đã accepted, trừ người delete
+      realtimeTargets = event.participants
+        .filter(
+          (p) =>
+            p.status === 'accepted' && p.userId.toString() !== userId.toString()
+        )
+        .map((p) => p.userId.toString());
+
+      // ✅ Logic cũ: Thêm organizer nếu không phải là người delete
+      if (event.organizer.toString() !== userId.toString()) {
+        realtimeTargets.push(event.organizer.toString());
+      }
     }
 
     console.log(
-      `🗑️ Gửi thông báo delete message tới ${acceptedParticipants.length} participants`
+      `🗑️ Gửi thông báo delete message tới ${realtimeTargets.length} participants`
     );
 
-    acceptedParticipants.forEach((participantId) => {
+    realtimeTargets.forEach((participantId) => {
       io.to(participantId).emit('delete_event_message', {
         eventId: event._id,
         messageId: message._id,
@@ -383,29 +439,56 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
 
     // Xác định người nhận thông báo và tiêu đề ngữ cảnh
     if (eventId) {
-      const event = await Event.findById(eventId).session(session);
+      const event = await Event.findById(eventId)
+        .populate('boardId')
+        .session(session);
       if (event) {
         contextTitle = event.title;
-        // ✅ Logic đúng: Chỉ lấy participants đã accepted, trừ người gửi tin nhắn
-        targetUsers = event.participants
-          .filter(
-            (p) =>
-              p.status === 'accepted' &&
-              p.userId.toString() !== message.userId._id.toString()
-          )
-          .map((p) => p.userId);
 
-        // ✅ Logic đúng: Thêm organizer nếu không phải là người gửi
-        if (event.organizer.toString() !== message.userId._id.toString()) {
-          targetUsers.push(event.organizer);
-        }
+        // ✅ Nếu event thuộc về board, chỉ gửi thông báo cho board members
+        if (event.boardId) {
+          console.log(
+            `📋 Event thuộc board ${event.boardId._id}, chỉ gửi cho board members`
+          );
 
-        // Remove duplicate users (just in case)
-        targetUsers = [...new Set(targetUsers.map((u) => u.toString()))].map(
-          (id) => {
-            return targetUsers.find((u) => u.toString() === id);
+          // Import BoardMembership model
+          const BoardMembership = require('../models/boardMembershipModel');
+
+          // Lấy tất cả board members đã accepted, trừ người gửi
+          const boardMembers = await BoardMembership.find({
+            boardId: event.boardId._id,
+            applicationStatus: 'accepted',
+            isDeleted: false,
+            userId: { $ne: message.userId._id }, // Loại trừ người gửi
+          }).session(session);
+
+          targetUsers = boardMembers.map((member) => member.userId);
+
+          console.log(
+            `🔍 Debug - Board members count (excluding sender): ${targetUsers.length}`
+          );
+        } else {
+          // ✅ Logic cũ cho events không thuộc board: Chỉ lấy participants đã accepted, trừ người gửi tin nhắn
+          targetUsers = event.participants
+            .filter(
+              (p) =>
+                p.status === 'accepted' &&
+                p.userId.toString() !== message.userId._id.toString()
+            )
+            .map((p) => p.userId);
+
+          // ✅ Logic cũ: Thêm organizer nếu không phải là người gửi
+          if (event.organizer.toString() !== message.userId._id.toString()) {
+            targetUsers.push(event.organizer);
           }
-        );
+
+          // Remove duplicate users (just in case)
+          targetUsers = [...new Set(targetUsers.map((u) => u.toString()))].map(
+            (id) => {
+              return targetUsers.find((u) => u.toString() === id);
+            }
+          );
+        }
       }
     } else if (taskId) {
       const task = await Task.findById(taskId).session(session);

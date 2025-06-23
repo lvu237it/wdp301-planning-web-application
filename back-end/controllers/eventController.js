@@ -247,6 +247,9 @@ exports.createEventForCalendar = async (req, res) => {
     const organizer = req.user._id;
     let participants = [{ userId: organizer, status: 'accepted' }];
 
+    console.log('workspaceId', workspaceId);
+    console.log('boardId', boardId);
+
     // Process participant emails if provided
     if (
       participantEmails &&
@@ -2489,6 +2492,101 @@ exports.sendEventReminder = async (req, res) => {
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
+      error: error.message,
+    });
+  }
+};
+
+// Check for event conflicts
+exports.checkEventConflicts = async (req, res) => {
+  try {
+    const { startDate, endDate, boardId, excludeEventId } = req.body;
+    const userId = req.user._id;
+
+    // Validate required fields
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required',
+      });
+    }
+
+    // Build query to find conflicting events
+    const conflictQuery = {
+      isDeleted: false,
+      $or: [
+        {
+          // Event starts during the proposed time
+          startDate: {
+            $gte: new Date(startDate),
+            $lt: new Date(endDate),
+          },
+        },
+        {
+          // Event ends during the proposed time
+          endDate: {
+            $gt: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        },
+        {
+          // Event completely overlaps the proposed time
+          startDate: { $lte: new Date(startDate) },
+          endDate: { $gte: new Date(endDate) },
+        },
+      ],
+    };
+
+    // Add board filter if provided
+    if (boardId) {
+      conflictQuery.boardId = boardId;
+    } else {
+      // If no boardId, check user's events
+      conflictQuery.$or.push(
+        { organizer: userId },
+        { 'participants.userId': userId }
+      );
+    }
+
+    // Exclude the current event being edited
+    if (excludeEventId) {
+      conflictQuery._id = { $ne: excludeEventId };
+    }
+
+    // Find conflicting events
+    const conflicts = await Event.find(conflictQuery)
+      .populate('organizer', 'username email')
+      .populate('calendarId', 'name')
+      .populate('boardId', 'name')
+      .sort({ startDate: 1 })
+      .limit(10); // Limit to 10 conflicts
+
+    const hasConflict = conflicts.length > 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        hasConflict,
+        conflicts: conflicts.map((event) => ({
+          _id: event._id,
+          title: event.title,
+          description: event.description,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          organizer: event.organizer,
+          calendar: event.calendarId,
+          board: event.boardId,
+          type: event.type,
+          status: event.status,
+        })),
+        conflictCount: conflicts.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error checking event conflicts:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking event conflicts',
       error: error.message,
     });
   }

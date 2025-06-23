@@ -10,6 +10,9 @@ const {
 
 router.get('/', protect, boardController.getBoardsByWorkspace);
 
+// Lấy thông tin chi tiết board theo ID
+router.get('/:boardId', protect, boardController.getBoardById);
+
 // 1. Tạo Board (chỉ cần verifyToken, không cần check role)
 router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
 
