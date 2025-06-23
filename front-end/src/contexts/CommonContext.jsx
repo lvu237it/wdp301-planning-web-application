@@ -1022,6 +1022,7 @@ export const Common = ({ children }) => {
     }
   };
 
+  // !!!----------------------------Hàm này chưa sửa chưa upload được----------------------------!!!
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -1194,6 +1195,42 @@ export const Common = ({ children }) => {
       );
     } catch (error) {
       // console.error('Error creating calendar:', error.response?.data?.message);
+    }
+  };
+  //close board
+  const closeBoard = async (workspaceId, boardId) => {
+    try {
+      const res = await axios.patch(
+        `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}/close`,
+        {},
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.status !== 200) {
+        throw new Error(res.data.message || 'Đóng board thất bại');
+      }
+      toast.success(res.data.message);
+      return res.data.board;
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      throw err;
+    }
+  };
+
+  //xóa board
+  const deleteBoard = async (workspaceId, boardId) => {
+    try {
+      const res = await axios.delete(
+        `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.status !== 200) {
+        throw new Error(res.data.message || 'Xóa board thất bại');
+      }
+      toast.success(res.data.message);
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      throw err;
     }
   };
 
@@ -1736,6 +1773,8 @@ export const Common = ({ children }) => {
         setCurrentWorkspaceId,
         boards,
         fetchBoards,
+        closeBoard,
+        deleteBoard,
         loadingBoards,
         boardsError,
         socketConnected,

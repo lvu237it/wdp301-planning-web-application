@@ -12,6 +12,7 @@ import BoardCalendar from './pages/calendar/BoardCalendar';
 import Profile from './pages/profile/Profile';
 import BoardDetail from './pages/boards/BoardDetail';
 import InviteResponse from './pages/workspaces/InviteResponse';
+import BoardInviteResponse from './pages/boards/BoardInviteResponse';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
         <Route path='/workspace/:workspaceId/boards' element={<Boards />} />
         <Route path='/invite-response' element={<InviteResponse />} />
         <Route path='/boards/:boardId' element={<BoardDetail />} />
+        <Route path='/board-invite-response' element={<BoardInviteResponse />} />
         <Route path='/calendar' element={<Calendar />} />
         <Route path='/board-calendar/:boardId' element={<BoardCalendar />} />
         <Route path='/profile' element={<Profile />} />

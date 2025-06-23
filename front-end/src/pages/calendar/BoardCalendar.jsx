@@ -232,6 +232,10 @@ function BoardCalendar() {
     }
   }, [boardId, userDataLocal, accessToken]);
 
+  useEffect(() => {
+    console.log('board', board);
+  }, [board]);
+
   // Setup real-time chat listeners
   useEffect(() => {
     const handleNewMessage = (e) => {
@@ -310,7 +314,7 @@ function BoardCalendar() {
 
       console.log('Tải thông tin board', response);
 
-      if (response.data.status === 200) {
+      if (response.status === 200) {
         const boardData = response.data.data || response.data.board;
         setBoard(boardData);
       }
@@ -845,7 +849,7 @@ function BoardCalendar() {
             onClick={() => navigate(`/boards/${boardId}`)}
           >
             <FaArrowLeft className='me-2' />
-            Quay lại Board
+            Back to Board
           </button>
           <h1 className='board-calendar-page-header-title'>
             📅 {board?.name || 'Loading...'} Calendar
