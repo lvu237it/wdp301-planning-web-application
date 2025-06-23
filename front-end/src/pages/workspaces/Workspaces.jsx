@@ -132,7 +132,7 @@ const Workspaces = () => {
               const creatorId = ws.creator?._id || ws.creator;
               const currentUserId = JSON.parse(
                 localStorage.getItem('userData')
-              )._id;
+              ).id;
               const isCreator = String(creatorId) === String(currentUserId);
 
               return (
