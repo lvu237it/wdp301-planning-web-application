@@ -122,7 +122,6 @@ exports.createTask = async (req, res) => {
       recurrence,
       reminderSettings,
       checklist,
-      labels,
       documents,
     } = req.body;
 
@@ -170,7 +169,6 @@ exports.createTask = async (req, res) => {
       recurrence: recurrence || null,
       reminderSettings: Array.isArray(reminderSettings) ? reminderSettings : [],
       checklist: Array.isArray(checklist) ? checklist : [],
-      labels: Array.isArray(labels) ? labels : [],
       documents: Array.isArray(documents) ? documents : [],
       isDeleted: false,
       deletedAt: null,
@@ -207,7 +205,6 @@ exports.updateTask = async (req, res) => {
       recurrence,
       reminderSettings,
       checklist,
-      labels,
       documents,
       progress
     } = req.body;
@@ -228,7 +225,6 @@ exports.updateTask = async (req, res) => {
     if (recurrence !== undefined)            task.recurrence  = recurrence;
     if (Array.isArray(reminderSettings))     task.reminderSettings = reminderSettings;
     if (Array.isArray(checklist))            task.checklist       = checklist;
-    if (Array.isArray(labels))               task.labels          = labels;
     if (Array.isArray(documents))            task.documents       = documents;
     if (typeof progress === 'number')        task.progress        = progress;
 

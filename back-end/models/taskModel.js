@@ -110,11 +110,6 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
-    labels: [
-      {
-        type: String,
-      },
-    ],
     isDeleted: {
       type: Boolean,
       default: false,

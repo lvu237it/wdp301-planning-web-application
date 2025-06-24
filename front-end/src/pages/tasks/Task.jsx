@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "../../styles/task.css";
 import { useCommon } from "../../contexts/CommonContext";
-import { Modal, Button, Form } from "react-bootstrap";
+import { Modal, Button, Form, Toast } from "react-bootstrap";
 import ChecklistModal from "./ChecklistModal";
 
 const pad = (n) => n.toString().padStart(2, "0");
@@ -43,7 +43,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const [endInput, setEndInput] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [showChecklistModal, setShowChecklistModal] = useState(false);
-
+  const [showToast, setShowToast] = useState(false);
   // Khởi động khi task thay đổi
   useEffect(() => {
     if (!task) return;
@@ -102,30 +102,29 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     }
   };
 
-  // HANDLE DESCRIPTION
   const handleSaveDesc = async () => {
-  try {
-    const res = await axios.put(
-      `${apiBaseUrl}/task/updateTask/${task._id}`,
-      { description: editedDesc.trimEnd() },
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
-    onUpdate({ ...task, ...res.data.data });
-    setIsEditingDesc(false);
-  } catch (err) {
-    console.error(err);
-    alert(
-      "Cập nhật mô tả thất bại: " +
-        (err.response?.data?.message || err.message)
-    );
-  }
-};
+    try {
+      const res = await axios.put(
+        `${apiBaseUrl}/task/updateTask/${task._id}`,
+        { description: editedDesc.trimEnd() },
+        {
+          withCredentials: true,
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      onUpdate({ ...task, ...res.data.data });
+      setIsEditingDesc(false);
+      setShowToast(true);
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Cập nhật mô tả thất bại: " +
+          (err.response?.data?.message || err.message)
+      );
+    }
+  };
 
-
-  //HANDLE DATES
+  // Hàm lưu ngày với thông báo thành công
   const handleSaveDates = async () => {
     try {
       const payload = {};
@@ -147,8 +146,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate(res.data.data);
+      onUpdate({ ...task, ...res.data.data });
       setShowDateInputs(false);
+      setShowToast(true);
     } catch (err) {
       console.error(err);
       alert(
@@ -157,7 +157,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       );
     }
   };
-
+  
   //CHECKLIST PROGRESS
   const totalItems = task.checklist?.length || 0;
   const doneCount = task.checklist?.filter((i) => i.completed).length || 0;
@@ -175,7 +175,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
-    onUpdate(res.data.data);
+    onUpdate({ ...task, ...res.data.data });
   };
   const handleToggleChecklist = async (item) => {
     const updated = task.checklist.map((i) =>
@@ -203,6 +203,25 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
   return (
     <>
+      <Toast
+        show={showToast}
+        bg="success"
+        autohide
+        delay={3000}
+        onClose={() => setShowToast(false)}
+        style={{
+          position: "fixed",
+          top: "20px", 
+          left: "50%", 
+          transform: "translateX(-50%)", 
+          zIndex: 2000,
+          minWidth: "200px",
+        }}
+      >
+        <Toast.Body className="text-white text-center">
+          Cập nhật thành công
+        </Toast.Body>
+      </Toast>
       <div className="task-modal-overlay" onClick={onClose}>
         <div className="task-modal" onClick={(e) => e.stopPropagation()}>
           {/* HEADER */}
@@ -219,7 +238,12 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           <div className="task-modal-body">
             <div
               className="task-title-wrapper"
-              style={{ display: "flex", alignItems: "center", gap: 8 , marginBottom:"16px"}}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: "16px",
+              }}
             >
               {isEditingTitle ? (
                 <>
@@ -256,7 +280,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       setIsEditingTitle(true);
                     }}
                   >
-                   <i className="fas fa-pen fa-lg text-secondary" />
+                    <i className="fas fa-pen fa-lg text-secondary" />
                   </button>
                 </>
               )}
