@@ -1723,6 +1723,35 @@ export const Common = ({ children }) => {
     }
   };
 
+  // ============= ENHANCED CONFLICT RESOLUTION =============
+
+  const findAvailableTimeSlots = async (data) => {
+    if (!accessToken) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/event/find-available-slots`,
+        data,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      } else {
+        return { success: false, error: 'API response not successful' };
+      }
+    } catch (error) {
+      console.error('Error finding available time slots:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1797,6 +1826,8 @@ export const Common = ({ children }) => {
         deleteTask,
         getBoardLists,
         getBoardDetails,
+        // Enhanced conflict resolution
+        findAvailableTimeSlots,
       }}
     >
       <Toaster

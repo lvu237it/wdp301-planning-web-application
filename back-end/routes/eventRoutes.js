@@ -13,6 +13,11 @@ router.post(
   auth.protect,
   eventController.checkEventConflicts
 );
+router.post(
+  '/find-available-slots',
+  auth.protect,
+  eventController.findAvailableTimeSlots
+);
 router.get('/', auth.protect, eventController.getAllEvents); //ok
 router.get(
   '/participated',
