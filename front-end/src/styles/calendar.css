@@ -1563,7 +1563,7 @@
 }
 
 .conflict-modal .modal-header {
-  border-bottom: 1px solidrgb(173, 111, 11);
+  border-bottom: 1px solid rgb(173, 111, 11);
   background: linear-gradient(135deg, #f8c471 0%, #f4d03f 100%);
   border-radius: 12px 12px 0 0;
 }
@@ -1598,6 +1598,8 @@
 .conflict-modal .modal-footer {
   border-top: 1px solid #f39c12;
   padding: 15px 20px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .conflict-modal .btn-warning {
@@ -1611,6 +1613,36 @@
   background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 12px rgba(243, 156, 18, 0.4);
+}
+
+/* Suggested time slot cards */
+.conflict-modal .cursor-pointer {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.conflict-modal .border-success {
+  border-color: #28a745 !important;
+}
+
+.conflict-modal .text-success {
+  color: #28a745 !important;
+}
+
+/* Responsive styles for conflict modal */
+@media (max-width: 768px) {
+  .conflict-modal .modal-footer {
+    flex-direction: column;
+  }
+
+  .conflict-modal .modal-footer .btn {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+
+  .conflict-modal .modal-footer .btn:last-child {
+    margin-bottom: 0;
+  }
 }
 
 @media (max-width: 576px) {
@@ -1627,4 +1659,59 @@
   .conflict-modal .modal-footer {
     padding: 15px;
   }
+
+  .conflict-modal .col-md-6 {
+    width: 100%;
+  }
+}
+
+.conflict-modal .alert-success-subtle {
+  transition: all 0.2s ease-in-out;
+  border: 1px solid #d1e7dd;
+}
+
+.conflict-modal .alert-success-subtle:hover {
+  background-color: #d1e7dd;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.conflict-modal .cursor-pointer {
+  cursor: pointer;
+}
+
+.conflict-modal .time-slot-period {
+  font-weight: 500;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conflict-modal .time-slot-period i {
+  font-size: 1.2rem;
+}
+
+.conflict-modal .time-slot-period.morning i {
+  color: #ffc107;
+}
+
+.conflict-modal .time-slot-period.afternoon i {
+  color: #0dcaf0;
+}
+
+.conflict-modal .no-slots-message {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.conflict-modal .btn-success {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.conflict-modal .alert-success-subtle:hover .btn-success {
+  opacity: 1;
 }

@@ -25,6 +25,8 @@ import {
   FaPaperPlane,
   FaComments,
   FaChevronUp,
+  FaSun,
+  FaCloudSun,
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCommon } from '../../contexts/CommonContext';
@@ -146,6 +148,7 @@ const Calendar = () => {
     loadMoreEventMessages,
     editEventMessage,
     deleteEventMessage,
+    findAvailableTimeSlots,
   } = useCommon();
 
   // Thêm ref cho FullCalendar
@@ -187,6 +190,12 @@ const Calendar = () => {
   const [conflictEventData, setConflictEventData] = useState(null);
   const [showCreateConflictModal, setShowCreateConflictModal] = useState(false);
   const [createConflictData, setCreateConflictData] = useState(null);
+
+  // Enhanced conflict handling states
+  const [showMainConflictModal, setShowMainConflictModal] = useState(false);
+  const [mainConflictData, setMainConflictData] = useState(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Chat states
   const [showChat, setShowChat] = useState(false);
@@ -973,16 +982,16 @@ const Calendar = () => {
           error.response?.data || error.message
         );
 
-        // Handle conflict case
+        // Handle conflict case - use new enhanced modal
         if (
           error.response?.status === 409 &&
           error.response?.data?.hasConflict
         ) {
-          setCreateConflictData({
+          setMainConflictData({
             ...error.response.data,
-            formData: formData, // Store form data to reuse when forcing create
+            formData: formData, // Store form data to reuse
           });
-          setShowCreateConflictModal(true);
+          setShowMainConflictModal(true);
           return; // Don't show error toast, show conflict modal instead
         }
 
@@ -1354,6 +1363,10 @@ const Calendar = () => {
   // Debug selectedDateEvents
   useEffect(() => {}, [selectedDate, selectedDateEvents]);
 
+  useEffect(() => {
+    console.log('availableTimeSlots', availableTimeSlots);
+  }, [availableTimeSlots]);
+
   // Render nội dung sự kiện
   const renderEventContent = useCallback(
     (eventInfo) => {
@@ -1676,6 +1689,321 @@ const Calendar = () => {
   const handleCloseCreateConflictModal = () => {
     setShowCreateConflictModal(false);
     setCreateConflictData(null);
+  };
+
+  // ========== ENHANCED CONFLICT HANDLING FUNCTIONS ==========
+
+  // 1. Cancel - Close modal and do nothing
+  const handleConflictCancel = () => {
+    setShowMainConflictModal(false);
+    setShowCreateModal(false);
+    setMainConflictData(null);
+    setAvailableTimeSlots([]);
+  };
+
+  // 2. Edit Manually - Reopen create modal with existing data
+  const handleConflictEditManually = () => {
+    if (!mainConflictData?.formData) return;
+
+    // Fill form with existing data
+    setFormData(mainConflictData.formData);
+
+    // Clear previous suggestions
+    setAvailableTimeSlots([]);
+    setLoadingSuggestions(false);
+
+    // Close conflict modal and open create modal
+    setShowMainConflictModal(false);
+    setMainConflictData(null);
+
+    setShowCreateModal(true);
+  };
+
+  // 3. System Suggestions - Fetch and show suggested time slots
+  const handleConflictShowSuggestions = async () => {
+    if (!mainConflictData?.formData) return;
+
+    setLoadingSuggestions(true);
+    try {
+      const formData = mainConflictData.formData;
+
+      // Calculate event duration in minutes
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+      const duration = Math.round((end - start) / (1000 * 60));
+
+      // Prepare payload for finding available slots
+      const payload = {
+        startDate: fromLocalDateTime(formData.startDate),
+        endDate: fromLocalDateTime(formData.endDate),
+        duration: duration,
+        participantEmails: formData.participantEmails
+          ? formData.participantEmails
+              .split(',')
+              .map((email) => email.trim())
+              .filter((email) => email.length > 0)
+          : [],
+        timeZone: 'Asia/Ho_Chi_Minh',
+      };
+
+      const result = await findAvailableTimeSlots(payload);
+
+      if (result.success) {
+        setAvailableTimeSlots(result.data || []);
+        if (result.data.length === 0) {
+          toast.info('Không tìm thấy khoảng thời gian trống phù hợp');
+        }
+      } else {
+        throw new Error(result.error || 'Failed to fetch time slots');
+      }
+    } catch (error) {
+      console.error('Error fetching time suggestions:', error);
+      toast.error('Không thể lấy gợi ý thời gian');
+      setAvailableTimeSlots([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // 4. Create Anyway - Force create event despite conflicts
+  const handleConflictCreateAnyway = async () => {
+    if (!mainConflictData?.formData) return;
+
+    const formData = mainConflictData.formData;
+
+    // Create synthetic event for handleCreateSubmit
+    const syntheticEvent = { preventDefault: () => {} };
+
+    // Close conflict modal first
+    setShowMainConflictModal(false);
+
+    // Call create with forceCreate = true
+    await handleCreateSubmit(syntheticEvent, true);
+  };
+
+  // Select suggested time slot and reopen create modal
+  const handleSelectSuggestedSlot = (slot) => {
+    if (!mainConflictData?.formData) return;
+
+    const updatedFormData = {
+      ...mainConflictData.formData,
+      startDate: toLocalDateTime(new Date(slot.startDate)),
+      endDate: toLocalDateTime(new Date(slot.endDate)),
+    };
+
+    setFormData(updatedFormData);
+    setShowMainConflictModal(false);
+    setShowCreateModal(true);
+    setAvailableTimeSlots([]);
+  };
+
+  // ========== MAIN CONFLICT MODAL COMPONENT ==========
+  const renderMainConflictModal = () => {
+    if (!mainConflictData) return null;
+
+    const { conflictingEvents, newEvent } = mainConflictData;
+
+    return (
+      <Modal
+        show={showMainConflictModal}
+        onHide={handleConflictCancel}
+        centered
+        size='lg'
+        className='conflict-modal'
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className='fas fa-exclamation-triangle text-warning me-2'></i>
+            Phát hiện xung đột lịch trình
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className='alert alert-warning d-flex align-items-center'>
+            <i className='fas fa-clock me-2'></i>
+            <div>
+              <strong>
+                Sự kiện "{newEvent.title}" bị xung đột với các sự kiện khác:
+              </strong>
+            </div>
+          </div>
+
+          {/* Sự kiện hiện tại muốn tạo */}
+
+          <div className='mb-4'>
+            <h6 className='fw-bold'>Sự kiện muốn tạo:</h6>
+            <div className='alert mb-2 rounded-2 p-3 border-1 border-info bg-info-subtle '>
+              <div className='d-flex justify-content-between align-items-start'>
+                <div>
+                  <strong>{newEvent.title}</strong>
+                  <div className='small text-muted'>
+                    {formatEventDate(new Date(newEvent.startDate))} -{' '}
+                    {formatEventDate(new Date(newEvent.endDate))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Show conflicting events */}
+          <div className='mb-4'>
+            <h6 className='fw-bold'>Các sự kiện xung đột:</h6>
+            {conflictingEvents.map((conflict, index) => (
+              <div
+                key={index}
+                className='alert alert-danger-subtle mb-2 rounded-2 p-3 border-1 bg-danger-subtle border-danger'
+              >
+                <div className='d-flex justify-content-between align-items-start'>
+                  <div>
+                    <strong>{conflict.title}</strong>
+                    <div className='small text-muted'>
+                      {formatEventDate(new Date(conflict.startDate))} -{' '}
+                      {formatEventDate(new Date(conflict.endDate))}
+                    </div>
+                  </div>
+                  {conflict.allDay && (
+                    <span className='badge bg-info'>Cả ngày</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Show suggested time slots if available */}
+          {availableTimeSlots.length > 0 && (
+            <div className='mb-4'>
+              <h6 className='fw-bold mb-3'>Khung thời gian gợi ý:</h6>
+
+              {/* Morning slots */}
+              <div className='mb-3'>
+                <div className='d-flex align-items-center mb-2'>
+                  <i className='fas fa-sun text-warning me-2'></i>
+                  <h6 className='mb-0'>Buổi sáng</h6>
+                </div>
+                {availableTimeSlots
+                  .filter((slot) => slot.period === 'morning')
+                  .map((slot, index) => (
+                    <div
+                      key={index}
+                      className='alert alert-success-subtle mb-2 cursor-pointer'
+                      onClick={() => handleSelectSuggestedSlot(slot)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className='d-flex justify-content-between align-items-center'>
+                        <div>
+                          <i className='fas fa-clock me-2'></i>
+                          {formatEventDate(new Date(slot.startDate))} -{' '}
+                          {formatEventDate(new Date(slot.endDate))}
+                        </div>
+                        <Button size='sm' variant='success'>
+                          <i className='fas fa-check me-1'></i>
+                          Chọn
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {availableTimeSlots.filter((slot) => slot.period === 'morning')
+                  .length === 0 && (
+                  <div className='text-muted small fst-italic'>
+                    <i className='fas fa-info-circle me-1'></i>
+                    Không có khung giờ trống vào buổi sáng
+                  </div>
+                )}
+              </div>
+
+              {/* Afternoon slots */}
+              <div>
+                <div className='d-flex align-items-center mb-2'>
+                  <i className='fas fa-cloud-sun text-info me-2'></i>
+                  <h6 className='mb-0'>Buổi chiều</h6>
+                </div>
+                {availableTimeSlots
+                  .filter((slot) => slot.period === 'afternoon')
+                  .map((slot, index) => (
+                    <div
+                      key={index}
+                      className='alert alert-success-subtle mb-2 cursor-pointer'
+                      onClick={() => handleSelectSuggestedSlot(slot)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className='d-flex justify-content-between align-items-center'>
+                        <div>
+                          <i className='fas fa-clock me-2'></i>
+                          {formatEventDate(new Date(slot.startDate))} -{' '}
+                          {formatEventDate(new Date(slot.endDate))}
+                        </div>
+                        <Button size='sm' variant='success'>
+                          <i className='fas fa-check me-1'></i>
+                          Chọn
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {availableTimeSlots.filter(
+                  (slot) => slot.period === 'afternoon'
+                ).length === 0 && (
+                  <div className='text-muted small fst-italic'>
+                    <i className='fas fa-info-circle me-1'></i>
+                    Không có khung giờ trống vào buổi chiều
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Action explanation */}
+          <div className='alert alert-info'>
+            <h6 className='fw-bold mb-2'>Bạn có thể:</h6>
+            <ul className='mb-0'>
+              <li>
+                <strong>Hủy:</strong> Không tạo sự kiện
+              </li>
+              <li>
+                <strong>Tái thiết lập thủ công:</strong> Mở lại form để thay đổi
+                thời gian
+              </li>
+              <li>
+                <strong>Xem gợi ý:</strong> Hệ thống gợi ý thời gian trống phù
+                hợp
+              </li>
+              <li>
+                <strong>Vẫn tạo sự kiện:</strong> Tạo sự kiện dù có xung đột
+              </li>
+            </ul>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant='secondary' onClick={handleConflictCancel}>
+            <i className='fas fa-times me-1'></i>
+            Hủy
+          </Button>
+          <Button variant='primary' onClick={handleConflictEditManually}>
+            <i className='fas fa-edit me-1'></i>
+            Tái thiết lập thủ công
+          </Button>
+          <Button
+            variant='info'
+            onClick={handleConflictShowSuggestions}
+            disabled={loadingSuggestions}
+          >
+            {loadingSuggestions ? (
+              <>
+                <Spinner size='sm' animation='border' className='me-1' />
+                Đang tìm...
+              </>
+            ) : (
+              <>
+                <i className='fas fa-lightbulb me-1'></i>
+                Xem gợi ý
+              </>
+            )}
+          </Button>
+          <Button variant='warning' onClick={handleConflictCreateAnyway}>
+            <i className='fas fa-exclamation-circle me-1'></i>
+            Vẫn tạo
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    );
   };
 
   // Add Cancel Participation Modal
@@ -3063,6 +3391,9 @@ const Calendar = () => {
 
           {/* Cancel Participation Modal */}
           {renderCancelModal()}
+
+          {/* Main Conflict Modal */}
+          {renderMainConflictModal()}
 
           {/* Conflict Modal */}
           <Modal

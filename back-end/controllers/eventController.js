@@ -17,6 +17,7 @@ const { authorize } = require('../utils/googleAuthUtils');
 const { google } = require('googleapis');
 const { geocodeAddress, validateCoordinates } = require('../utils/geocoding');
 const NotificationService = require('../services/NotificationService');
+const moment = require('moment-timezone');
 
 const MEET_SCOPES = ['https://www.googleapis.com/auth/meetings.space.created'];
 const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
@@ -137,6 +138,1583 @@ const createGoogleCalendarEvent = async (userId, eventData) => {
   }
 };
 
+// exports.createEventForCalendar = async (req, res) => {
+//   try {
+//     const {
+//       title,
+//       description,
+//       address,
+//       type,
+//       startDate,
+//       endDate,
+//       recurrence,
+//       timeZone,
+//       workspaceId,
+//       boardId,
+//       reminderSettings,
+//       status,
+//       category,
+//       color,
+//       allDay,
+//       participantEmails, // New field for emails
+//       forceCreate, // New field to bypass conflict check
+//     } = req.body;
+//     const { calendarId } = req.params;
+//     const organizer = req.user._id;
+//     let participants = [{ userId: organizer, status: 'accepted' }];
+
+//     console.log('workspaceId', workspaceId);
+//     console.log('boardId', boardId);
+
+//     // Process participant emails if provided
+//     if (
+//       participantEmails &&
+//       Array.isArray(participantEmails) &&
+//       participantEmails.length > 0
+//     ) {
+//       // Validate email format
+//       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//       const invalidEmails = participantEmails.filter(
+//         (email) => !emailRegex.test(email.trim())
+//       );
+
+//       if (invalidEmails.length > 0) {
+//         return res.status(400).json({
+//           message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
+//           status: 400,
+//         });
+//       }
+
+//       // Check if user is trying to invite themselves
+//       const currentUserEmail = req.user.email;
+//       const selfInvite = participantEmails.some(
+//         (email) => email.trim().toLowerCase() === currentUserEmail.toLowerCase()
+//       );
+
+//       if (selfInvite) {
+//         return res.status(400).json({
+//           message: 'Bạn không thể mời chính mình tham gia sự kiện',
+//           status: 400,
+//         });
+//       }
+
+//       // Find users by emails
+//       const cleanEmails = participantEmails.map((email) =>
+//         email.trim().toLowerCase()
+//       );
+//       const users = await User.find({
+//         email: { $in: cleanEmails },
+//         isDeleted: false,
+//       }).select('_id email');
+
+//       const foundEmails = users.map((user) => user.email.toLowerCase());
+//       const notFoundEmails = cleanEmails.filter(
+//         (email) => !foundEmails.includes(email)
+//       );
+
+//       if (notFoundEmails.length > 0) {
+//         return res.status(400).json({
+//           message: `Không tìm thấy người dùng với email: ${notFoundEmails.join(
+//             ', '
+//           )}`,
+//           status: 400,
+//         });
+//       }
+
+//       // Add found users to participants
+//       const participantUsers = users.map((user) => ({
+//         userId: user._id,
+//         status: 'pending',
+//       }));
+
+//       participants = [...participants, ...participantUsers];
+//     }
+
+//     if (
+//       !title ||
+//       !calendarId ||
+//       !startDate ||
+//       !endDate ||
+//       !organizer ||
+//       !type
+//     ) {
+//       return res.status(400).json({
+//         message:
+//           'Thiếu các trường bắt buộc: title, calendarId, startDate, endDate, organizer hoặc type',
+//         status: 400,
+//       });
+//     }
+
+//     const calendar = await Calendar.findById(calendarId);
+//     if (!calendar || calendar.isDeleted) {
+//       return res.status(404).json({
+//         message: 'Không tìm thấy lịch với calendarId đã cho',
+//         status: 404,
+//       });
+//     }
+
+//     if (boardId) {
+//       const workspace = await Workspace.findById(workspaceId);
+//       if (!workspace || workspace.isDeleted) {
+//         return res.status(404).json({
+//           message: 'Không tìm thấy workspace với workspaceId đã cho',
+//           status: 404,
+//         });
+//       }
+
+//       const board = await Board.findById(boardId, { isDeleted: false });
+//       if (!board || board.isDeleted) {
+//         return res.status(404).json({
+//           message: 'Không tìm thấy board với boardId đã cho',
+//           status: 404,
+//         });
+//       }
+//       if (board.workspaceId.toString() !== workspace._id.toString()) {
+//         return res.status(400).json({
+//           message: 'Board không thuộc về workspace đã cho',
+//           status: 400,
+//         });
+//       }
+
+//       const isWorkspaceMember = workspace.members.some(
+//         (member) => member.toString() === organizer.toString()
+//       );
+
+//       if (
+//         !isWorkspaceMember &&
+//         workspace.creator.toString() !== organizer.toString()
+//       ) {
+//         return res.status(403).json({
+//           message: 'Bạn không có quyền tạo sự kiện trong workspace này',
+//           status: 403,
+//         });
+//       }
+
+//       const boardMembership = await BoardMembership.findOne({
+//         boardId: board._id,
+//         userId: organizer,
+//       });
+
+//       if (!boardMembership) {
+//         return res.status(403).json({
+//           message: 'Bạn chưa được tham gia board này',
+//           status: 403,
+//         });
+//       }
+
+//       if (participants && participants.length > 0) {
+//         for (const participant of participants) {
+//           const member = await BoardMembership.findOne({
+//             boardId: board._id,
+//             userId: participant.userId,
+//           });
+//           if (!member) {
+//             return res.status(403).json({
+//               message: `Người dùng ${participant.userId} không phải là thành viên của board này`,
+//               status: 403,
+//             });
+//           }
+//         }
+//       }
+//     }
+
+//     if (!['online', 'offline'].includes(type)) {
+//       return res.status(400).json({
+//         message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
+//         status: 400,
+//       });
+//     } else if (type === 'offline' && !address) {
+//       return res.status(400).json({
+//         message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
+//         status: 400,
+//       });
+//     }
+
+//     const now = new Date();
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     // Kiểm tra startDate không được trong quá khứ
+//     if (start < now) {
+//       return res.status(400).json({
+//         message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+//         status: 400,
+//       });
+//     }
+
+//     // Kiểm tra endDate không được trong quá khứ
+//     if (end < now) {
+//       return res.status(400).json({
+//         message: 'Thời gian kết thúc không được chọn trong quá khứ',
+//         status: 400,
+//       });
+//     }
+
+//     if (!allDay && start >= end) {
+//       return res.status(400).json({
+//         message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+//         status: 400,
+//       });
+//     }
+
+//     // Kiểm tra xung đột thời gian khi tạo sự kiện mới
+//     if (!forceCreate) {
+//       try {
+//         let conflictQuery;
+
+//         if (allDay) {
+//           // Nếu sự kiện mới là allDay, check xem trong ngày đó có sự kiện nào khác không
+//           // Chuẩn hóa ngày để so sánh (00:00:00 đến 23:59:59)
+//           const dayStart = new Date(start);
+//           dayStart.setHours(0, 0, 0, 0);
+//           const dayEnd = new Date(start);
+//           dayEnd.setHours(23, 59, 59, 999);
+
+//           conflictQuery = {
+//             isDeleted: false,
+//             status: { $nin: ['completed', 'cancelled'] },
+//             participants: {
+//               $elemMatch: {
+//                 userId: organizer,
+//                 status: 'accepted',
+//               },
+//             },
+//             $or: [
+//               // Case 1: Sự kiện hiện có cũng là allDay và cùng ngày
+//               {
+//                 allDay: true,
+//                 $expr: {
+//                   $eq: [
+//                     {
+//                       $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+//                     },
+//                     {
+//                       $dateToString: {
+//                         format: '%Y-%m-%d',
+//                         date: start,
+//                       },
+//                     },
+//                   ],
+//                 },
+//               },
+//               // Case 2: Sự kiện hiện có không phải allDay nhưng có overlap với ngày này
+//               {
+//                 allDay: { $ne: true },
+//                 $and: [
+//                   { startDate: { $lte: dayEnd } },
+//                   { endDate: { $gte: dayStart } },
+//                 ],
+//               },
+//             ],
+//           };
+//         } else {
+//           // Nếu sự kiện mới không phải allDay, check overlap với tất cả sự kiện
+//           const startDay = new Date(start);
+//           startDay.setHours(0, 0, 0, 0);
+//           const startDayEnd = new Date(start);
+//           startDayEnd.setHours(23, 59, 59, 999);
+
+//           const endDay = new Date(end);
+//           endDay.setHours(0, 0, 0, 0);
+//           const endDayEnd = new Date(end);
+//           endDayEnd.setHours(23, 59, 59, 999);
+
+//           conflictQuery = {
+//             isDeleted: false,
+//             status: { $nin: ['completed', 'cancelled'] },
+//             participants: {
+//               $elemMatch: {
+//                 userId: organizer,
+//                 status: 'accepted',
+//               },
+//             },
+//             $or: [
+//               // Case 1: Sự kiện hiện có là allDay và overlap với ngày của sự kiện mới
+//               {
+//                 allDay: true,
+//                 $or: [
+//                   // AllDay event trong ngày bắt đầu của sự kiện mới
+//                   {
+//                     $expr: {
+//                       $eq: [
+//                         {
+//                           $dateToString: {
+//                             format: '%Y-%m-%d',
+//                             date: '$startDate',
+//                           },
+//                         },
+//                         {
+//                           $dateToString: {
+//                             format: '%Y-%m-%d',
+//                             date: start,
+//                           },
+//                         },
+//                       ],
+//                     },
+//                   },
+//                   // AllDay event trong ngày kết thúc của sự kiện mới (nếu khác ngày bắt đầu)
+//                   {
+//                     $expr: {
+//                       $eq: [
+//                         {
+//                           $dateToString: {
+//                             format: '%Y-%m-%d',
+//                             date: '$startDate',
+//                           },
+//                         },
+//                         {
+//                           $dateToString: {
+//                             format: '%Y-%m-%d',
+//                             date: end,
+//                           },
+//                         },
+//                       ],
+//                     },
+//                   },
+//                 ],
+//               },
+//               // Case 2: Sự kiện hiện có không phải allDay và có overlap time
+//               {
+//                 allDay: { $ne: true },
+//                 startDate: { $lt: end },
+//                 endDate: { $gt: start },
+//               },
+//             ],
+//           };
+//         }
+
+//         console.log('CREATE EVENT - Checking conflict for:', {
+//           organizer,
+//           allDay,
+//           startDate,
+//           endDate,
+//         });
+//         console.log(
+//           'CREATE EVENT - Conflict query:',
+//           JSON.stringify(conflictQuery, null, 2)
+//         );
+
+//         const conflictingEvents = await Event.find(conflictQuery)
+//           .populate('calendarId', 'name')
+//           .select('title startDate endDate calendarId allDay');
+
+//         console.log(
+//           'CREATE EVENT - Found conflicting events:',
+//           conflictingEvents.length
+//         );
+//         if (conflictingEvents.length > 0) {
+//           console.log(
+//             'CREATE EVENT - Conflicting events details:',
+//             conflictingEvents.map((e) => ({
+//               title: e.title,
+//               allDay: e.allDay,
+//               startDate: e.startDate,
+//               endDate: e.endDate,
+//             }))
+//           );
+//         }
+
+//         if (conflictingEvents.length > 0) {
+//           // Có xung đột thời gian
+//           const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+//             id: conflictEvent._id,
+//             title: conflictEvent.title,
+//             startDate: conflictEvent.startDate,
+//             endDate: conflictEvent.endDate,
+//             allDay: conflictEvent.allDay,
+//             // calendarName:
+//             //   conflictEvent.calendarId?.name || 'Lịch không xác định',
+//           }));
+
+//           return res.status(409).json({
+//             message:
+//               'You have an appointment within this time frame, so please consider carefully.',
+//             status: 409,
+//             hasConflict: true,
+//             conflictingEvents: conflictDetails,
+//             newEvent: {
+//               title: title,
+//               startDate: startDate,
+//               endDate: endDate,
+//               allDay: allDay,
+//             },
+//           });
+//         }
+//       } catch (conflictError) {
+//         console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+//         // Không làm gián đoạn quá trình tạo event nếu có lỗi kiểm tra xung đột
+//       }
+//     }
+
+//     // Xử lý địa chỉ và geocoding
+//     const processedAddress = await processAddressData(address, type);
+
+//     if (
+//       status &&
+//       !['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
+//     ) {
+//       return res.status(400).json({
+//         message:
+//           'Trạng thái không hợp lệ. Phải là "draft", "scheduled", "completed" hoặc "cancelled"',
+//         status: 400,
+//       });
+//     }
+
+//     if (
+//       category &&
+//       !['workshop', 'meeting', 'party', 'other'].includes(category)
+//     ) {
+//       return res.status(400).json({
+//         message:
+//           'Loại sự kiện không hợp lệ. Phải là "workshop", "meeting", "party" hoặc "other"',
+//         status: 400,
+//       });
+//     }
+
+//     const newEvent = new Event({
+//       title,
+//       description,
+//       calendarId,
+//       address: processedAddress,
+//       type,
+//       startDate,
+//       endDate,
+//       recurrence,
+//       timeZone: timeZone || 'Asia/Ho_Chi_Minh',
+//       workspaceId,
+//       boardId,
+//       organizer,
+//       participants: participants || [],
+//       reminderSettings: reminderSettings || [{ method: 'popup', minutes: 15 }],
+//       status: status || 'scheduled',
+//       category: category || 'other',
+//       color: color || '#378006',
+//       allDay: allDay || false,
+//     });
+
+//     if (type === 'online') {
+//       try {
+//         const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
+//         if (!meetUrl) {
+//           console.warn(
+//             'Không thể tạo Meet link, tiếp tục tạo event mà không có link'
+//           );
+//           // Vẫn tiếp tục tạo event nhưng không có onlineUrl
+//         } else {
+//           newEvent.onlineUrl = meetUrl;
+//           console.log('Meeting created:', meetUrl);
+//         }
+//       } catch (meetError) {
+//         console.error('Lỗi khi tạo Meet space:', meetError.message);
+//         // Nếu là lỗi authentication, ném lỗi để user phải auth lại
+//         if (meetError.statusCode === 401) {
+//           throw meetError;
+//         }
+//         // Với các lỗi khác, vẫn tạo event nhưng thông báo warning
+//         console.warn(
+//           'Tạo event mà không có Meet link do lỗi:',
+//           meetError.message
+//         );
+//       }
+//     }
+
+//     const savedEvent = await newEvent.save();
+
+//     // Đồng bộ với Google Calendar nếu user đã xác thực
+//     try {
+//       const googleEventId = await createGoogleCalendarEvent(organizer, {
+//         title: savedEvent.title,
+//         description: savedEvent.description,
+//         startDate: savedEvent.startDate,
+//         endDate: savedEvent.endDate,
+//         allDay: savedEvent.allDay,
+//         type: savedEvent.type,
+//         address: savedEvent.address,
+//         onlineUrl: savedEvent.onlineUrl,
+//         timeZone: savedEvent.timeZone,
+//         participants: savedEvent.participants,
+//       });
+
+//       if (googleEventId) {
+//         savedEvent.googleEventId = googleEventId;
+//         await savedEvent.save();
+//         console.log('Event synced to Google Calendar successfully');
+//       }
+//     } catch (error) {
+//       console.warn('Failed to sync to Google Calendar:', error.message);
+//       // Không làm gián đoạn quá trình tạo event
+//     }
+
+//     await EventHistory.create({
+//       eventId: savedEvent._id,
+//       action: 'create_event',
+//       participants: savedEvent.participants.map((p) => ({
+//         userId: p.userId,
+//         status: p.status,
+//       })),
+//     });
+
+//     // Gửi thông báo cho những người được mời tham gia sự kiện (ngoại trừ organizer)
+//     const participantsToNotify = savedEvent.participants.filter(
+//       (p) => p.userId.toString() !== organizer.toString()
+//     );
+
+//     if (participantsToNotify.length > 0) {
+//       try {
+//         const organizerUser = await User.findById(organizer, 'username email');
+//         const formattedEventStartDate = formatDateToTimeZone(
+//           savedEvent.startDate,
+//           savedEvent.timeZone
+//         );
+
+//         // Gửi thông báo cho từng participant
+//         for (const participant of participantsToNotify) {
+//           await NotificationService.createPersonalNotification({
+//             title: 'Lời mời tham gia sự kiện',
+//             content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
+//             type: 'event_invitation',
+//             targetUserId: participant.userId,
+//             createdBy: organizer,
+//             relatedUserId: organizer,
+//             eventId: savedEvent._id,
+//           });
+//         }
+
+//         console.log(
+//           `Đã gửi thông báo mời tham gia sự kiện cho ${participantsToNotify.length} người`
+//         );
+//       } catch (notificationError) {
+//         console.error(
+//           'Lỗi khi gửi thông báo mời tham gia sự kiện:',
+//           notificationError
+//         );
+//         // Không làm gián đoạn quá trình tạo event
+//       }
+//     }
+
+//     const formattedStartDate = formatDateToTimeZone(
+//       savedEvent.startDate,
+//       savedEvent.timeZone
+//     );
+//     const formattedEndDate = formatDateToTimeZone(
+//       savedEvent.endDate,
+//       savedEvent.timeZone
+//     );
+//     const createdAt = formatDateToTimeZone(
+//       savedEvent.createdAt,
+//       savedEvent.timeZone
+//     );
+//     const updatedAt = formatDateToTimeZone(
+//       savedEvent.updatedAt,
+//       savedEvent.timeZone
+//     );
+
+//     const newEventResult = {
+//       ...savedEvent.toObject(),
+//       startDate: formattedStartDate,
+//       endDate: formattedEndDate,
+//       createdAt,
+//       updatedAt,
+//     };
+
+//     res.status(201).json({
+//       message: savedEvent.googleEventId
+//         ? 'Tạo sự kiện thành công và đã đồng bộ lên Google Calendar'
+//         : 'Tạo sự kiện thành công',
+//       status: 201,
+//       data: newEventResult,
+//     });
+//   } catch (error) {
+//     console.error('Lỗi khi tạo sự kiện:', error.stack); // Log stack trace
+//     res.status(error.statusCode || 500).json({
+//       message: error.message || 'Lỗi máy chủ',
+//       status: error.statusCode || 500,
+//     });
+//   }
+// };
+
+// Thêm hàm findAvailableTimeSlots
+const findAvailableTimeSlots = async (
+  organizerId,
+  participantIds,
+  startDate,
+  endDate,
+  duration,
+  timeZone = 'Asia/Ho_Chi_Minh'
+) => {
+  try {
+    const searchStart = moment.tz(startDate, timeZone).startOf('day').toDate();
+    const searchEnd = moment.tz(endDate, timeZone).endOf('day').toDate();
+    const requiredDuration = moment.duration(duration, 'minutes');
+
+    // Tìm tất cả sự kiện của organizer và participants trong khoảng thời gian
+    const allParticipants = [organizerId, ...participantIds];
+    const events = await Event.find({
+      isDeleted: false,
+      status: { $nin: ['completed', 'cancelled'] },
+      participants: {
+        $elemMatch: {
+          userId: { $in: allParticipants },
+          status: 'accepted',
+        },
+      },
+      $or: [
+        { startDate: { $lte: searchEnd } },
+        { endDate: { $gte: searchStart } },
+      ],
+    }).select('startDate endDate allDay');
+
+    // Tạo danh sách các khoảng thời gian bận
+    const busySlots = events.map((event) => ({
+      start: moment.tz(event.startDate, timeZone),
+      end: moment.tz(event.endDate, timeZone),
+      allDay: event.allDay,
+    }));
+
+    // Tìm các khoảng thời gian trống, phân chia theo buổi
+    const morningSlots = [];
+    const afternoonSlots = [];
+
+    // Lặp qua từng ngày trong khoảng tìm kiếm
+    let currentDay = moment.tz(searchStart, timeZone);
+    const lastDay = moment.tz(searchEnd, timeZone);
+
+    while (currentDay.isSameOrBefore(lastDay, 'day')) {
+      // Buổi sáng: 4:00 - 12:00
+      let morningStart = currentDay.clone().set({ hour: 4, minute: 0 });
+      const morningEnd = currentDay.clone().set({ hour: 12, minute: 0 });
+
+      // Buổi chiều: 13:00 - 21:00
+      let afternoonStart = currentDay.clone().set({ hour: 13, minute: 0 });
+      const afternoonEnd = currentDay.clone().set({ hour: 21, minute: 0 });
+
+      // Kiểm tra slots buổi sáng
+      while (
+        morningStart.clone().add(requiredDuration).isSameOrBefore(morningEnd)
+      ) {
+        const slotEnd = morningStart.clone().add(requiredDuration);
+        const isSlotFree = !busySlots.some((busy) => {
+          if (busy.allDay) {
+            return morningStart.isSame(busy.start, 'day');
+          }
+          return morningStart.isBefore(busy.end) && slotEnd.isAfter(busy.start);
+        });
+
+        if (isSlotFree && morningStart.isAfter(moment.tz(timeZone))) {
+          morningSlots.push({
+            startDate: morningStart.toDate(),
+            endDate: slotEnd.toDate(),
+            period: 'morning',
+          });
+        }
+        morningStart.add(30, 'minutes');
+      }
+
+      // Kiểm tra slots buổi chiều
+      while (
+        afternoonStart
+          .clone()
+          .add(requiredDuration)
+          .isSameOrBefore(afternoonEnd)
+      ) {
+        const slotEnd = afternoonStart.clone().add(requiredDuration);
+        const isSlotFree = !busySlots.some((busy) => {
+          if (busy.allDay) {
+            return afternoonStart.isSame(busy.start, 'day');
+          }
+          return (
+            afternoonStart.isBefore(busy.end) && slotEnd.isAfter(busy.start)
+          );
+        });
+
+        if (isSlotFree && afternoonStart.isAfter(moment.tz(timeZone))) {
+          afternoonSlots.push({
+            startDate: afternoonStart.toDate(),
+            endDate: slotEnd.toDate(),
+            period: 'afternoon',
+          });
+        }
+        afternoonStart.add(30, 'minutes');
+      }
+
+      currentDay.add(1, 'day');
+    }
+
+    // Lấy tối đa 3 slots cho mỗi buổi
+    const suggestedSlots = [
+      ...morningSlots.slice(0, 3),
+      ...afternoonSlots.slice(0, 3),
+    ];
+
+    // Sắp xếp theo thời gian
+    return suggestedSlots.sort(
+      (a, b) => moment(a.startDate).valueOf() - moment(b.startDate).valueOf()
+    );
+  } catch (error) {
+    console.error('Error finding available time slots:', error);
+    return [];
+  }
+};
+
+// Thêm endpoint mới
+exports.findAvailableTimeSlots = async (req, res) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      duration, // Thời lượng sự kiện (phút)
+      participantEmails,
+      timeZone = 'Asia/Ho_Chi_Minh',
+    } = req.body;
+    const organizerId = req.user._id;
+
+    if (!startDate || !endDate || !duration) {
+      return res.status(400).json({
+        message: 'Thiếu các trường bắt buộc: startDate, endDate, duration',
+        status: 400,
+      });
+    }
+
+    // Xử lý participant emails
+    let participantIds = [];
+    if (
+      participantEmails &&
+      participantEmails.length > 0 &&
+      Array.isArray(participantEmails)
+    ) {
+      const cleanEmails = participantEmails.map((email) =>
+        email.trim().toLowerCase()
+      );
+      const users = await User.find({
+        email: { $in: cleanEmails },
+        isDeleted: false,
+      }).select('_id');
+
+      participantIds = users.map((user) => user._id);
+    }
+
+    const availableSlots = await findAvailableTimeSlots(
+      organizerId,
+      participantIds,
+      startDate,
+      endDate,
+      duration,
+      timeZone
+    );
+
+    res.status(200).json({
+      message: 'Successfully found available time slots',
+      status: 200,
+      data: availableSlots,
+    });
+  } catch (error) {
+    console.error('Error in findAvailableTimeSlots:', error);
+    res.status(500).json({
+      message: 'Lỗi khi tìm kiếm khoảng thời gian trống',
+      status: 500,
+    });
+  }
+};
+
+// Cập nhật createEventForCalendar (thay thế phần cũ)
+exports.createEventForCalendar = async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      address,
+      type,
+      startDate,
+      endDate,
+      recurrence,
+      timeZone,
+      workspaceId,
+      boardId,
+      reminderSettings,
+      status,
+      category,
+      color,
+      allDay,
+      participantEmails,
+      forceCreate,
+    } = req.body;
+    const { calendarId } = req.params;
+    const organizer = req.user._id;
+    let participants = [{ userId: organizer, status: 'accepted' }];
+
+    // Validate required fields
+    if (
+      !title ||
+      !calendarId ||
+      !startDate ||
+      !endDate ||
+      !organizer ||
+      !type
+    ) {
+      return res.status(400).json({
+        message:
+          'Thiếu các trường bắt buộc: title, calendarId, startDate, endDate, organizer hoặc type',
+        status: 400,
+      });
+    }
+
+    // Xử lý participant emails
+    if (
+      participantEmails &&
+      Array.isArray(participantEmails) &&
+      participantEmails.length > 0
+    ) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = participantEmails.filter(
+        (email) => !emailRegex.test(email.trim())
+      );
+
+      if (invalidEmails.length > 0) {
+        return res.status(400).json({
+          message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
+          status: 400,
+        });
+      }
+
+      const currentUserEmail = req.user.email;
+      const selfInvite = participantEmails.some(
+        (email) => email.trim().toLowerCase() === currentUserEmail.toLowerCase()
+      );
+
+      if (selfInvite) {
+        return res.status(400).json({
+          message: 'Bạn không thể mời chính mình tham gia sự kiện',
+          status: 400,
+        });
+      }
+
+      const cleanEmails = participantEmails.map((email) =>
+        email.trim().toLowerCase()
+      );
+      const users = await User.find({
+        email: { $in: cleanEmails },
+        isDeleted: false,
+      }).select('_id email');
+
+      const foundEmails = users.map((user) => user.email.toLowerCase());
+      const notFoundEmails = cleanEmails.filter(
+        (email) => !foundEmails.includes(email)
+      );
+
+      if (notFoundEmails.length > 0) {
+        return res.status(400).json({
+          message: `Không tìm thấy người dùng với email: ${notFoundEmails.join(
+            ', '
+          )}`,
+          status: 400,
+        });
+      }
+
+      const participantUsers = users.map((user) => ({
+        userId: user._id,
+        status: 'pending',
+      }));
+
+      participants = [...participants, ...participantUsers];
+    }
+
+    const calendar = await Calendar.findById(calendarId);
+    if (!calendar || calendar.isDeleted) {
+      return res.status(404).json({
+        message: 'Không tìm thấy lịch với calendarId đã cho',
+        status: 404,
+      });
+    }
+
+    // Validate workspace and board
+    if (boardId) {
+      const workspace = await Workspace.findById(workspaceId);
+      if (!workspace || workspace.isDeleted) {
+        return res.status(404).json({
+          message: 'Không tìm thấy workspace với workspaceId đã cho',
+          status: 404,
+        });
+      }
+
+      const board = await Board.findById(boardId, { isDeleted: false });
+      if (!board || board.isDeleted) {
+        return res.status(404).json({
+          message: 'Không tìm thấy board với boardId đã cho',
+          status: 404,
+        });
+      }
+
+      if (board.workspaceId.toString() !== workspace._id.toString()) {
+        return res.status(400).json({
+          message: 'Board không thuộc về workspace đã cho',
+          status: 400,
+        });
+      }
+
+      const isWorkspaceMember = workspace.members.some(
+        (member) => member.toString() === organizer.toString()
+      );
+
+      if (
+        !isWorkspaceMember &&
+        workspace.creator.toString() !== organizer.toString()
+      ) {
+        return res.status(403).json({
+          message: 'Bạn không có quyền tạo sự kiện trong workspace này',
+          status: 403,
+        });
+      }
+
+      const boardMembership = await BoardMembership.findOne({
+        boardId: board._id,
+        userId: organizer,
+      });
+
+      if (!boardMembership) {
+        return res.status(403).json({
+          message: 'Bạn chưa được tham gia board này',
+          status: 403,
+        });
+      }
+
+      if (participants && participants.length > 0) {
+        for (const participant of participants) {
+          const member = await BoardMembership.findOne({
+            boardId: board._id,
+            userId: participant.userId,
+          });
+          if (!member) {
+            return res.status(403).json({
+              message: `Người dùng ${participant.userId} không phải là thành viên của board này`,
+              status: 403,
+            });
+          }
+        }
+      }
+    }
+
+    // Validate event type and address
+    if (!['online', 'offline'].includes(type)) {
+      return res.status(400).json({
+        message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
+        status: 400,
+      });
+    } else if (type === 'offline' && !address) {
+      return res.status(400).json({
+        message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
+        status: 400,
+      });
+    }
+
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start < now) {
+      return res.status(400).json({
+        message: 'Thời gian bắt đầu không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
+    if (end < now) {
+      return res.status(400).json({
+        message: 'Thời gian kết thúc không được chọn trong quá khứ',
+        status: 400,
+      });
+    }
+
+    if (!allDay && start >= end) {
+      return res.status(400).json({
+        message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
+        status: 400,
+      });
+    }
+
+    // Kiểm tra xung đột thời gian
+    if (!forceCreate) {
+      try {
+        let conflictQuery;
+
+        if (allDay) {
+          const dayStart = new Date(start);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(start);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              {
+                allDay: true,
+                $expr: {
+                  $eq: [
+                    {
+                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
+                    },
+                    { $dateToString: { format: '%Y-%m-%d', date: start } },
+                  ],
+                },
+              },
+              {
+                allDay: { $ne: true },
+                $and: [
+                  { startDate: { $lte: dayEnd } },
+                  { endDate: { $gte: dayStart } },
+                ],
+              },
+            ],
+          };
+        } else {
+          const startDay = new Date(start);
+          startDay.setHours(0, 0, 0, 0);
+          const startDayEnd = new Date(start);
+          startDayEnd.setHours(23, 59, 59, 999);
+
+          const endDay = new Date(end);
+          endDay.setHours(0, 0, 0, 0);
+          const endDayEnd = new Date(end);
+          endDayEnd.setHours(23, 59, 59, 999);
+
+          conflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            $or: [
+              {
+                allDay: true,
+                $or: [
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        { $dateToString: { format: '%Y-%m-%d', date: start } },
+                      ],
+                    },
+                  },
+                  {
+                    $expr: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$startDate',
+                          },
+                        },
+                        { $dateToString: { format: '%Y-%m-%d', date: end } },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {
+                allDay: { $ne: true },
+                startDate: { $lt: end },
+                endDate: { $gt: start },
+              },
+            ],
+          };
+        }
+
+        const conflictingEvents = await Event.find(conflictQuery)
+          .populate('calendarId', 'name')
+          .select('title startDate endDate calendarId allDay');
+
+        if (conflictingEvents.length > 0) {
+          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
+            id: conflictEvent._id,
+            title: conflictEvent.title,
+            startDate: conflictEvent.startDate,
+            endDate: conflictEvent.endDate,
+            allDay: conflictEvent.allDay,
+          }));
+
+          // Trả về dữ liệu để frontend hiển thị modal xung đột
+          return res.status(409).json({
+            message: 'Xung đột lịch trình được phát hiện',
+            status: 409,
+            hasConflict: true,
+            conflictingEvents: conflictDetails,
+            newEvent: {
+              title,
+              description,
+              address,
+              type,
+              startDate,
+              endDate,
+              recurrence,
+              timeZone,
+              workspaceId,
+              boardId,
+              reminderSettings,
+              status,
+              category,
+              color,
+              allDay,
+              participantEmails,
+            },
+          });
+        }
+      } catch (conflictError) {
+        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
+      }
+    }
+
+    // Xử lý địa chỉ
+    const processedAddress = await processAddressData(address, type);
+
+    // Validate status và category
+    if (
+      status &&
+      !['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
+    ) {
+      return res.status(400).json({
+        message:
+          'Trạng thái không hợp lệ. Phải là "draft", "scheduled", "completed" hoặc "cancelled"',
+        status: 400,
+      });
+    }
+
+    if (
+      category &&
+      !['workshop', 'meeting', 'party', 'other'].includes(category)
+    ) {
+      return res.status(400).json({
+        message:
+          'Loại sự kiện không hợp lệ. Phải là "workshop", "meeting", "party" hoặc "other"',
+        status: 400,
+      });
+    }
+
+    // Tạo sự kiện mới
+    const newEvent = new Event({
+      title,
+      description,
+      calendarId,
+      address: processedAddress,
+      type,
+      startDate,
+      endDate,
+      recurrence,
+      timeZone: timeZone || 'Asia/Ho_Chi_Minh',
+      workspaceId,
+      boardId,
+      organizer,
+      participants: participants || [],
+      reminderSettings: reminderSettings || [{ method: 'popup', minutes: 15 }],
+      status: status || 'scheduled',
+      category: category || 'other',
+      color: color || '#378006',
+      allDay: allDay || false,
+    });
+
+    // Tạo Meet link nếu là sự kiện online
+    if (type === 'online') {
+      try {
+        const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
+        if (!meetUrl) {
+          console.warn(
+            'Không thể tạo Meet link, tiếp tục tạo event mà không có link'
+          );
+        } else {
+          newEvent.onlineUrl = meetUrl;
+          console.log('Meeting created:', meetUrl);
+        }
+      } catch (meetError) {
+        console.error('Lỗi khi tạo Meet space:', meetError.message);
+        if (meetError.statusCode === 401) {
+          throw meetError;
+        }
+        console.warn(
+          'Tạo event mà không có Meet link do lỗi:',
+          meetError.message
+        );
+      }
+    }
+
+    const savedEvent = await newEvent.save();
+
+    // Đồng bộ Google Calendar
+    try {
+      const googleEventId = await createGoogleCalendarEvent(organizer, {
+        title: savedEvent.title,
+        description: savedEvent.description,
+        startDate: savedEvent.startDate,
+        endDate: savedEvent.endDate,
+        allDay: savedEvent.allDay,
+        type: savedEvent.type,
+        address: savedEvent.address,
+        onlineUrl: savedEvent.onlineUrl,
+        timeZone: savedEvent.timeZone,
+        participants: savedEvent.participants,
+      });
+
+      if (googleEventId) {
+        savedEvent.googleEventId = googleEventId;
+        await savedEvent.save();
+        console.log('Event synced to Google Calendar successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to sync to Google Calendar:', error.message);
+    }
+
+    // Ghi lịch sử sự kiện
+    await EventHistory.create({
+      eventId: savedEvent._id,
+      action: forceCreate ? 'create_event_with_conflict' : 'create_event',
+      participants: savedEvent.participants.map((p) => ({
+        userId: p.userId,
+        status: p.status,
+      })),
+    });
+
+    // Gửi thông báo
+    const participantsToNotify = savedEvent.participants.filter(
+      (p) => p.userId.toString() !== organizer.toString()
+    );
+
+    if (participantsToNotify.length > 0) {
+      try {
+        const organizerUser = await User.findById(organizer, 'username email');
+        const formattedEventStartDate = formatDateToTimeZone(
+          savedEvent.startDate,
+          savedEvent.timeZone
+        );
+
+        for (const participant of participantsToNotify) {
+          await NotificationService.createPersonalNotification({
+            title: 'Lời mời tham gia sự kiện',
+            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
+            type: 'event_invitation',
+            targetUserId: participant.userId,
+            createdBy: organizer,
+            relatedUserId: organizer,
+            eventId: savedEvent._id,
+          });
+        }
+
+        console.log(
+          `Đã gửi thông báo mời tham gia sự kiện cho ${participantsToNotify.length} người`
+        );
+      } catch (notificationError) {
+        console.error(
+          'Lỗi khi gửi thông báo mời tham gia sự kiện:',
+          notificationError
+        );
+      }
+    }
+
+    const formattedStartDate = formatDateToTimeZone(
+      savedEvent.startDate,
+      savedEvent.timeZone
+    );
+    const formattedEndDate = formatDateToTimeZone(
+      savedEvent.endDate,
+      savedEvent.timeZone
+    );
+    const createdAt = formatDateToTimeZone(
+      savedEvent.createdAt,
+      savedEvent.timeZone
+    );
+    const updatedAt = formatDateToTimeZone(
+      savedEvent.updatedAt,
+      savedEvent.timeZone
+    );
+
+    const newEventResult = {
+      ...savedEvent.toObject(),
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
+      createdAt,
+      updatedAt,
+    };
+
+    res.status(201).json({
+      message: savedEvent.googleEventId
+        ? 'Tạo sự kiện thành công và đã đồng bộ lên Google Calendar'
+        : 'Tạo sự kiện thành công',
+      status: 201,
+      data: newEventResult,
+    });
+  } catch (error) {
+    console.error('Lỗi khi tạo sự kiện:', error.stack);
+    res.status(error.statusCode || 500).json({
+      message: error.message || 'Lỗi máy chủ',
+      status: error.statusCode || 500,
+    });
+  }
+};
+
+// Check for event conflicts
+exports.checkEventConflicts = async (req, res) => {
+  try {
+    const { startDate, endDate, boardId, excludeEventId } = req.body;
+    const userId = req.user._id;
+
+    // Validate required fields
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required',
+      });
+    }
+
+    // Build query to find conflicting events
+    const conflictQuery = {
+      isDeleted: false,
+      $or: [
+        {
+          // Event starts during the proposed time
+          startDate: {
+            $gte: new Date(startDate),
+            $lt: new Date(endDate),
+          },
+        },
+        {
+          // Event ends during the proposed time
+          endDate: {
+            $gt: new Date(startDate),
+            $lte: new Date(endDate),
+          },
+        },
+        {
+          // Event completely overlaps the proposed time
+          startDate: { $lte: new Date(startDate) },
+          endDate: { $gte: new Date(endDate) },
+        },
+      ],
+    };
+
+    // Add board filter if provided
+    if (boardId) {
+      conflictQuery.boardId = boardId;
+    } else {
+      // If no boardId, check user's events
+      conflictQuery.$or.push(
+        { organizer: userId },
+        { 'participants.userId': userId }
+      );
+    }
+
+    // Exclude the current event being edited
+    if (excludeEventId) {
+      conflictQuery._id = { $ne: excludeEventId };
+    }
+
+    // Find conflicting events
+    const conflicts = await Event.find(conflictQuery)
+      .populate('organizer', 'username email')
+      .populate('calendarId', 'name')
+      .populate('boardId', 'name')
+      .sort({ startDate: 1 })
+      .limit(10); // Limit to 10 conflicts
+
+    const hasConflict = conflicts.length > 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        hasConflict,
+        conflicts: conflicts.map((event) => ({
+          _id: event._id,
+          title: event.title,
+          description: event.description,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          organizer: event.organizer,
+          calendar: event.calendarId,
+          board: event.boardId,
+          type: event.type,
+          status: event.status,
+        })),
+        conflictCount: conflicts.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error checking event conflicts:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking event conflicts',
+      error: error.message,
+    });
+  }
+};
+
+// Hàm chuyển đổi recurrence sang RRule
+function convertToRRule(recurrence) {
+  if (!recurrence || !recurrence.type) return null;
+
+  const { type, interval = 1, endDate } = recurrence;
+  const freqMap = {
+    daily: 'DAILY',
+    weekly: 'WEEKLY',
+    monthly: 'MONTHLY',
+    yearly: 'YEARLY',
+  };
+
+  let rrule = `FREQ=${freqMap[type]};INTERVAL=${interval}`;
+  if (endDate) {
+    rrule += `;UNTIL=${
+      new Date(endDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    }`;
+  }
+  return rrule;
+}
+
+// Helper function để xác định trạng thái sự kiện dựa trên thời gian
+const determineEventStatus = (startDate, endDate, currentStatus) => {
+  const now = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Nếu sự kiện đã được hủy hoặc đã hoàn thành thủ công, giữ nguyên
+  if (currentStatus === 'cancelled') {
+    return currentStatus;
+  }
+
+  // Nếu sự kiện đã kết thúc
+  if (now > end) {
+    return 'completed';
+  }
+
+  // Nếu sự kiện đang diễn ra
+  if (now >= start && now <= end) {
+    return 'in-progress';
+  }
+
+  // Nếu sự kiện chưa bắt đầu
+  if (now < start) {
+    return 'scheduled';
+  }
+
+  return currentStatus;
+};
+
+// Lấy tất cả sự kiện mà user đã chấp nhận tham gia từ lịch của người khác
+exports.getParticipatedEvents = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { startDate, endDate } = req.query;
+
+    // Build query để tìm events mà user tham gia với status 'accepted'
+    const query = {
+      participants: {
+        $elemMatch: {
+          userId: userId,
+          status: 'accepted',
+        },
+      },
+      isDeleted: false,
+    };
+
+    // Lọc theo khoảng thời gian nếu có
+    if (startDate && endDate) {
+      query.startDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    }
+
+    const events = await Event.find(query)
+      .populate('participants.userId', 'name email username')
+      .populate('organizer', 'name email username')
+      .populate('calendarId', 'name color ownerId')
+      .populate('workspaceId', 'name')
+      .populate('boardId', 'name')
+      .select('-isDeleted -deletedAt');
+
+    // Lọc ra những sự kiện không thuộc về lịch của chính user này
+    const participatedEvents = events.filter(
+      (event) => event.calendarId?.ownerId.toString() !== userId.toString()
+    );
+
+    // Format cho FullCalendar
+    const fullCalendarEvents = participatedEvents.map((event) => {
+      // Tìm organizer info
+      const organizerParticipant = event.participants.find(
+        (p) => p.userId._id.toString() === event.organizer._id.toString()
+      );
+
+      return {
+        id: event._id.toString(),
+        title: `[Tham gia] ${event.title}`, // Thêm prefix để phân biệt
+        start: event.startDate,
+        end: event.endDate,
+        allDay: event.allDay || false,
+        backgroundColor: event.color || event.calendarId.color || '#6c757d',
+        borderColor: event.color || event.calendarId.color || '#6c757d',
+        textColor: '#ffffff',
+        extendedProps: {
+          description: event.description,
+          locationName: event.locationName,
+          address: event.address,
+          type: event.type,
+          onlineUrl: event.onlineUrl,
+          meetingCode: event.meetingCode,
+          timeZone: event.timeZone,
+          organizer: {
+            userId: event.organizer._id,
+            username: event.organizer.username || event.organizer.name,
+            email: event.organizer.email,
+          },
+          participants: event.participants.map((p) => ({
+            userId: p.userId._id,
+            name: p.userId.name || p.userId.username,
+            email: p.userId.email,
+            status: p.status,
+          })),
+          calendar: {
+            id: event.calendarId._id,
+            name: event.calendarId.name,
+            color: event.calendarId.color,
+            isOwn: false, // Đánh dấu đây không phải lịch của mình
+          },
+          workspace: event.workspaceId
+            ? { id: event.workspaceId._id, name: event.workspaceId.name }
+            : null,
+          board: event.boardId
+            ? { id: event.boardId._id, name: event.boardId.name }
+            : null,
+          status: event.status,
+          rrule: event.recurrence
+            ? convertToRRule(event.recurrence)
+            : undefined,
+        },
+      };
+    });
+
+    res.status(200).json({
+      message: 'Lấy danh sách sự kiện tham gia thành công',
+      status: 200,
+      data: fullCalendarEvents,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách sự kiện tham gia:', error);
+    res.status(500).json({
+      message: 'Lỗi máy chủ',
+      status: 500,
+      error: error.message,
+    });
+  }
+};
+
 // Helper function để cập nhật sự kiện trên Google Calendar
 const updateGoogleCalendarEvent = async (userId, googleEventId, eventData) => {
   try {
@@ -219,601 +1797,6 @@ const deleteGoogleCalendarEvent = async (userId, googleEventId) => {
   } catch (error) {
     console.error('Error deleting Google Calendar event:', error.message);
     return false;
-  }
-};
-
-exports.createEventForCalendar = async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      address,
-      type,
-      startDate,
-      endDate,
-      recurrence,
-      timeZone,
-      workspaceId,
-      boardId,
-      reminderSettings,
-      status,
-      category,
-      color,
-      allDay,
-      participantEmails, // New field for emails
-      forceCreate, // New field to bypass conflict check
-    } = req.body;
-    const { calendarId } = req.params;
-    const organizer = req.user._id;
-    let participants = [{ userId: organizer, status: 'accepted' }];
-
-    console.log('workspaceId', workspaceId);
-    console.log('boardId', boardId);
-
-    // Process participant emails if provided
-    if (
-      participantEmails &&
-      Array.isArray(participantEmails) &&
-      participantEmails.length > 0
-    ) {
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const invalidEmails = participantEmails.filter(
-        (email) => !emailRegex.test(email.trim())
-      );
-
-      if (invalidEmails.length > 0) {
-        return res.status(400).json({
-          message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
-          status: 400,
-        });
-      }
-
-      // Check if user is trying to invite themselves
-      const currentUserEmail = req.user.email;
-      const selfInvite = participantEmails.some(
-        (email) => email.trim().toLowerCase() === currentUserEmail.toLowerCase()
-      );
-
-      if (selfInvite) {
-        return res.status(400).json({
-          message: 'Bạn không thể mời chính mình tham gia sự kiện',
-          status: 400,
-        });
-      }
-
-      // Find users by emails
-      const cleanEmails = participantEmails.map((email) =>
-        email.trim().toLowerCase()
-      );
-      const users = await User.find({
-        email: { $in: cleanEmails },
-        isDeleted: false,
-      }).select('_id email');
-
-      const foundEmails = users.map((user) => user.email.toLowerCase());
-      const notFoundEmails = cleanEmails.filter(
-        (email) => !foundEmails.includes(email)
-      );
-
-      if (notFoundEmails.length > 0) {
-        return res.status(400).json({
-          message: `Không tìm thấy người dùng với email: ${notFoundEmails.join(
-            ', '
-          )}`,
-          status: 400,
-        });
-      }
-
-      // Add found users to participants
-      const participantUsers = users.map((user) => ({
-        userId: user._id,
-        status: 'pending',
-      }));
-
-      participants = [...participants, ...participantUsers];
-    }
-
-    if (
-      !title ||
-      !calendarId ||
-      !startDate ||
-      !endDate ||
-      !organizer ||
-      !type
-    ) {
-      return res.status(400).json({
-        message:
-          'Thiếu các trường bắt buộc: title, calendarId, startDate, endDate, organizer hoặc type',
-        status: 400,
-      });
-    }
-
-    const calendar = await Calendar.findById(calendarId);
-    if (!calendar || calendar.isDeleted) {
-      return res.status(404).json({
-        message: 'Không tìm thấy lịch với calendarId đã cho',
-        status: 404,
-      });
-    }
-
-    if (boardId) {
-      const workspace = await Workspace.findById(workspaceId);
-      if (!workspace || workspace.isDeleted) {
-        return res.status(404).json({
-          message: 'Không tìm thấy workspace với workspaceId đã cho',
-          status: 404,
-        });
-      }
-
-      const board = await Board.findById(boardId, { isDeleted: false });
-      if (!board || board.isDeleted) {
-        return res.status(404).json({
-          message: 'Không tìm thấy board với boardId đã cho',
-          status: 404,
-        });
-      }
-      if (board.workspaceId.toString() !== workspace._id.toString()) {
-        return res.status(400).json({
-          message: 'Board không thuộc về workspace đã cho',
-          status: 400,
-        });
-      }
-
-      const isWorkspaceMember = workspace.members.some(
-        (member) => member.toString() === organizer.toString()
-      );
-
-      if (
-        !isWorkspaceMember &&
-        workspace.creator.toString() !== organizer.toString()
-      ) {
-        return res.status(403).json({
-          message: 'Bạn không có quyền tạo sự kiện trong workspace này',
-          status: 403,
-        });
-      }
-
-      const boardMembership = await BoardMembership.findOne({
-        boardId: board._id,
-        userId: organizer,
-      });
-
-      if (!boardMembership) {
-        return res.status(403).json({
-          message: 'Bạn chưa được tham gia board này',
-          status: 403,
-        });
-      }
-
-      if (participants && participants.length > 0) {
-        for (const participant of participants) {
-          const member = await BoardMembership.findOne({
-            boardId: board._id,
-            userId: participant.userId,
-          });
-          if (!member) {
-            return res.status(403).json({
-              message: `Người dùng ${participant.userId} không phải là thành viên của board này`,
-              status: 403,
-            });
-          }
-        }
-      }
-    }
-
-    if (!['online', 'offline'].includes(type)) {
-      return res.status(400).json({
-        message: 'Loại sự kiện không hợp lệ. Phải là "online" hoặc "offline"',
-        status: 400,
-      });
-    } else if (type === 'offline' && !address) {
-      return res.status(400).json({
-        message: 'Thiếu thông tin địa chỉ cho sự kiện offline',
-        status: 400,
-      });
-    }
-
-    const now = new Date();
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    // Kiểm tra startDate không được trong quá khứ
-    if (start < now) {
-      return res.status(400).json({
-        message: 'Thời gian bắt đầu không được chọn trong quá khứ',
-        status: 400,
-      });
-    }
-
-    // Kiểm tra endDate không được trong quá khứ
-    if (end < now) {
-      return res.status(400).json({
-        message: 'Thời gian kết thúc không được chọn trong quá khứ',
-        status: 400,
-      });
-    }
-
-    if (!allDay && start >= end) {
-      return res.status(400).json({
-        message: 'Thời gian bắt đầu phải trước thời gian kết thúc',
-        status: 400,
-      });
-    }
-
-    // Kiểm tra xung đột thời gian khi tạo sự kiện mới
-    if (!forceCreate) {
-      try {
-        let conflictQuery;
-
-        if (allDay) {
-          // Nếu sự kiện mới là allDay, check xem trong ngày đó có sự kiện nào khác không
-          // Chuẩn hóa ngày để so sánh (00:00:00 đến 23:59:59)
-          const dayStart = new Date(start);
-          dayStart.setHours(0, 0, 0, 0);
-          const dayEnd = new Date(start);
-          dayEnd.setHours(23, 59, 59, 999);
-
-          conflictQuery = {
-            isDeleted: false,
-            status: { $nin: ['completed', 'cancelled'] },
-            participants: {
-              $elemMatch: {
-                userId: organizer,
-                status: 'accepted',
-              },
-            },
-            $or: [
-              // Case 1: Sự kiện hiện có cũng là allDay và cùng ngày
-              {
-                allDay: true,
-                $expr: {
-                  $eq: [
-                    {
-                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
-                    },
-                    {
-                      $dateToString: {
-                        format: '%Y-%m-%d',
-                        date: start,
-                      },
-                    },
-                  ],
-                },
-              },
-              // Case 2: Sự kiện hiện có không phải allDay nhưng có overlap với ngày này
-              {
-                allDay: { $ne: true },
-                $and: [
-                  { startDate: { $lte: dayEnd } },
-                  { endDate: { $gte: dayStart } },
-                ],
-              },
-            ],
-          };
-        } else {
-          // Nếu sự kiện mới không phải allDay, check overlap với tất cả sự kiện
-          const startDay = new Date(start);
-          startDay.setHours(0, 0, 0, 0);
-          const startDayEnd = new Date(start);
-          startDayEnd.setHours(23, 59, 59, 999);
-
-          const endDay = new Date(end);
-          endDay.setHours(0, 0, 0, 0);
-          const endDayEnd = new Date(end);
-          endDayEnd.setHours(23, 59, 59, 999);
-
-          conflictQuery = {
-            isDeleted: false,
-            status: { $nin: ['completed', 'cancelled'] },
-            participants: {
-              $elemMatch: {
-                userId: organizer,
-                status: 'accepted',
-              },
-            },
-            $or: [
-              // Case 1: Sự kiện hiện có là allDay và overlap với ngày của sự kiện mới
-              {
-                allDay: true,
-                $or: [
-                  // AllDay event trong ngày bắt đầu của sự kiện mới
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: start,
-                          },
-                        },
-                      ],
-                    },
-                  },
-                  // AllDay event trong ngày kết thúc của sự kiện mới (nếu khác ngày bắt đầu)
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: end,
-                          },
-                        },
-                      ],
-                    },
-                  },
-                ],
-              },
-              // Case 2: Sự kiện hiện có không phải allDay và có overlap time
-              {
-                allDay: { $ne: true },
-                startDate: { $lt: end },
-                endDate: { $gt: start },
-              },
-            ],
-          };
-        }
-
-        console.log('CREATE EVENT - Checking conflict for:', {
-          organizer,
-          allDay,
-          startDate,
-          endDate,
-        });
-        console.log(
-          'CREATE EVENT - Conflict query:',
-          JSON.stringify(conflictQuery, null, 2)
-        );
-
-        const conflictingEvents = await Event.find(conflictQuery)
-          .populate('calendarId', 'name')
-          .select('title startDate endDate calendarId allDay');
-
-        console.log(
-          'CREATE EVENT - Found conflicting events:',
-          conflictingEvents.length
-        );
-        if (conflictingEvents.length > 0) {
-          console.log(
-            'CREATE EVENT - Conflicting events details:',
-            conflictingEvents.map((e) => ({
-              title: e.title,
-              allDay: e.allDay,
-              startDate: e.startDate,
-              endDate: e.endDate,
-            }))
-          );
-        }
-
-        if (conflictingEvents.length > 0) {
-          // Có xung đột thời gian
-          const conflictDetails = conflictingEvents.map((conflictEvent) => ({
-            id: conflictEvent._id,
-            title: conflictEvent.title,
-            startDate: conflictEvent.startDate,
-            endDate: conflictEvent.endDate,
-            allDay: conflictEvent.allDay,
-            // calendarName:
-            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
-          }));
-
-          return res.status(409).json({
-            message:
-              'You have an appointment within this time frame, so please consider carefully.',
-            status: 409,
-            hasConflict: true,
-            conflictingEvents: conflictDetails,
-            newEvent: {
-              title: title,
-              startDate: startDate,
-              endDate: endDate,
-              allDay: allDay,
-            },
-          });
-        }
-      } catch (conflictError) {
-        console.error('Lỗi khi kiểm tra xung đột thời gian:', conflictError);
-        // Không làm gián đoạn quá trình tạo event nếu có lỗi kiểm tra xung đột
-      }
-    }
-
-    // Xử lý địa chỉ và geocoding
-    const processedAddress = await processAddressData(address, type);
-
-    if (
-      status &&
-      !['draft', 'scheduled', 'completed', 'cancelled'].includes(status)
-    ) {
-      return res.status(400).json({
-        message:
-          'Trạng thái không hợp lệ. Phải là "draft", "scheduled", "completed" hoặc "cancelled"',
-        status: 400,
-      });
-    }
-
-    if (
-      category &&
-      !['workshop', 'meeting', 'party', 'other'].includes(category)
-    ) {
-      return res.status(400).json({
-        message:
-          'Loại sự kiện không hợp lệ. Phải là "workshop", "meeting", "party" hoặc "other"',
-        status: 400,
-      });
-    }
-
-    const newEvent = new Event({
-      title,
-      description,
-      calendarId,
-      address: processedAddress,
-      type,
-      startDate,
-      endDate,
-      recurrence,
-      timeZone: timeZone || 'Asia/Ho_Chi_Minh',
-      workspaceId,
-      boardId,
-      organizer,
-      participants: participants || [],
-      reminderSettings: reminderSettings || [{ method: 'popup', minutes: 15 }],
-      status: status || 'scheduled',
-      category: category || 'other',
-      color: color || '#378006',
-      allDay: allDay || false,
-    });
-
-    if (type === 'online') {
-      try {
-        const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
-        if (!meetUrl) {
-          console.warn(
-            'Không thể tạo Meet link, tiếp tục tạo event mà không có link'
-          );
-          // Vẫn tiếp tục tạo event nhưng không có onlineUrl
-        } else {
-          newEvent.onlineUrl = meetUrl;
-          console.log('Meeting created:', meetUrl);
-        }
-      } catch (meetError) {
-        console.error('Lỗi khi tạo Meet space:', meetError.message);
-        // Nếu là lỗi authentication, ném lỗi để user phải auth lại
-        if (meetError.statusCode === 401) {
-          throw meetError;
-        }
-        // Với các lỗi khác, vẫn tạo event nhưng thông báo warning
-        console.warn(
-          'Tạo event mà không có Meet link do lỗi:',
-          meetError.message
-        );
-      }
-    }
-
-    const savedEvent = await newEvent.save();
-
-    // Đồng bộ với Google Calendar nếu user đã xác thực
-    try {
-      const googleEventId = await createGoogleCalendarEvent(organizer, {
-        title: savedEvent.title,
-        description: savedEvent.description,
-        startDate: savedEvent.startDate,
-        endDate: savedEvent.endDate,
-        allDay: savedEvent.allDay,
-        type: savedEvent.type,
-        address: savedEvent.address,
-        onlineUrl: savedEvent.onlineUrl,
-        timeZone: savedEvent.timeZone,
-        participants: savedEvent.participants,
-      });
-
-      if (googleEventId) {
-        savedEvent.googleEventId = googleEventId;
-        await savedEvent.save();
-        console.log('Event synced to Google Calendar successfully');
-      }
-    } catch (error) {
-      console.warn('Failed to sync to Google Calendar:', error.message);
-      // Không làm gián đoạn quá trình tạo event
-    }
-
-    await EventHistory.create({
-      eventId: savedEvent._id,
-      action: 'create_event',
-      participants: savedEvent.participants.map((p) => ({
-        userId: p.userId,
-        status: p.status,
-      })),
-    });
-
-    // Gửi thông báo cho những người được mời tham gia sự kiện (ngoại trừ organizer)
-    const participantsToNotify = savedEvent.participants.filter(
-      (p) => p.userId.toString() !== organizer.toString()
-    );
-
-    if (participantsToNotify.length > 0) {
-      try {
-        const organizerUser = await User.findById(organizer, 'username email');
-        const formattedEventStartDate = formatDateToTimeZone(
-          savedEvent.startDate,
-          savedEvent.timeZone
-        );
-
-        // Gửi thông báo cho từng participant
-        for (const participant of participantsToNotify) {
-          await NotificationService.createPersonalNotification({
-            title: 'Lời mời tham gia sự kiện',
-            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
-            type: 'event_invitation',
-            targetUserId: participant.userId,
-            createdBy: organizer,
-            relatedUserId: organizer,
-            eventId: savedEvent._id,
-          });
-        }
-
-        console.log(
-          `Đã gửi thông báo mời tham gia sự kiện cho ${participantsToNotify.length} người`
-        );
-      } catch (notificationError) {
-        console.error(
-          'Lỗi khi gửi thông báo mời tham gia sự kiện:',
-          notificationError
-        );
-        // Không làm gián đoạn quá trình tạo event
-      }
-    }
-
-    const formattedStartDate = formatDateToTimeZone(
-      savedEvent.startDate,
-      savedEvent.timeZone
-    );
-    const formattedEndDate = formatDateToTimeZone(
-      savedEvent.endDate,
-      savedEvent.timeZone
-    );
-    const createdAt = formatDateToTimeZone(
-      savedEvent.createdAt,
-      savedEvent.timeZone
-    );
-    const updatedAt = formatDateToTimeZone(
-      savedEvent.updatedAt,
-      savedEvent.timeZone
-    );
-
-    const newEventResult = {
-      ...savedEvent.toObject(),
-      startDate: formattedStartDate,
-      endDate: formattedEndDate,
-      createdAt,
-      updatedAt,
-    };
-
-    res.status(201).json({
-      message: savedEvent.googleEventId
-        ? 'Tạo sự kiện thành công và đã đồng bộ lên Google Calendar'
-        : 'Tạo sự kiện thành công',
-      status: 201,
-      data: newEventResult,
-    });
-  } catch (error) {
-    console.error('Lỗi khi tạo sự kiện:', error.stack); // Log stack trace
-    res.status(error.statusCode || 500).json({
-      message: error.message || 'Lỗi máy chủ',
-      status: error.statusCode || 500,
-    });
   }
 };
 
@@ -970,114 +1953,6 @@ exports.getAllEvents = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách sự kiện:', error);
-    res.status(500).json({
-      message: 'Lỗi máy chủ',
-      status: 500,
-      error: error.message,
-    });
-  }
-};
-
-// Lấy tất cả sự kiện mà user đã chấp nhận tham gia từ lịch của người khác
-exports.getParticipatedEvents = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { startDate, endDate } = req.query;
-
-    // Build query để tìm events mà user tham gia với status 'accepted'
-    const query = {
-      participants: {
-        $elemMatch: {
-          userId: userId,
-          status: 'accepted',
-        },
-      },
-      isDeleted: false,
-    };
-
-    // Lọc theo khoảng thời gian nếu có
-    if (startDate && endDate) {
-      query.startDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    }
-
-    const events = await Event.find(query)
-      .populate('participants.userId', 'name email username')
-      .populate('organizer', 'name email username')
-      .populate('calendarId', 'name color ownerId')
-      .populate('workspaceId', 'name')
-      .populate('boardId', 'name')
-      .select('-isDeleted -deletedAt');
-
-    // Lọc ra những sự kiện không thuộc về lịch của chính user này
-    const participatedEvents = events.filter(
-      (event) => event.calendarId?.ownerId.toString() !== userId.toString()
-    );
-
-    // Format cho FullCalendar
-    const fullCalendarEvents = participatedEvents.map((event) => {
-      // Tìm organizer info
-      const organizerParticipant = event.participants.find(
-        (p) => p.userId._id.toString() === event.organizer._id.toString()
-      );
-
-      return {
-        id: event._id.toString(),
-        title: `[Tham gia] ${event.title}`, // Thêm prefix để phân biệt
-        start: event.startDate,
-        end: event.endDate,
-        allDay: event.allDay || false,
-        backgroundColor: event.color || event.calendarId.color || '#6c757d',
-        borderColor: event.color || event.calendarId.color || '#6c757d',
-        textColor: '#ffffff',
-        extendedProps: {
-          description: event.description,
-          locationName: event.locationName,
-          address: event.address,
-          type: event.type,
-          onlineUrl: event.onlineUrl,
-          meetingCode: event.meetingCode,
-          timeZone: event.timeZone,
-          organizer: {
-            userId: event.organizer._id,
-            username: event.organizer.username || event.organizer.name,
-            email: event.organizer.email,
-          },
-          participants: event.participants.map((p) => ({
-            userId: p.userId._id,
-            name: p.userId.name || p.userId.username,
-            email: p.userId.email,
-            status: p.status,
-          })),
-          calendar: {
-            id: event.calendarId._id,
-            name: event.calendarId.name,
-            color: event.calendarId.color,
-            isOwn: false, // Đánh dấu đây không phải lịch của mình
-          },
-          workspace: event.workspaceId
-            ? { id: event.workspaceId._id, name: event.workspaceId.name }
-            : null,
-          board: event.boardId
-            ? { id: event.boardId._id, name: event.boardId.name }
-            : null,
-          status: event.status,
-          rrule: event.recurrence
-            ? convertToRRule(event.recurrence)
-            : undefined,
-        },
-      };
-    });
-
-    res.status(200).json({
-      message: 'Lấy danh sách sự kiện tham gia thành công',
-      status: 200,
-      data: fullCalendarEvents,
-    });
-  } catch (error) {
-    console.error('Lỗi khi lấy danh sách sự kiện tham gia:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
@@ -2497,130 +3372,6 @@ exports.sendEventReminder = async (req, res) => {
   }
 };
 
-// Check for event conflicts
-exports.checkEventConflicts = async (req, res) => {
-  try {
-    const { startDate, endDate, boardId, excludeEventId } = req.body;
-    const userId = req.user._id;
-
-    // Validate required fields
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Start date and end date are required',
-      });
-    }
-
-    // Build query to find conflicting events
-    const conflictQuery = {
-      isDeleted: false,
-      $or: [
-        {
-          // Event starts during the proposed time
-          startDate: {
-            $gte: new Date(startDate),
-            $lt: new Date(endDate),
-          },
-        },
-        {
-          // Event ends during the proposed time
-          endDate: {
-            $gt: new Date(startDate),
-            $lte: new Date(endDate),
-          },
-        },
-        {
-          // Event completely overlaps the proposed time
-          startDate: { $lte: new Date(startDate) },
-          endDate: { $gte: new Date(endDate) },
-        },
-      ],
-    };
-
-    // Add board filter if provided
-    if (boardId) {
-      conflictQuery.boardId = boardId;
-    } else {
-      // If no boardId, check user's events
-      conflictQuery.$or.push(
-        { organizer: userId },
-        { 'participants.userId': userId }
-      );
-    }
-
-    // Exclude the current event being edited
-    if (excludeEventId) {
-      conflictQuery._id = { $ne: excludeEventId };
-    }
-
-    // Find conflicting events
-    const conflicts = await Event.find(conflictQuery)
-      .populate('organizer', 'username email')
-      .populate('calendarId', 'name')
-      .populate('boardId', 'name')
-      .sort({ startDate: 1 })
-      .limit(10); // Limit to 10 conflicts
-
-    const hasConflict = conflicts.length > 0;
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        hasConflict,
-        conflicts: conflicts.map((event) => ({
-          _id: event._id,
-          title: event.title,
-          description: event.description,
-          startDate: event.startDate,
-          endDate: event.endDate,
-          organizer: event.organizer,
-          calendar: event.calendarId,
-          board: event.boardId,
-          type: event.type,
-          status: event.status,
-        })),
-        conflictCount: conflicts.length,
-      },
-    });
-  } catch (error) {
-    console.error('Error checking event conflicts:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error checking event conflicts',
-      error: error.message,
-    });
-  }
-};
-
-// Helper function để xác định trạng thái sự kiện dựa trên thời gian
-const determineEventStatus = (startDate, endDate, currentStatus) => {
-  const now = new Date();
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Nếu sự kiện đã được hủy hoặc đã hoàn thành thủ công, giữ nguyên
-  if (currentStatus === 'cancelled') {
-    return currentStatus;
-  }
-
-  // Nếu sự kiện đã kết thúc
-  if (now > end) {
-    return 'completed';
-  }
-
-  // Nếu sự kiện đang diễn ra
-  if (now >= start && now <= end) {
-    return 'in-progress';
-  }
-
-  // Nếu sự kiện chưa bắt đầu
-  if (now < start) {
-    return 'scheduled';
-  }
-
-  return currentStatus;
-};
-
 // Cập nhật trạng thái tất cả sự kiện liên quan đến user dựa trên thời gian
 exports.updateAllUserEventsStatusByTime = async (req, res) => {
   try {
@@ -2869,24 +3620,3 @@ exports.updateEventStatusByTime = async (req, res) => {
     });
   }
 };
-
-// Hàm chuyển đổi recurrence sang RRule
-function convertToRRule(recurrence) {
-  if (!recurrence || !recurrence.type) return null;
-
-  const { type, interval = 1, endDate } = recurrence;
-  const freqMap = {
-    daily: 'DAILY',
-    weekly: 'WEEKLY',
-    monthly: 'MONTHLY',
-    yearly: 'YEARLY',
-  };
-
-  let rrule = `FREQ=${freqMap[type]};INTERVAL=${interval}`;
-  if (endDate) {
-    rrule += `;UNTIL=${
-      new Date(endDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-    }`;
-  }
-  return rrule;
-}
