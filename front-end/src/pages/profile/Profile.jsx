@@ -29,9 +29,8 @@ import {
 } from "react-icons/fa";
 import { useCommon } from "../../contexts/CommonContext";
 import "./profile.css";
-import skills from "./skills.json";
 
-// Initialize Fluent UI MDL2 icons (Word/Excel/PowerPoint)
+// Initialize Fluent UI MDL2 icons
 initializeIcons();
 
 const Profile = () => {
@@ -41,6 +40,9 @@ const Profile = () => {
     uploadImageToCloudinary,
     toast,
     isMobile,
+    skillsList,
+    loadingSkills,
+    skillsError,
   } = useCommon();
 
   const [profile, setProfile] = useState(null);
@@ -52,12 +54,11 @@ const Profile = () => {
     email: "",
     about: "",
     experience: "",
-    skills: [],
+    skills: [], // Array of skill names (strings)
     yearOfExperience: 0,
     availability: { status: "available", willingToJoin: true },
     expectedWorkDuration: { min: 0, max: 0, unit: "hours" },
   });
-
   const [newSkill, setNewSkill] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -65,12 +66,12 @@ const Profile = () => {
     const loadProfile = async () => {
       const user = await fetchUserProfile();
       if (user) {
-        const normalizedSkills = (user.skills || []).map((sk) => {
-          const m = skills.find(
-            (s) => s.name.toLowerCase() === sk.toLowerCase()
-          );
-          return m ? m.name : sk;
-        });
+        // Normalize skills to use skill names (strings) from backend
+        const normalizedSkills = (user.skills || [])
+          .map((skill) =>
+            typeof skill === "string" ? skill : skill?.name || ""
+          )
+          .filter(Boolean); // Remove any undefined/null entries
         setProfile(user);
         setFormData({
           avatar: user.avatar || "",
@@ -95,44 +96,48 @@ const Profile = () => {
     };
     loadProfile();
   }, []);
+  // fetchUserProfile
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name.includes("availability.")) {
       const key = name.split(".")[1];
-      setFormData((p) => ({
-        ...p,
+      setFormData((prev) => ({
+        ...prev,
         availability: {
-          ...p.availability,
+          ...prev.availability,
           [key]: type === "checkbox" ? checked : value,
         },
       }));
     } else if (name.includes("expectedWorkDuration.")) {
       const key = name.split(".")[1];
-      setFormData((p) => ({
-        ...p,
+      setFormData((prev) => ({
+        ...prev,
         expectedWorkDuration: {
-          ...p.expectedWorkDuration,
+          ...prev.expectedWorkDuration,
           [key]: key === "unit" ? value : Number(value),
         },
       }));
     } else {
-      setFormData((p) => ({
-        ...p,
+      setFormData((prev) => ({
+        ...prev,
         [name]: type === "checkbox" ? checked : value,
       }));
     }
   };
 
-  // Filter by name OR tag, and exclude already-selected
-  const filteredSkills = skills.filter(
-    (s) =>
+  // Filter skills, excluding already selected and matching name or tags
+  const filteredSkills = (skillsList || []).filter((s) => {
+    if (!s || !s.name || !s.tags) return false; // Skip invalid skill objects
+    return (
       !formData.skills.some(
         (fs) => fs.toLowerCase() === s.name.toLowerCase()
       ) &&
       (s.name.toLowerCase().includes(newSkill.toLowerCase()) ||
-        s.tags.some((t) => t.toLowerCase().includes(newSkill.toLowerCase())))
-  );
+        (Array.isArray(s.tags) &&
+          s.tags.some((t) => t.toLowerCase().includes(newSkill.toLowerCase()))))
+    );
+  });
 
   const handleSearchChange = (e) => {
     setNewSkill(e.target.value);
@@ -140,13 +145,19 @@ const Profile = () => {
   };
 
   const handleSelectSkill = (skillName) => {
-    setFormData((p) => ({ ...p, skills: [...p.skills, skillName] }));
+    setFormData((prev) => ({
+      ...prev,
+      skills: [...prev.skills, skillName],
+    }));
     setNewSkill("");
     setShowSuggestions(false);
   };
 
   const handleRemoveSkill = (skill) =>
-    setFormData((p) => ({ ...p, skills: p.skills.filter((s) => s !== skill) }));
+    setFormData((prev) => ({
+      ...prev,
+      skills: prev.skills.filter((s) => s !== skill),
+    }));
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -154,7 +165,7 @@ const Profile = () => {
     try {
       const url = await uploadImageToCloudinary(file);
       await updateUserProfile({ avatar: url });
-      setProfile((p) => ({ ...p, avatar: url }));
+      setProfile((prev) => ({ ...prev, avatar: url }));
       toast.success("Avatar updated");
     } catch {
       toast.error("Failed to upload avatar");
@@ -163,15 +174,30 @@ const Profile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const ok = await updateUserProfile(formData);
+    // Map skill names to their corresponding _id values
+    const skillIds = formData.skills
+      .map((skillName) => {
+        const skill = skillsList.find(
+          (s) => s?.name && s.name.toLowerCase() === skillName.toLowerCase()
+        );
+        return skill ? skill._id : null;
+      })
+      .filter((id) => id !== null);
+
+    const updatedFormData = { ...formData, skills: skillIds };
+    const ok = await updateUserProfile(updatedFormData);
     if (ok) {
-      setProfile((p) => ({ ...p, ...formData }));
+      setProfile((prev) => ({
+        ...prev,
+        ...formData,
+        skills: formData.skills.map((name) => ({ name })), // Update profile.skills to match formData
+      }));
       setIsEditing(false);
       toast.success("Profile updated");
     }
   };
 
-  if (!profile) {
+  if (!profile || loadingSkills) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
         <Spinner animation="border" />
@@ -179,7 +205,16 @@ const Profile = () => {
     );
   }
 
+  if (skillsError) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <p>Error loading skills: {skillsError}</p>
+      </div>
+    );
+  }
+
   const renderIcon = (iconKey) => {
+    if (!iconKey) return null;
     if (iconKey.startsWith("devicon:")) {
       return <i className={`${iconKey.replace(":", "-")} colored me-1`} />;
     }
@@ -206,7 +241,7 @@ const Profile = () => {
         <Card.Body className="d-flex align-items-end profile-info">
           <div className="position-relative me-4 profile-avatar">
             <Image
-              src={profile.avatar}
+              src={profile.avatar || "https://via.placeholder.com/120"}
               roundedCircle
               width={120}
               height={120}
@@ -225,7 +260,7 @@ const Profile = () => {
           <div className="flex-grow-1">
             <div className="d-flex justify-content-between align-items-center">
               <div>
-                <h2>{profile.fullname}</h2>
+                <h2>{profile.fullname || "No Name"}</h2>
                 <div className="profile-subinfo">
                   {profile.username && (
                     <Badge bg="secondary" className="me-2">
@@ -249,24 +284,24 @@ const Profile = () => {
             <div className="mt-2">
               <Badge
                 bg={
-                  profile.availability.status === "available"
+                  profile.availability?.status === "available"
                     ? "success"
                     : "danger"
                 }
                 className="me-2"
               >
                 <FaCheckCircle />{" "}
-                {profile.availability.status === "available"
+                {profile.availability?.status === "available"
                   ? "Available"
                   : "Busy"}
               </Badge>
-              {profile.availability.willingToJoin && (
+              {profile.availability?.willingToJoin && (
                 <Badge bg="info" className="me-2">
                   Open to opportunities
                 </Badge>
               )}
               <Badge bg="warning">
-                <FaCalendarAlt /> {profile.yearOfExperience} yrs
+                <FaCalendarAlt /> {profile.yearOfExperience || 0} yrs
               </Badge>
             </div>
           </div>
@@ -296,11 +331,11 @@ const Profile = () => {
             <Card.Header>Work Preferences</Card.Header>
             <Card.Body>
               <p>
-                Duration: {profile.expectedWorkDuration.min}–
-                {profile.expectedWorkDuration.max}{" "}
-                {profile.expectedWorkDuration.unit}
+                Duration: {profile.expectedWorkDuration?.min || 0}–
+                {profile.expectedWorkDuration?.max || 0}{" "}
+                {profile.expectedWorkDuration?.unit || "hours"}
               </p>
-              <p>Status: {profile.availability.status}</p>
+              <p>Status: {profile.availability?.status || "available"}</p>
             </Card.Body>
           </Card>
         </Col>
@@ -308,15 +343,16 @@ const Profile = () => {
           <Card className="profile-card">
             <Card.Header>Skills</Card.Header>
             <Card.Body>
-              {profile.skills.length ? (
+              {profile.skills?.length ? (
                 profile.skills.map((s, i) => {
-                  const m = skills.find(
-                    (sk) => sk.name.toLowerCase() === s.toLowerCase()
+                  const skillObj = skillsList.find(
+                    (sk) =>
+                      sk?.name && sk.name.toLowerCase() === s.name.toLowerCase()
                   );
                   return (
                     <Badge bg="secondary" key={i} className="me-1 mb-1">
-                      {renderIcon(m?.icon || "")}
-                      <span>{m ? m.name : s}</span>
+                      {renderIcon(skillObj?.icon || "")}
+                      <span>{skillObj?.name || s.name}</span>
                     </Badge>
                   );
                 })
@@ -484,18 +520,21 @@ const Profile = () => {
                       <Button
                         variant="outline-secondary"
                         disabled={
-                          !skills.find(
+                          !newSkill.trim() ||
+                          !skillsList.find(
                             (s) =>
+                              s?.name &&
                               s.name.toLowerCase() ===
-                              newSkill.trim().toLowerCase()
+                                newSkill.trim().toLowerCase()
                           )
                         }
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          const match = skills.find(
+                          const match = skillsList.find(
                             (s) =>
+                              s?.name &&
                               s.name.toLowerCase() ===
-                              newSkill.trim().toLowerCase()
+                                newSkill.trim().toLowerCase()
                           );
                           if (match) handleSelectSkill(match.name);
                         }}
@@ -505,18 +544,18 @@ const Profile = () => {
                     </InputGroup>
                     {showSuggestions && filteredSkills.length > 0 && (
                       <div className="skill-search-dropdown">
-                        {filteredSkills.map((s, i) => (
+                        {filteredSkills.map((s) => (
                           <div
-                            key={i}
+                            key={s._id}
                             className="skill-search-item d-flex justify-content-between align-items-center"
                             onMouseDown={() => handleSelectSkill(s.name)}
                           >
                             <div>
-                              {renderIcon(s.icon)}
+                              {renderIcon(s.icon || "")}
                               <span className="ms-1">{s.name}</span>
                             </div>
                             <small className="text-muted">
-                              {s.tags.join(", ")}
+                              {(s.tags || []).join(", ")}
                             </small>
                           </div>
                         ))}
@@ -527,7 +566,7 @@ const Profile = () => {
                     {formData.skills.map((s, i) => (
                       <Badge bg="secondary" key={i} className="me-1 mb-1">
                         {renderIcon(
-                          skills.find((sk) => sk.name === s)?.icon || ""
+                          skillsList.find((sk) => sk?.name === s)?.icon || ""
                         )}
                         {s}{" "}
                         <FaTimes

@@ -1,18 +1,14 @@
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
+const Skill = require("../models/skillModel");
 const AppError = require("../utils/appError");
 
-/**
- * @desc    Get the logged‐in user's own profile
- * @route   GET /users/profile
- * @access  Private
- */
 exports.getProfile = async (req, res, next) => {
   try {
-    // req.user was set by auth.protect
-    const user = await User.findById(req.user._id).select(
-      "-password -passwordResetToken -passwordResetExpires"
-    );
+    const user = await User.findById(req.user._id)
+      .select("-password -passwordResetToken -passwordResetExpires")
+      .populate("skills");
+
     if (!user) {
       return next(new AppError("User not found.", 404));
     }
@@ -48,21 +44,14 @@ exports.getProfile = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update the logged‐in user's own profile
- * @route   PUT /users/update
- * @access  Private
- */
 exports.updateProfile = async (req, res, next) => {
   try {
-    // Prevent password or role updates here
     if (req.body.password || req.body.role) {
       return next(
         new AppError("This route is not for password or role updates.", 400)
       );
     }
 
-    // Filter only allowed fields
     const allowedFields = [
       "fullname",
       "username",
@@ -82,7 +71,6 @@ exports.updateProfile = async (req, res, next) => {
       }
     });
 
-    // If email is changing, ensure it's not already in use
     if (filteredBody.email && filteredBody.email !== req.user.email) {
       const existing = await User.findOne({
         email: filteredBody.email,
@@ -95,7 +83,22 @@ exports.updateProfile = async (req, res, next) => {
       }
     }
 
-    // Validate complex fields
+    if (filteredBody.skills) {
+      if (!Array.isArray(filteredBody.skills)) {
+        return next(new AppError("Skills must be an array of skill IDs.", 400));
+      }
+
+      for (const skillId of filteredBody.skills) {
+        if (!mongoose.Types.ObjectId.isValid(skillId)) {
+          return next(new AppError(`Invalid skill ID: ${skillId}`, 400));
+        }
+        const skill = await Skill.findById(skillId);
+        if (!skill) {
+          return next(new AppError(`Skill not found: ${skillId}`, 404));
+        }
+      }
+    }
+
     if (filteredBody.availability) {
       if (!["available", "busy"].includes(filteredBody.availability.status)) {
         return next(new AppError("Invalid availability status.", 400));
@@ -123,7 +126,6 @@ exports.updateProfile = async (req, res, next) => {
       }
     }
 
-    // Update the user
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
       filteredBody,
@@ -131,7 +133,9 @@ exports.updateProfile = async (req, res, next) => {
         new: true,
         runValidators: true,
       }
-    ).select("-password -passwordResetToken -passwordResetExpires");
+    )
+      .select("-password -passwordResetToken -passwordResetExpires")
+      .populate("skills");
 
     if (!updatedUser) {
       return next(new AppError("User not found.", 404));
@@ -168,11 +172,6 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Change password for the logged‐in user
- * @route   PUT /users/change-password
- * @access  Private
- */
 exports.changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword, passwordConfirm } = req.body;
@@ -181,29 +180,24 @@ exports.changePassword = async (req, res, next) => {
       return next(new AppError("All three fields are required.", 400));
     }
 
-    // Fetch user with password
     const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       return next(new AppError("User not found.", 404));
     }
 
-    // Check if currentPassword is correct
     const isMatch = await user.correctPassword(currentPassword, user.password);
     if (!isMatch) {
       return next(new AppError("Your current password is incorrect.", 401));
     }
 
-    // Check new passwords match
     if (newPassword !== passwordConfirm) {
       return next(new AppError("New passwords do not match.", 400));
     }
 
-    // Update password (pre‐save hook will hash)
     user.password = newPassword;
     user.passwordChangedAt = Date.now();
     await user.save();
 
-    // Send a new JWT
     const token = require("jsonwebtoken").sign(
       { _id: user._id },
       process.env.JWT_SECRET,
@@ -217,11 +211,6 @@ exports.changePassword = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Deactivate (soft‐delete) the logged‐in user's own account
- * @route   DELETE /users/delete-me
- * @access  Private
- */
 exports.deactivateMe = async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user._id, {
@@ -234,11 +223,6 @@ exports.deactivateMe = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Find users by emails (for event participants)
- * @route   POST /users/find-by-emails
- * @access  Private
- */
 exports.findUsersByEmails = async (req, res, next) => {
   try {
     const { emails } = req.body;
@@ -250,7 +234,6 @@ exports.findUsersByEmails = async (req, res, next) => {
       });
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const invalidEmails = emails.filter((email) => !emailRegex.test(email));
 
@@ -261,7 +244,6 @@ exports.findUsersByEmails = async (req, res, next) => {
       });
     }
 
-    // Check if user is trying to invite themselves
     const currentUserEmail = req.user.email;
     const selfInvite = emails.includes(currentUserEmail);
 
@@ -272,7 +254,6 @@ exports.findUsersByEmails = async (req, res, next) => {
       });
     }
 
-    // Find users by emails
     const users = await User.find({
       email: { $in: emails },
       isDeleted: false,
@@ -300,20 +281,16 @@ exports.findUsersByEmails = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get all users (Admin only)
- * @route   GET /users
- * @access  Private (admin only)
- */
 exports.getAllUsers = async (req, res, next) => {
   try {
     if (req.user.role !== "adminSystem") {
       return next(new AppError("Admin access required.", 403));
     }
 
-    const users = await User.find({ isDeleted: false }).select(
-      "-password -passwordResetToken -passwordResetExpires"
-    );
+    const users = await User.find({ isDeleted: false })
+      .select("-password -passwordResetToken -passwordResetExpires")
+      .populate("skills");
+
     res.status(200).json({
       status: "success",
       results: users.length,
@@ -324,6 +301,7 @@ exports.getAllUsers = async (req, res, next) => {
           username: u.username || "",
           email: u.email,
           role: u.role,
+          skills: u.skills || [],
         })),
       },
     });
@@ -332,11 +310,6 @@ exports.getAllUsers = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update a user's role or soft‐delete status (Admin only)
- * @route   PUT /users/:id
- * @access  Private (admin only)
- */
 exports.updateUserById = async (req, res, next) => {
   try {
     if (req.user.role !== "adminSystem") {
@@ -348,7 +321,6 @@ exports.updateUserById = async (req, res, next) => {
       return next(new AppError("Invalid user ID format.", 400));
     }
 
-    // Prevent admins from demoting themselves
     if (
       id === req.user._id.toString() &&
       req.body.role &&
@@ -357,7 +329,6 @@ exports.updateUserById = async (req, res, next) => {
       return next(new AppError("You cannot change your own role.", 400));
     }
 
-    // Only allow updating `role` and `isDeleted`
     const allowedFields = ["role", "isDeleted"];
     const filteredBody = {};
     Object.keys(req.body).forEach((key) => {
@@ -369,7 +340,9 @@ exports.updateUserById = async (req, res, next) => {
     const updatedUser = await User.findByIdAndUpdate(id, filteredBody, {
       new: true,
       runValidators: true,
-    }).select("-password -passwordResetToken -passwordResetExpires");
+    })
+      .select("-password -passwordResetToken -passwordResetExpires")
+      .populate("skills");
 
     if (!updatedUser) {
       return next(new AppError("User not found.", 404));
@@ -385,6 +358,7 @@ exports.updateUserById = async (req, res, next) => {
           email: updatedUser.email,
           role: updatedUser.role,
           isDeleted: updatedUser.isDeleted,
+          skills: updatedUser.skills || [],
         },
       },
     });
@@ -393,11 +367,6 @@ exports.updateUserById = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Delete (hard‐delete) a user by ID (Admin only)
- * @route   DELETE /users/:id
- * @access  Private (admin only)
- */
 exports.deleteUserById = async (req, res, next) => {
   try {
     if (req.user.role !== "adminSystem") {
@@ -427,23 +396,18 @@ exports.deleteUserById = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get user by ID (for Google OAuth callback)
- * @route   GET /users/:id
- * @access  Private
- */
 exports.getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return next(new AppError("Invalid user ID.", 400));
     }
 
-    const user = await User.findById(id).select(
-      "-password -passwordResetToken -passwordResetExpires"
-    );
+    const user = await User.findById(id)
+      .select("-password -passwordResetToken -passwordResetExpires")
+      .populate("skills");
+
     if (!user) {
       return next(new AppError("User not found.", 404));
     }
