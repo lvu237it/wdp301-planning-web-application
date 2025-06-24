@@ -496,23 +496,3 @@ function convertToRRule(recurrence) {
   }
   return rrule;
 }
-
-// function convertToRRule(recurrence) {
-//   if (!recurrence || !recurrence.type) return null;
-
-//   const { type, interval = 1, endDate } = recurrence;
-//   const freqMap = {
-//     daily: 'DAILY',
-//     weekly: 'WEEKLY',
-//     monthly: 'MONTHLY',
-//     yearly: 'YEARLY',
-//   };
-
-//   let rrule = `FREQ=${freqMap[type]};INTERVAL=${interval}`;
-//   if (endDate) {
-//     rrule += `;UNTIL=${
-//       new Date(endDate).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-//     }`;
-//   }
-//   return rrule;
-// }

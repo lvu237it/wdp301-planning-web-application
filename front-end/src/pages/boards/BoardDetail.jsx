@@ -51,7 +51,7 @@ const BoardDetail = () => {
             className='btn-create-workspace btn btn-success'
             onClick={() => navigate(`/board-calendar/${boardId}`)}
           >
-            View on calendar
+            View board's events
           </div>
         </div>
       </div>

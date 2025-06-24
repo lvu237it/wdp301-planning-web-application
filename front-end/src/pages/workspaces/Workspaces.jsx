@@ -126,7 +126,12 @@ const Workspaces = () => {
               // Chuẩn bị data
               const members = Array.isArray(ws.members) ? ws.members : [];
               const totalMembers = members.length;
-              const displayMembers = members.slice(0, 3);
+              console.log('members', members);
+              const acceptedMember = members.filter(
+                (m) => m.invitationStatus === 'accepted'
+              );
+              console.log('acceptedMember', acceptedMember);
+              const displayMembers = acceptedMember.slice(0, 3);
               const moreCount = totalMembers > 3 ? totalMembers - 3 : 0;
               const boardCount = ws.countBoard ?? 0;
               const creatorId = ws.creator?._id || ws.creator;
