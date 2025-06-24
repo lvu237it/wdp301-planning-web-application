@@ -4,6 +4,7 @@ import "../../styles/task.css";
 import { useCommon } from "../../contexts/CommonContext";
 import { Modal, Button, Form, Toast } from "react-bootstrap";
 import ChecklistModal from "./ChecklistModal";
+
 const pad = (n) => n.toString().padStart(2, "0");
 const toDateTimeLocal = (date) => {
   if (!date) return "";
@@ -108,18 +109,26 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     files.forEach((f) => formData.append("files", f));
 
     try {
-      const res = await axios.post(`${apiBaseUrl}/file/upload`, formData, {
-        withCredentials: true,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      // API trả về task mới kèm documents
-      onUpdate(res.data.data);
+     const res = await axios.post(
+       `${apiBaseUrl}/files/upload/task/${task._id}`,
+       formData,
+       {
+           withCredentials: true,
+           headers: {
+             Authorization: `Bearer ${accessToken}`,
+             "Content-Type": "multipart/form-data",
+           },
+         }
+       );
+ 
+       // API trả về Task mới kèm documents
+       onUpdate(res.data.data);
     } catch (err) {
-      console.error("Upload file error:", err);
+      if (err.response?.status === 401 && err.response.data.authUrl) {
+    window.location.href = err.response.data.authUrl;
+    return;
+  }
+  alert('Upload thất bại: ' + (err.response?.data?.message || err.message));
       alert(
         "Upload file thất bại: " + (err.response?.data?.message || err.message)
       );
