@@ -473,16 +473,16 @@ const List = ({ boardId }) => {
                           setMenuOpenId(null);
                         }}
                       >
-                        Create task (quick)
+                        Create task
                       </li>
-                      <li
+                      {/* <li
                         onClick={() => {
                           openTaskModal(list._id);
                           setMenuOpenId(null);
                         }}
                       >
                         Create task (detailed)
-                      </li>
+                      </li> */}
                     </ul>
                   )}
                 </div>
