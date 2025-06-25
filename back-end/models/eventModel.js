@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const moment = require('moment-timezone');
 // Quản lý sự kiện
 const eventSchema = new mongoose.Schema(
   {
@@ -154,6 +155,28 @@ const eventSchema = new mongoose.Schema(
   }
 );
 
+// Pre-save middleware to normalize allDay events
+eventSchema.pre('save', function (next) {
+  if (this.allDay) {
+    const timeZone = this.timeZone || 'Asia/Ho_Chi_Minh';
+
+    // Normalize startDate to beginning of day in Vietnam timezone
+    const startMoment = moment.tz(this.startDate, timeZone).startOf('day');
+    this.startDate = startMoment.toDate();
+
+    // Normalize endDate to end of day in Vietnam timezone
+    const endMoment = moment.tz(this.endDate, timeZone).endOf('day');
+    this.endDate = endMoment.toDate();
+
+    console.log(`📅 Normalized allDay event "${this.title}":`, {
+      startDate: this.startDate,
+      endDate: this.endDate,
+      timeZone: timeZone,
+    });
+  }
+  next();
+});
+
 eventSchema.index({ startDate: 1 });
 eventSchema.index({ organizer: 1 });
 eventSchema.index({ participants: 1 });
@@ -162,4 +185,6 @@ eventSchema.index({ status: 1 });
 eventSchema.index({ category: 1 });
 eventSchema.index({ calendarId: 1 });
 eventSchema.index({ boardId: 1 });
+eventSchema.index({ allDay: 1 }); // Add index for allDay queries
+
 module.exports = mongoose.model('Event', eventSchema);
