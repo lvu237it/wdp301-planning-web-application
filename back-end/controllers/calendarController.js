@@ -408,8 +408,8 @@ exports.getCalendarEvents = async (req, res) => {
 
     // Fetch events
     const events = await Event.find(query)
-      .populate('participants.userId', 'name email')
-      .populate('organizer', 'username email')
+      .populate('participants.userId', 'name email username')
+      .populate('organizer', 'username email name')
       .populate('calendarId', 'name color')
       .populate('workspaceId', 'name')
       .populate('boardId', 'name')
@@ -428,19 +428,19 @@ exports.getCalendarEvents = async (req, res) => {
       extendedProps: {
         description: event.description,
         locationName: event.locationName,
-        address: event.address?.formattedAddress,
+        address: event.address,
         type: event.type,
         onlineUrl: event.onlineUrl,
         meetingCode: event.meetingCode,
         timeZone: event.timeZone,
         organizer: {
           userId: event.organizer._id,
-          username: event.organizer.username,
+          username: event.organizer.username || event.organizer.name,
           email: event.organizer.email,
         },
         participants: event.participants.map((p) => ({
           userId: p.userId._id,
-          name: p.userId.name,
+          name: p.userId.name || p.userId.username,
           email: p.userId.email,
           status: p.status,
         })),
@@ -456,6 +456,7 @@ exports.getCalendarEvents = async (req, res) => {
           ? { id: event.boardId._id, name: event.boardId.name }
           : null,
         status: event.status,
+        category: event.category,
         isOwn: true,
         rrule: event.recurrence ? convertToRRule(event.recurrence) : undefined,
       },

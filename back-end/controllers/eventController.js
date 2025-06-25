@@ -759,8 +759,22 @@ const findAvailableTimeSlots = async (
         },
       },
       $or: [
-        { startDate: { $lte: searchEnd } },
-        { endDate: { $gte: searchStart } },
+        // Sự kiện allDay
+        {
+          allDay: true,
+          startDate: {
+            $gte: searchStart,
+            $lte: searchEnd,
+          },
+        },
+        // Sự kiện không phải allDay
+        {
+          allDay: false,
+          $or: [
+            { startDate: { $lte: searchEnd } },
+            { endDate: { $gte: searchStart } },
+          ],
+        },
       ],
     }).select('startDate endDate allDay');
 
@@ -780,61 +794,70 @@ const findAvailableTimeSlots = async (
     const lastDay = moment.tz(searchEnd, timeZone);
 
     while (currentDay.isSameOrBefore(lastDay, 'day')) {
-      // Buổi sáng: 4:00 - 12:00
-      let morningStart = currentDay.clone().set({ hour: 4, minute: 0 });
-      const morningEnd = currentDay.clone().set({ hour: 12, minute: 0 });
+      // Kiểm tra xem ngày hiện tại có sự kiện allDay nào không
+      const hasAllDayEvent = busySlots.some(
+        (slot) => slot.allDay && currentDay.isSame(slot.start, 'day')
+      );
 
-      // Buổi chiều: 13:00 - 21:00
-      let afternoonStart = currentDay.clone().set({ hour: 13, minute: 0 });
-      const afternoonEnd = currentDay.clone().set({ hour: 21, minute: 0 });
+      if (!hasAllDayEvent) {
+        // Buổi sáng: 4:00 - 12:00
+        let morningStart = currentDay.clone().set({ hour: 4, minute: 0 });
+        const morningEnd = currentDay.clone().set({ hour: 12, minute: 0 });
 
-      // Kiểm tra slots buổi sáng
-      while (
-        morningStart.clone().add(requiredDuration).isSameOrBefore(morningEnd)
-      ) {
-        const slotEnd = morningStart.clone().add(requiredDuration);
-        const isSlotFree = !busySlots.some((busy) => {
-          if (busy.allDay) {
-            return morningStart.isSame(busy.start, 'day');
-          }
-          return morningStart.isBefore(busy.end) && slotEnd.isAfter(busy.start);
-        });
+        // Buổi chiều: 13:00 - 21:00
+        let afternoonStart = currentDay.clone().set({ hour: 13, minute: 0 });
+        const afternoonEnd = currentDay.clone().set({ hour: 21, minute: 0 });
 
-        if (isSlotFree && morningStart.isAfter(moment.tz(timeZone))) {
-          morningSlots.push({
-            startDate: morningStart.toDate(),
-            endDate: slotEnd.toDate(),
-            period: 'morning',
+        // Kiểm tra slots buổi sáng
+        while (
+          morningStart.clone().add(requiredDuration).isSameOrBefore(morningEnd)
+        ) {
+          const slotEnd = morningStart.clone().add(requiredDuration);
+          const isSlotFree = !busySlots.some((busy) => {
+            if (busy.allDay) {
+              return morningStart.isSame(busy.start, 'day');
+            }
+            return (
+              morningStart.isBefore(busy.end) && slotEnd.isAfter(busy.start)
+            );
           });
-        }
-        morningStart.add(30, 'minutes');
-      }
 
-      // Kiểm tra slots buổi chiều
-      while (
-        afternoonStart
-          .clone()
-          .add(requiredDuration)
-          .isSameOrBefore(afternoonEnd)
-      ) {
-        const slotEnd = afternoonStart.clone().add(requiredDuration);
-        const isSlotFree = !busySlots.some((busy) => {
-          if (busy.allDay) {
-            return afternoonStart.isSame(busy.start, 'day');
+          if (isSlotFree && morningStart.isAfter(moment.tz(timeZone))) {
+            morningSlots.push({
+              startDate: morningStart.toDate(),
+              endDate: slotEnd.toDate(),
+              period: 'morning',
+            });
           }
-          return (
-            afternoonStart.isBefore(busy.end) && slotEnd.isAfter(busy.start)
-          );
-        });
-
-        if (isSlotFree && afternoonStart.isAfter(moment.tz(timeZone))) {
-          afternoonSlots.push({
-            startDate: afternoonStart.toDate(),
-            endDate: slotEnd.toDate(),
-            period: 'afternoon',
-          });
+          morningStart.add(30, 'minutes');
         }
-        afternoonStart.add(30, 'minutes');
+
+        // Kiểm tra slots buổi chiều
+        while (
+          afternoonStart
+            .clone()
+            .add(requiredDuration)
+            .isSameOrBefore(afternoonEnd)
+        ) {
+          const slotEnd = afternoonStart.clone().add(requiredDuration);
+          const isSlotFree = !busySlots.some((busy) => {
+            if (busy.allDay) {
+              return afternoonStart.isSame(busy.start, 'day');
+            }
+            return (
+              afternoonStart.isBefore(busy.end) && slotEnd.isAfter(busy.start)
+            );
+          });
+
+          if (isSlotFree && afternoonStart.isAfter(moment.tz(timeZone))) {
+            afternoonSlots.push({
+              startDate: afternoonStart.toDate(),
+              endDate: slotEnd.toDate(),
+              period: 'afternoon',
+            });
+          }
+          afternoonStart.add(30, 'minutes');
+        }
       }
 
       currentDay.add(1, 'day');
@@ -901,6 +924,8 @@ exports.findAvailableTimeSlots = async (req, res) => {
       duration,
       timeZone
     );
+
+    console.log('availableSlots', availableSlots);
 
     res.status(200).json({
       message: 'Successfully found available time slots',
@@ -1110,14 +1135,16 @@ exports.createEventForCalendar = async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    if (start < now) {
+    console.log('allDay', allDay);
+
+    if (!allDay && start < now) {
       return res.status(400).json({
         message: 'Thời gian bắt đầu không được chọn trong quá khứ',
         status: 400,
       });
     }
 
-    if (end < now) {
+    if (!allDay && end < now) {
       return res.status(400).json({
         message: 'Thời gian kết thúc không được chọn trong quá khứ',
         status: 400,
@@ -1134,108 +1161,200 @@ exports.createEventForCalendar = async (req, res) => {
     // Kiểm tra xung đột thời gian
     if (!forceCreate) {
       try {
-        let conflictQuery;
+        let allConflictingEvents = [];
+
+        // BƯỚC 1: Chuẩn hóa thời gian cho sự kiện mới
+        const moment = require('moment-timezone');
+        const timeZone = 'Asia/Ho_Chi_Minh';
+
+        let newEventStart, newEventEnd;
 
         if (allDay) {
-          const dayStart = new Date(start);
-          dayStart.setHours(0, 0, 0, 0);
-          const dayEnd = new Date(start);
-          dayEnd.setHours(23, 59, 59, 999);
-
-          conflictQuery = {
-            isDeleted: false,
-            status: { $nin: ['completed', 'cancelled'] },
-            participants: {
-              $elemMatch: {
-                userId: organizer,
-                status: 'accepted',
-              },
-            },
-            $or: [
-              {
-                allDay: true,
-                $expr: {
-                  $eq: [
-                    {
-                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
-                    },
-                    { $dateToString: { format: '%Y-%m-%d', date: start } },
-                  ],
-                },
-              },
-              {
-                allDay: { $ne: true },
-                $and: [
-                  { startDate: { $lte: dayEnd } },
-                  { endDate: { $gte: dayStart } },
-                ],
-              },
-            ],
-          };
+          // Đối với allDay events, chuẩn hóa về đầu và cuối ngày
+          newEventStart = moment.tz(start, timeZone).startOf('day').toDate();
+          newEventEnd = moment.tz(end, timeZone).endOf('day').toDate();
         } else {
-          const startDay = new Date(start);
-          startDay.setHours(0, 0, 0, 0);
-          const startDayEnd = new Date(start);
-          startDayEnd.setHours(23, 59, 59, 999);
-
-          const endDay = new Date(end);
-          endDay.setHours(0, 0, 0, 0);
-          const endDayEnd = new Date(end);
-          endDayEnd.setHours(23, 59, 59, 999);
-
-          conflictQuery = {
-            isDeleted: false,
-            status: { $nin: ['completed', 'cancelled'] },
-            participants: {
-              $elemMatch: {
-                userId: organizer,
-                status: 'accepted',
-              },
-            },
-            $or: [
-              {
-                allDay: true,
-                $or: [
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        { $dateToString: { format: '%Y-%m-%d', date: start } },
-                      ],
-                    },
-                  },
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        { $dateToString: { format: '%Y-%m-%d', date: end } },
-                      ],
-                    },
-                  },
-                ],
-              },
-              {
-                allDay: { $ne: true },
-                startDate: { $lt: end },
-                endDate: { $gt: start },
-              },
-            ],
-          };
+          // Đối với normal events, giữ nguyên thời gian nhưng đảm bảo timezone
+          newEventStart = moment.tz(start, timeZone).toDate();
+          newEventEnd = moment.tz(end, timeZone).toDate();
         }
 
-        const conflictingEvents = await Event.find(conflictQuery)
-          .populate('calendarId', 'name')
-          .select('title startDate endDate calendarId allDay');
+        console.log('🔍 NEW EVENT - Normalized times:', {
+          allDay,
+          originalStart: start,
+          originalEnd: end,
+          normalizedStart: newEventStart,
+          normalizedEnd: newEventEnd,
+        });
+
+        // BƯỚC 2: Ưu tiên check sự kiện allDay trước
+        if (allDay) {
+          // Nếu sự kiện mới là allDay, tìm tất cả allDay events trong cùng ngày
+          const dayString = moment
+            .tz(newEventStart, timeZone)
+            .format('YYYY-MM-DD');
+
+          const allDayConflictQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            allDay: true,
+            $expr: {
+              $eq: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$startDate',
+                    timezone: timeZone,
+                  },
+                },
+                dayString,
+              ],
+            },
+          };
+
+          console.log('🔍 AllDay vs AllDay conflict query for day', dayString);
+
+          const allDayConflicts = await Event.find(allDayConflictQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...allDayConflicts);
+
+          // Tìm normal events overlap với ngày allDay này
+          const normalVsAllDayQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            allDay: { $ne: true },
+            $and: [
+              { startDate: { $lte: newEventEnd } },
+              { endDate: { $gte: newEventStart } },
+            ],
+          };
+
+          console.log('🔍 Normal vs AllDay conflict query for day', dayString);
+
+          const normalConflicts = await Event.find(normalVsAllDayQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...normalConflicts);
+        } else {
+          // Nếu sự kiện mới là normal event
+
+          // Tìm allDay events trong các ngày liên quan
+          const startDay = moment
+            .tz(newEventStart, timeZone)
+            .format('YYYY-MM-DD');
+          const endDay = moment.tz(newEventEnd, timeZone).format('YYYY-MM-DD');
+
+          // Tạo danh sách ngày để check
+          const dayStrings = [];
+          const currentMoment = moment
+            .tz(newEventStart, timeZone)
+            .startOf('day');
+          const endMoment = moment.tz(newEventEnd, timeZone).startOf('day');
+
+          while (currentMoment.isSameOrBefore(endMoment, 'day')) {
+            dayStrings.push(currentMoment.format('YYYY-MM-DD'));
+            currentMoment.add(1, 'day');
+          }
+
+          console.log('🔍 Checking allDay conflicts for days:', dayStrings);
+
+          const allDayVsNormalQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            allDay: true,
+            $expr: {
+              $in: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$startDate',
+                    timezone: timeZone,
+                  },
+                },
+                dayStrings,
+              ],
+            },
+          };
+
+          const allDayConflicts = await Event.find(allDayVsNormalQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...allDayConflicts);
+
+          // Tìm normal events overlap về thời gian
+          const normalVsNormalQuery = {
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: organizer,
+                status: 'accepted',
+              },
+            },
+            allDay: { $ne: true },
+            startDate: { $lt: newEventEnd },
+            endDate: { $gt: newEventStart },
+          };
+
+          console.log('🔍 Normal vs Normal conflict query');
+
+          const normalConflicts = await Event.find(normalVsNormalQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...normalConflicts);
+        }
+
+        // Loại bỏ duplicate events
+        const conflictingEvents = allConflictingEvents.filter(
+          (event, index, self) =>
+            index ===
+            self.findIndex((e) => e._id.toString() === event._id.toString())
+        );
+
+        console.log('CREATE EVENT - Checking conflict for:', {
+          organizer,
+          allDay,
+          startDate: newEventStart,
+          endDate: newEventEnd,
+        });
+        console.log(
+          'CREATE EVENT - Found conflicting events:',
+          conflictingEvents.length
+        );
+        if (conflictingEvents.length > 0) {
+          console.log(
+            'CREATE EVENT - Conflicting events details:',
+            conflictingEvents.map((e) => ({
+              title: e.title,
+              allDay: e.allDay,
+              startDate: e.startDate,
+              endDate: e.endDate,
+            }))
+          );
+        }
 
         if (conflictingEvents.length > 0) {
           const conflictDetails = conflictingEvents.map((conflictEvent) => ({
@@ -1248,27 +1367,16 @@ exports.createEventForCalendar = async (req, res) => {
 
           // Trả về dữ liệu để frontend hiển thị modal xung đột
           return res.status(409).json({
-            message: 'Xung đột lịch trình được phát hiện',
+            message:
+              'You have an appointment within this time frame, so please consider carefully.',
             status: 409,
             hasConflict: true,
             conflictingEvents: conflictDetails,
             newEvent: {
               title,
-              description,
-              address,
-              type,
-              startDate,
-              endDate,
-              recurrence,
-              timeZone,
-              workspaceId,
-              boardId,
-              reminderSettings,
-              status,
-              category,
-              color,
+              startDate: newEventStart,
+              endDate: newEventEnd,
               allDay,
-              participantEmails,
             },
           });
         }
@@ -1330,9 +1438,9 @@ exports.createEventForCalendar = async (req, res) => {
       try {
         const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
         if (!meetUrl) {
-          console.warn(
-            'Không thể tạo Meet link, tiếp tục tạo event mà không có link'
-          );
+          console.warn('Không thể tạo Meet link, sử dụng fallback link');
+          // Fallback: tạo link Meet thủ công hoặc để trống để user tự thêm
+          newEvent.onlineUrl = null; // User có thể thêm link sau
         } else {
           newEvent.onlineUrl = meetUrl;
           console.log('Meeting created:', meetUrl);
@@ -1346,6 +1454,8 @@ exports.createEventForCalendar = async (req, res) => {
           'Tạo event mà không có Meet link do lỗi:',
           meetError.message
         );
+        // Fallback: để null để user có thể thêm link sau
+        newEvent.onlineUrl = null;
       }
     }
 
@@ -1385,7 +1495,7 @@ exports.createEventForCalendar = async (req, res) => {
       })),
     });
 
-    // Gửi thông báo
+    // Gửi thông báo cho những người được mời tham gia sự kiện (ngoại trừ organizer)
     const participantsToNotify = savedEvent.participants.filter(
       (p) => p.userId.toString() !== organizer.toString()
     );
@@ -1579,32 +1689,64 @@ function convertToRRule(recurrence) {
 }
 
 // Helper function để xác định trạng thái sự kiện dựa trên thời gian
-const determineEventStatus = (startDate, endDate, currentStatus) => {
+const determineEventStatus = (
+  startDate,
+  endDate,
+  currentStatus,
+  isAllDay = false
+) => {
   const now = new Date();
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  // Nếu sự kiện đã được hủy hoặc đã hoàn thành thủ công, giữ nguyên
+  // Nếu sự kiện đã được hủy, giữ nguyên
   if (currentStatus === 'cancelled') {
     return currentStatus;
   }
 
-  // Nếu sự kiện đã kết thúc
-  if (now > end) {
-    return 'completed';
-  }
+  if (isAllDay) {
+    // Với sự kiện allDay, chỉ so sánh theo ngày
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  // Nếu sự kiện đang diễn ra
-  if (now >= start && now <= end) {
-    return 'in-progress';
-  }
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
 
-  // Nếu sự kiện chưa bắt đầu
-  if (now < start) {
-    return 'scheduled';
-  }
+    const endDay = new Date(end);
+    endDay.setHours(23, 59, 59, 999);
 
-  return currentStatus;
+    // Nếu ngày hiện tại đã qua ngày kết thúc
+    if (today > endDay) {
+      return 'completed';
+    }
+
+    // Nếu ngày hiện tại nằm trong khoảng sự kiện
+    if (today >= startDay && today <= endDay) {
+      return 'in-progress';
+    }
+
+    // Nếu ngày hiện tại chưa tới ngày bắt đầu
+    if (today < startDay) {
+      return 'scheduled';
+    }
+  } else {
+    // Xử lý cho sự kiện không phải allDay (giữ nguyên logic cũ)
+    if (now > end) {
+      return 'completed';
+    }
+
+    // Nếu sự kiện đang diễn ra
+    if (now >= start && now <= end) {
+      return 'in-progress';
+    }
+
+    // Nếu sự kiện chưa bắt đầu
+    if (now < start) {
+      return 'scheduled';
+    }
+
+    return currentStatus;
+  }
 };
 
 // Lấy tất cả sự kiện mà user đã chấp nhận tham gia từ lịch của người khác
@@ -1664,10 +1806,10 @@ exports.getParticipatedEvents = async (req, res) => {
         extendedProps: {
           description: event.description,
           locationName: event.locationName,
-          address: event.address,
+          address: event.address, // Trả về toàn bộ address object
           type: event.type,
-          onlineUrl: event.onlineUrl,
-          meetingCode: event.meetingCode,
+          onlineUrl: event.onlineUrl, // Đảm bảo onlineUrl được trả về
+          meetingCode: event.meetingCode, // Đảm bảo meetingCode được trả về
           timeZone: event.timeZone,
           organizer: {
             userId: event.organizer._id,
@@ -1693,6 +1835,8 @@ exports.getParticipatedEvents = async (req, res) => {
             ? { id: event.boardId._id, name: event.boardId.name }
             : null,
           status: event.status,
+          category: event.category,
+          isOwn: false, // Đánh dấu đây không phải sự kiện của mình
           rrule: event.recurrence
             ? convertToRRule(event.recurrence)
             : undefined,
@@ -1891,14 +2035,15 @@ exports.getAllEvents = async (req, res) => {
       isDeleted: false,
       // 'participants.status': { $ne: 'declined' }, // Lọc những sự kiện mà người dùng đã không từ chối
     })
-      .populate('participants.userId', 'name email') // Chỉ lấy name và email của người tham gia
+      .populate('participants.userId', 'name email username') // Thêm username
+      .populate('organizer', 'name email username') // Populate organizer đầy đủ
       .populate('calendarId', 'name color') // Chỉ lấy name và color của lịch
       .populate('workspaceId', 'name') // Chỉ lấy name của workspace
       .populate('boardId', 'name'); // Chỉ lấy name của board
     // Chuyển đổi dữ liệu cho FullCalendar
     const fullCalendarEvents = events.map((event) => {
       const organizerFound = event.participants.find(
-        (p) => p.userId._id.toString() === event.organizer.toString()
+        (p) => p.userId._id.toString() === event.organizer._id.toString()
       );
       return {
         id: event._id.toString(),
@@ -1911,18 +2056,19 @@ exports.getAllEvents = async (req, res) => {
         extendedProps: {
           description: event.description,
           locationName: event.locationName,
-          address: event.address,
+          address: event.address, // Trả về toàn bộ address object
           type: event.type,
-          onlineUrl: event.onlineUrl,
-          meetingCode: event.meetingCode,
+          onlineUrl: event.onlineUrl, // Đảm bảo onlineUrl được trả về
+          meetingCode: event.meetingCode, // Đảm bảo meetingCode được trả về
+          timeZone: event.timeZone,
           organizer: {
             userId: event.organizer._id,
-            name: organizerFound.userId.name,
-            email: organizerFound.userId.email,
+            name: event.organizer.name || event.organizer.username,
+            email: event.organizer.email,
           },
           participants: event.participants.map((p) => ({
             userId: p.userId._id,
-            name: p.userId.name,
+            name: p.userId.name || p.userId.username,
             email: p.userId.email,
             status: p.status,
           })),
@@ -1943,6 +2089,8 @@ exports.getAllEvents = async (req, res) => {
                 name: event.boardId.name,
               }
             : null,
+          status: event.status,
+          category: event.category,
         },
       };
     });
@@ -1978,6 +2126,8 @@ exports.updateEvent = async (req, res) => {
       category,
       color,
       participantEmails,
+      onlineUrl,
+      meetingCode,
     } = req.body;
 
     //Cho phép cập nhật 1 số trường có thể thay đổi nhiều, không bao gồm participants, organizer, calendarId, workspaceId, boardId
@@ -2014,23 +2164,23 @@ exports.updateEvent = async (req, res) => {
     console.log('type onlineofline', type);
     //Nếu sự kiện online thì có thể cập nhật onlineUrl hoặc meetingCode
     if (type === 'online') {
-      // if (!onlineUrl && !meetingCode) {
-      //   return res.status(400).json({
-      //     message: 'Thiếu onlineUrl hoặc meetingCode cho sự kiện trực tuyến',
-      //     status: 400,
-      //   });
-      // }
       event.type = 'online'; // Đặt type là online
-      // if (onlineUrl) {
-      //   event.onlineUrl = onlineUrl;
-      // }
-      // if (meetingCode) {
-      //   event.meetingCode = meetingCode;
-      // }
       event.address = null; // Đặt address là null nếu là sự kiện online
 
-      //Nếu sự kiện online nhưng chưa có onlineUrl thì cần tạo một Meet link mới
-      if (!event.onlineUrl) {
+      // Cập nhật onlineUrl nếu được cung cấp từ frontend
+      if (onlineUrl !== undefined) {
+        event.onlineUrl = onlineUrl;
+        console.log('OnlineUrl updated from frontend:', onlineUrl);
+      }
+
+      // Cập nhật meetingCode nếu được cung cấp từ frontend
+      if (meetingCode !== undefined) {
+        event.meetingCode = meetingCode;
+        console.log('MeetingCode updated from frontend:', meetingCode);
+      }
+
+      //Nếu sự kiện online nhưng chưa có onlineUrl và không được cung cấp từ frontend
+      if (!event.onlineUrl && onlineUrl === undefined) {
         try {
           const meetUrl = await createMeetSpace(req, 'meet', MEET_SCOPES);
           if (!meetUrl) {
@@ -2695,66 +2845,46 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
     // Kiểm tra xung đột thời gian khi chấp nhận sự kiện
     if (status === 'accepted' && !forceAccept) {
       try {
-        let conflictQuery;
+        let allConflictingEvents = [];
+
+        // BƯỚC 1: Chuẩn hóa thời gian cho sự kiện hiện tại
+        const moment = require('moment-timezone');
+        const timeZone = 'Asia/Ho_Chi_Minh';
+
+        let currentEventStart, currentEventEnd;
 
         if (event.allDay) {
-          // Nếu sự kiện hiện tại là allDay, check xem trong ngày đó có sự kiện nào khác không
-          const dayStart = new Date(event.startDate);
-          dayStart.setHours(0, 0, 0, 0);
-          const dayEnd = new Date(event.startDate);
-          dayEnd.setHours(23, 59, 59, 999);
-
-          conflictQuery = {
-            _id: { $ne: event._id },
-            isDeleted: false,
-            status: { $nin: ['completed', 'cancelled'] },
-            participants: {
-              $elemMatch: {
-                userId: userId,
-                status: 'accepted',
-              },
-            },
-            $or: [
-              // Case 1: Sự kiện khác cũng là allDay và cùng ngày
-              {
-                allDay: true,
-                $expr: {
-                  $eq: [
-                    {
-                      $dateToString: { format: '%Y-%m-%d', date: '$startDate' },
-                    },
-                    {
-                      $dateToString: {
-                        format: '%Y-%m-%d',
-                        date: event.startDate,
-                      },
-                    },
-                  ],
-                },
-              },
-              // Case 2: Sự kiện khác không phải allDay nhưng có overlap với ngày này
-              {
-                allDay: { $ne: true },
-                $and: [
-                  { startDate: { $lte: dayEnd } },
-                  { endDate: { $gte: dayStart } },
-                ],
-              },
-            ],
-          };
+          // Đối với allDay events, chuẩn hóa về đầu và cuối ngày
+          currentEventStart = moment
+            .tz(event.startDate, timeZone)
+            .startOf('day')
+            .toDate();
+          currentEventEnd = moment
+            .tz(event.endDate, timeZone)
+            .endOf('day')
+            .toDate();
         } else {
-          // Nếu sự kiện hiện tại không phải allDay, check overlap với tất cả sự kiện
-          const startDay = new Date(event.startDate);
-          startDay.setHours(0, 0, 0, 0);
-          const startDayEnd = new Date(event.startDate);
-          startDayEnd.setHours(23, 59, 59, 999);
+          // Đối với normal events, giữ nguyên thời gian nhưng đảm bảo timezone
+          currentEventStart = moment.tz(event.startDate, timeZone).toDate();
+          currentEventEnd = moment.tz(event.endDate, timeZone).toDate();
+        }
 
-          const endDay = new Date(event.endDate);
-          endDay.setHours(0, 0, 0, 0);
-          const endDayEnd = new Date(event.endDate);
-          endDayEnd.setHours(23, 59, 59, 999);
+        console.log('🔍 ACCEPT EVENT - Normalized times:', {
+          allDay: event.allDay,
+          originalStart: event.startDate,
+          originalEnd: event.endDate,
+          normalizedStart: currentEventStart,
+          normalizedEnd: currentEventEnd,
+        });
 
-          conflictQuery = {
+        // BƯỚC 2: Ưu tiên check sự kiện allDay trước
+        if (event.allDay) {
+          // Nếu sự kiện hiện tại là allDay, tìm tất cả allDay events trong cùng ngày
+          const dayString = moment
+            .tz(currentEventStart, timeZone)
+            .format('YYYY-MM-DD');
+
+          const allDayConflictQuery = {
             _id: { $ne: event._id },
             isDeleted: false,
             status: { $nin: ['completed', 'cancelled'] },
@@ -2764,79 +2894,160 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
                 status: 'accepted',
               },
             },
-            $or: [
-              // Case 1: Sự kiện khác là allDay và overlap với ngày của sự kiện hiện tại
-              {
-                allDay: true,
-                $or: [
-                  // AllDay event trong ngày bắt đầu của sự kiện hiện tại
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: event.startDate,
-                          },
-                        },
-                      ],
-                    },
+            allDay: true,
+            $expr: {
+              $eq: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$startDate',
+                    timezone: timeZone,
                   },
-                  // AllDay event trong ngày kết thúc của sự kiện hiện tại (nếu khác ngày bắt đầu)
-                  {
-                    $expr: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: '$startDate',
-                          },
-                        },
-                        {
-                          $dateToString: {
-                            format: '%Y-%m-%d',
-                            date: event.endDate,
-                          },
-                        },
-                      ],
-                    },
-                  },
-                ],
+                },
+                dayString,
+              ],
+            },
+          };
+
+          console.log(
+            '🔍 ACCEPT - AllDay vs AllDay conflict query for day',
+            dayString
+          );
+
+          const allDayConflicts = await Event.find(allDayConflictQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...allDayConflicts);
+
+          // Tìm normal events overlap với ngày allDay này
+          const normalVsAllDayQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
               },
-              // Case 2: Sự kiện khác không phải allDay và có overlap time
-              {
-                allDay: { $ne: true },
-                startDate: { $lt: event.endDate },
-                endDate: { $gt: event.startDate },
-              },
+            },
+            allDay: { $ne: true },
+            $and: [
+              { startDate: { $lte: currentEventEnd } },
+              { endDate: { $gte: currentEventStart } },
             ],
           };
+
+          console.log(
+            '🔍 ACCEPT - Normal vs AllDay conflict query for day',
+            dayString
+          );
+
+          const normalConflicts = await Event.find(normalVsAllDayQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...normalConflicts);
+        } else {
+          // Nếu sự kiện hiện tại là normal event
+
+          // Tìm allDay events trong các ngày liên quan
+          const startDay = moment
+            .tz(currentEventStart, timeZone)
+            .format('YYYY-MM-DD');
+          const endDay = moment
+            .tz(currentEventEnd, timeZone)
+            .format('YYYY-MM-DD');
+
+          // Tạo danh sách ngày để check
+          const dayStrings = [];
+          const currentMoment = moment
+            .tz(currentEventStart, timeZone)
+            .startOf('day');
+          const endMoment = moment.tz(currentEventEnd, timeZone).startOf('day');
+
+          while (currentMoment.isSameOrBefore(endMoment, 'day')) {
+            dayStrings.push(currentMoment.format('YYYY-MM-DD'));
+            currentMoment.add(1, 'day');
+          }
+
+          console.log(
+            '🔍 ACCEPT - Checking allDay conflicts for days:',
+            dayStrings
+          );
+
+          const allDayVsNormalQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
+            },
+            allDay: true,
+            $expr: {
+              $in: [
+                {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$startDate',
+                    timezone: timeZone,
+                  },
+                },
+                dayStrings,
+              ],
+            },
+          };
+
+          const allDayConflicts = await Event.find(allDayVsNormalQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...allDayConflicts);
+
+          // Tìm normal events overlap về thời gian
+          const normalVsNormalQuery = {
+            _id: { $ne: event._id },
+            isDeleted: false,
+            status: { $nin: ['completed', 'cancelled'] },
+            participants: {
+              $elemMatch: {
+                userId: userId,
+                status: 'accepted',
+              },
+            },
+            allDay: { $ne: true },
+            startDate: { $lt: currentEventEnd },
+            endDate: { $gt: currentEventStart },
+          };
+
+          console.log('🔍 ACCEPT - Normal vs Normal conflict query');
+
+          const normalConflicts = await Event.find(normalVsNormalQuery)
+            .populate('calendarId', 'name')
+            .select('title startDate endDate calendarId allDay');
+
+          allConflictingEvents.push(...normalConflicts);
         }
+
+        // Loại bỏ duplicate events
+        const conflictingEvents = allConflictingEvents.filter(
+          (event, index, self) =>
+            index ===
+            self.findIndex((e) => e._id.toString() === event._id.toString())
+        );
 
         console.log('ACCEPT EVENT - Checking conflict for:', {
           userId,
           currentEvent: {
             id: event._id,
             allDay: event.allDay,
-            startDate: event.startDate,
-            endDate: event.endDate,
+            startDate: currentEventStart,
+            endDate: currentEventEnd,
           },
         });
-        console.log(
-          'ACCEPT EVENT - Conflict query:',
-          JSON.stringify(conflictQuery, null, 2)
-        );
-
-        const conflictingEvents = await Event.find(conflictQuery)
-          .populate('calendarId', 'name')
-          .select('title startDate endDate calendarId allDay');
-
         console.log(
           'ACCEPT EVENT - Found conflicting events:',
           conflictingEvents.length
@@ -2861,8 +3072,6 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
             startDate: conflictEvent.startDate,
             endDate: conflictEvent.endDate,
             allDay: conflictEvent.allDay,
-            // calendarName:
-            //   conflictEvent.calendarId?.name || 'Lịch không xác định',
           }));
 
           return res.status(409).json({
@@ -2874,8 +3083,8 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
             currentEvent: {
               id: event._id,
               title: event.title,
-              startDate: event.startDate,
-              endDate: event.endDate,
+              startDate: currentEventStart,
+              endDate: currentEventEnd,
               allDay: event.allDay,
             },
           });
@@ -2887,13 +3096,24 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
     }
 
     // Cập nhật trạng thái người tham gia
+    const oldStatus = event.participants[participantIndex].status;
     event.participants[participantIndex].status = status;
     await event.save();
+
+    console.log(`✅ Updated participant status:`, {
+      eventId: event._id,
+      userId: userId,
+      oldStatus,
+      newStatus: status,
+      forceAccept: forceAccept || false,
+    });
 
     //Ghi lịch sử sự kiện, kèm theo cả status của mỗi người tham gia
     await EventHistory.create({
       eventId: event._id,
-      action: 'update_participant_status',
+      action: forceAccept
+        ? 'update_participant_status_with_conflict'
+        : 'update_participant_status',
       participants: [
         { userId: event.participants[participantIndex].userId, status },
       ],
@@ -3561,7 +3781,8 @@ exports.updateEventStatusByTime = async (req, res) => {
     const newStatus = determineEventStatus(
       event.startDate,
       event.endDate,
-      event.status
+      event.status,
+      event.allDay
     );
 
     let updated = false;

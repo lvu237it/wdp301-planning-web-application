@@ -8,7 +8,11 @@ import {
   getSocket,
   disconnectSocket,
 } from '../utils/socketClient';
-import { formatDateAMPMForVN } from '../utils/dateUtils';
+import {
+  formatDateAMPMForVN,
+  formatDateForNotification,
+  formatDateShortForVN,
+} from '../utils/dateUtils';
 
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
@@ -677,8 +681,42 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200) {
+        console.log('✅ Event invitation response successful:', {
+          eventId,
+          status,
+          notificationId,
+        });
+
+        // Cập nhật local state ngay lập tức để UI phản hồi nhanh
+        setNotifications((prevNotifications) =>
+          prevNotifications.map((notif) => {
+            if (
+              notif.notificationId === notificationId &&
+              notif.type === 'event_invitation'
+            ) {
+              console.log('🔄 Updating notification state locally:', {
+                notificationId,
+                oldStatus: notif.responseStatus,
+                newStatus: status,
+              });
+              return {
+                ...notif,
+                responseStatus: status,
+                responded: true,
+              };
+            }
+            return notif;
+          })
+        );
+
         // Mark notification as read
         await markNotificationAsRead(notificationId);
+
+        // Refresh notifications sau khi cập nhật local state để đảm bảo đồng bộ
+        setTimeout(() => {
+          console.log('🔄 Refreshing notifications after response');
+          fetchNotifications(true);
+        }, 1000);
 
         // Không hiển thị toast ở đây nữa, để Header.jsx handle
         return { success: true };
@@ -1792,6 +1830,8 @@ export const Common = ({ children }) => {
         updateAllUserEventsStatusByTime,
         updateEventStatusByTime,
         formatDateAMPMForVN,
+        formatDateForNotification,
+        formatDateShortForVN,
         workspaces,
         createWorkspace,
         closeWorkspace,
