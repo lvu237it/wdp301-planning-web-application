@@ -63,9 +63,17 @@
 /* Các nút action */
 .task-modal-actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  gap: 8px;              /* Khoảng cách giữa các button */
+  align-items: center;
+}
+.task-modal-actions .btn-action,
+.task-modal-actions .icon-btn {
+  flex-shrink: 0;                /* Không bị co lại */
+  min-width: 120px;              /* Bạn có thể điều chỉnh 120px cho vừa mắt */
+  padding: 0.375rem 0.75rem;     /* Giữ padding chuẩn bootstrap */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-action {
   display: flex;
@@ -128,6 +136,8 @@
   border-radius: 3px;
   cursor: pointer;
   font-size: 0.9rem;
+  white-space: nowrap;
+  flex-shrink: 0; 
 }
 .due-badge.overdue {
   background: #FCEBEA;

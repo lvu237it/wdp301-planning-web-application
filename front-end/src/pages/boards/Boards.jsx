@@ -1,157 +1,307 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCommon } from '../../contexts/CommonContext';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Breadcrumb } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
 import {
-	Container,
-	Row,
-	Col,
-	Card,
-	Button,
-	Spinner,
-	Alert,
-	Image,
+  Container,
+  Breadcrumb,
+  Row,
+  Col,
+  Card,
+  Button,
+  Spinner,
+  Alert,
+  Image,
+  Badge,
 } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import { MdPerson, MdChecklist } from 'react-icons/md';
+import CreateBoardModal from './CreateBoardModal';
+import UpdateBoardModal from './UpdateBoardModal';
+import InviteBoardModal from './InviteBoardModal';
+import { FaTrash } from 'react-icons/fa';
 
 const Boards = () => {
-	const { workspaceId } = useParams();
-	const navigate = useNavigate();
-	const {
-		boards,
-		loadingBoards,
-		boardsError,
-		fetchBoards,
-		setCurrentWorkspaceId,
-	} = useCommon();
+  const { workspaceId } = useParams();
+  const navigate = useNavigate();
+  const {
+    boards,
+    loadingBoards,
+    boardsError,
+    fetchBoards,
+    setCurrentWorkspaceId,
+    workspaces,
+    closeBoard,
+    deleteBoard,
+  } = useCommon();
 
-	useEffect(() => {
-		fetchBoards(workspaceId);
-		setCurrentWorkspaceId(workspaceId);
-	}, [workspaceId]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingBoard, setEditingBoard] = useState(null);
+  const [inviteBoardId, setInviteBoardId] = useState(null);
 
-	if (loadingBoards)
-		return (
-			<Container className='py-4 text-center'>
-				<Spinner animation='border' />
-			</Container>
-		);
+  // Load boards khi vào trang
+  useEffect(() => {
+    setCurrentWorkspaceId(workspaceId);
+    fetchBoards(workspaceId);
+  }, [workspaceId]);
 
-	if (boardsError)
-		return (
-			<Container className='py-4'>
-				<Alert variant='danger'>{boardsError}</Alert>
-			</Container>
-		);
+  // Tìm workspace hiện tại để hiển thị breadcrumb + check quyền
+  const currentWs = workspaces.find((w) => String(w._id) === workspaceId);
+  const creatorId = currentWs?.creator?._id || currentWs?.creator;
+  const currentUserId =
+    JSON.parse(localStorage.getItem('userData'))?.id ||
+    JSON.parse(localStorage.getItem('userData'))?._id;
+  const isCreator = String(creatorId) === String(currentUserId);
 
-	return (
-		<Container className='py-4'>
-			<div className='d-flex justify-content-between align-items-center mb-4'>
-				<div className='mt-3'>
-					<Breadcrumb className='mb-4'>
-						<Breadcrumb.Item
-							linkAs={Link}
-							linkProps={{
-								to: '/workspaces',
-								// style cho thẻ <a> bên trong
-								style: {
-									color: 'gray',
-									cursor: 'pointer',
-									textDecoration: 'none',
-								},
-								// hoặc className: 'text-secondary'
-							}}>
-							Workspaces
-						</Breadcrumb.Item>
-						<Breadcrumb.Item active style={{ fontWeight: 'bold' }}>
-							Boards
-						</Breadcrumb.Item>
-					</Breadcrumb>
-				</div>
+  const handleDelete = async (e, board) => {
+    e.stopPropagation();
+    if (!window.confirm('Xác nhận xóa vĩnh viễn board này?')) return;
+    try {
+      await deleteBoard(workspaceId, board._id);
+      await fetchBoards(workspaceId);
+    } catch {}
+  };
 
-				<Button variant='success'>+ New Board</Button>
-			</div>
-			<h1>Boards</h1>
-			{boards.length === 0 && (
-				<Alert variant='info'>Chưa có board nào trong workspace này.</Alert>
-			)}
-			<Row>
-				{boards.map((board) => {
-					// avatar handling
-					const members = board.members;
-					const displayMems = members.slice(0, 3);
-					const moreCount = members.length > 3 ? members.length - 3 : 0;
+  if (loadingBoards) {
+    return (
+      <div className='boards-page'>
+        <div className='boards-loading'>
+          <Spinner animation='border' />
+        </div>
+      </div>
+    );
+  }
 
-					return (
-						<Col key={board._id} md={6} lg={4} className='mb-4'>
-							<Card
-								className='h-100 shadow-sm'
-								style={{ cursor: 'pointer' }}
-								onClick={() => navigate(`/boards/${board._id}`)}>
-								<Card.Body className='d-flex flex-column'>
-									{/* Title & desc */}
-									<div>
-										<Card.Title>{board.name}</Card.Title>
-										<Card.Text className='text-muted'>
-											{board.description}
-										</Card.Text>
-									</div>
+  if (boardsError) {
+    return (
+      <div className='boards-page'>
+        <Container className='py-5'>
+          <Alert variant='danger' className='boards-alert error'>
+            {boardsError}
+          </Alert>
+        </Container>
+      </div>
+    );
+  }
 
-									{/* Avatars */}
-									<div className='d-flex mb-3 mt-3'>
-										{displayMems.map((m, i) => {
-											const avatar = m.userId?.avatar;
-											const initial = m.username?.[0]?.toUpperCase() || '';
-											return avatar ? (
-												<Image
-													key={i}
-													src={avatar}
-													roundedCircle
-													width={40}
-													height={40}
-													className='me-2'
-												/>
-											) : (
-												<div
-													key={i}
-													className='me-2 rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center'
-													style={{ width: 40, height: 40, fontSize: '1rem' }}>
-													{initial}
-												</div>
-											);
-										})}
-										{moreCount > 0 && (
-											<div
-												className='d-flex align-items-center justify-content-center rounded-circle bg-light text-muted'
-												style={{ width: 40, height: 40 }}>
-												+{moreCount}
-											</div>
-										)}
-									</div>
+  return (
+    <div className='boards-page'>
+      <div className='boards-header'>
+        <div className='container'>
+          <div className='boards-header-content'>
+            {/* Breadcrumb */}
+            <Breadcrumb className='boards-breadcrumb'>
+              <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/workspaces' }}>
+                Workspaces
+              </Breadcrumb.Item>
+              <Breadcrumb.Item
+                linkAs={Link}
+                linkProps={{ to: `/workspace/${workspaceId}/boards` }}
+              >
+                Boards
+              </Breadcrumb.Item>
+              <Breadcrumb.Item active>{currentWs?.name}</Breadcrumb.Item>
+            </Breadcrumb>
 
-									{/* Counts */}
-									<div className='mt-auto d-flex align-items-center mb-3'>
-										<div className='d-flex align-items-center me-4'>
-											<MdPerson className='me-1' /> {members.length}
-										</div>
-										<div className='d-flex align-items-center'>
-											<MdChecklist className='me-1' />{' '}
-											{board.lists?.length ?? 0}
-											{/* <MdChecklist className='me-1' /> {board.listsCount} */}
-										</div>
-									</div>
+            {/* Title & Create Button */}
+            <div className='boards-title-section'>
+              <h1 className='boards-title'>Project Boards</h1>
+              {isCreator && (
+                <Button
+                  variant='success'
+                  className='btn-create-board'
+                  onClick={() => setShowCreate(true)}
+                >
+                  + New Board
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
-									{/* Invite */}
-									<Button variant='outline-primary'>Invite</Button>
-								</Card.Body>
-							</Card>
-						</Col>
-					);
-				})}
-			</Row>
-		</Container>
-	);
+      <div className='boards-content'>
+        <Container className='py-4'>
+          {/* Modals */}
+          {editingBoard && (
+            <UpdateBoardModal
+              show={!!editingBoard}
+              onHide={() => setEditingBoard(null)}
+              workspaceId={workspaceId}
+              board={editingBoard}
+              onUpdated={(updated) => {
+                fetchBoards(workspaceId);
+                setEditingBoard(null);
+              }}
+            />
+          )}
+
+          <CreateBoardModal
+            show={showCreate}
+            onHide={() => setShowCreate(false)}
+            workspaceId={workspaceId}
+            onCreated={() => {
+              setShowCreate(false);
+              fetchBoards(workspaceId);
+            }}
+          />
+
+          {inviteBoardId && (
+            <InviteBoardModal
+              show={!!inviteBoardId}
+              onHide={() => setInviteBoardId(null)}
+              workspaceId={workspaceId}
+              boardId={inviteBoardId}
+              onInvited={() => {
+                setInviteBoardId(null);
+                fetchBoards(workspaceId);
+              }}
+            />
+          )}
+
+          {/* Empty State */}
+          {boards.length === 0 && (
+            <Alert variant='info' className='boards-empty-alert'>
+              Chưa có board nào trong workspace này.
+            </Alert>
+          )}
+
+          {/* Boards Grid */}
+          <Row xs={1} md={2} lg={3} className='g-4'>
+            {boards.map((board) => {
+              const members = board.members || [];
+              const displayMems = members.slice(0, 3);
+              const moreCount = members.length > 3 ? members.length - 3 : 0;
+              const listsCount = board.lists?.length ?? 0;
+              const isBoardAdmin = members.some(
+                (m) =>
+                  String(m.userId?._id) === String(currentUserId) &&
+                  m.role === 'admin'
+              );
+              console.log('isBoardAdmin', isBoardAdmin);
+              const canDelete = isCreator || isBoardAdmin;
+              const handleClose = async (e) => {
+                e.stopPropagation();
+                if (!window.confirm('Bạn có muốn đóng board này?')) return;
+                try {
+                  await closeBoard(workspaceId, board._id);
+                  fetchBoards(workspaceId);
+                } catch {}
+              };
+
+              return (
+                <Col key={board._id}>
+                  <Card
+                    className='board-card h-100 d-flex flex-column'
+                    onClick={() => navigate(`/workspace/${workspaceId}/boards/${board._id}`)}
+                  >
+                    {/* HEADER */}
+                    <Card.Header className='board-card-header'>
+                      <div className='board-card-title-section'>
+                        <Card.Title className='board-card-title'>
+                          {board.name}
+                        </Card.Title>
+                      </div>
+                      <div className='board-card-badge-section'>
+                        <Badge
+                          pill
+                          className={`board-badge ${board.visibility}`}
+                        >
+                          {board.visibility}
+                        </Badge>
+                      </div>
+                      {canDelete && (
+                        <FaTrash
+                          className='workspace-delete-btn'
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(e, board);
+                          }}
+                        />
+                      )}
+                    </Card.Header>
+
+                    {/* BODY */}
+                    <Card.Body className='board-card-body flex-grow-1 d-flex flex-column'>
+                      {/* Description */}
+                      {board.description && (
+                        <Card.Text className='board-description'>
+                          {board.description}
+                        </Card.Text>
+                      )}
+
+                      {/* Stats */}
+                      <div className='board-stats'>
+                        <div className='board-stat-item'>
+                          <MdPerson className='board-stat-icon' />
+                          <span>{members.length} Members</span>
+                        </div>
+                        <div className='board-stat-item'>
+                          <MdChecklist className='board-stat-icon' />
+                          <span>{listsCount} Lists</span>
+                        </div>
+                      </div>
+
+                      {/* Members Avatars */}
+                      <div className='board-members'>
+                        {displayMems.map((m, i) => {
+                          const avatar = m.userId?.avatar;
+                          const initial = m.username?.[0]?.toUpperCase() || '';
+                          return avatar ? (
+                            <Image
+                              key={i}
+                              src={avatar}
+                              className='board-member-avatar'
+                            />
+                          ) : (
+                            <div
+                              key={i}
+                              className='board-member-avatar-placeholder'
+                            >
+                              {initial}
+                            </div>
+                          );
+                        })}
+                        {moreCount > 0 && (
+                          <div className='board-member-more'>+{moreCount}</div>
+                        )}
+                      </div>
+                    </Card.Body>
+
+                    {/* FOOTER */}
+                    <Card.Footer className='board-card-footer'>
+                      <Button
+                        variant='outline-primary'
+                        className='board-action-btn'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInviteBoardId(board._id);
+                        }}
+                      >
+                        Invite
+                      </Button>
+                      <Button variant='outline-danger' onClick={handleClose}>
+                        Close
+                      </Button>
+                      <Button
+                        variant='outline-warning'
+                        className='board-action-btn'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingBoard(board);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </Card.Footer>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        </Container>
+      </div>
+    </div>
+  );
 };
 
 export default Boards;

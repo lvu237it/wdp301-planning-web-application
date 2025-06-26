@@ -8,7 +8,11 @@ import {
   getSocket,
   disconnectSocket,
 } from '../utils/socketClient';
-import { formatDateAMPMForVN } from '../utils/dateUtils';
+import {
+  formatDateAMPMForVN,
+  formatDateForNotification,
+  formatDateShortForVN,
+} from '../utils/dateUtils';
 
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
@@ -20,6 +24,9 @@ export const useCommon = () => useContext(CommonContext);
 export const Common = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  // Get previous location from state, default to '/'
+  const from = location.state?.from?.pathname || '/';
+
   const socketInitialized = useRef(false);
   const [socketConnected, setSocketConnected] = useState(false);
 
@@ -39,6 +46,14 @@ export const Common = ({ children }) => {
     }
   });
 
+  // Notification pagination states
+  const [notificationPagination, setNotificationPagination] = useState({
+    hasMore: true,
+    currentPage: 1,
+    totalCount: 0,
+    loading: false,
+  });
+
   // Enhanced responsive breakpoints
   const isMobile = useMediaQuery({ maxWidth: 768 });
   const isTablet = useMediaQuery({ minWidth: 769, maxWidth: 1024 });
@@ -50,6 +65,7 @@ export const Common = ({ children }) => {
   // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
+  const [calendarBoard, setCalendarBoard] = useState(null);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
@@ -72,27 +88,49 @@ export const Common = ({ children }) => {
   // Tạo ref để track đã thực hiện redirect hay chưa
   const hasRedirected = useRef(false);
   const isProcessingAuth = useRef(false); // Tránh xử lý auth nhiều lần
+  const isInitialLoad = useRef(true); // Track if this is initial app load
 
-  // Sửa useEffect để tránh redirect tự động gây conflict với Google callback
+  // Chỉ redirect khi thực sự cần thiết (sau login thành công), không redirect khi reload
   useEffect(() => {
-    // Chỉ redirect tự động nếu không phải đang ở Google callback và chưa redirect
+    // Nếu là lần đầu load app và đã có token + userData, đây là reload
+    if (isInitialLoad.current && isAuthenticated && userDataLocal) {
+      isInitialLoad.current = false;
+      // Không redirect khi reload - giữ nguyên trang hiện tại
+      return;
+    }
+
+    // Chỉ redirect về / khi:
+    // 1. Không phải initial load (đã login thành công)
+    // 2. Đang ở auth pages (login/register)
+    // 3. Không phải Google callback
+    // 4. Chưa redirect trước đó
     if (
+      !isInitialLoad.current &&
       isAuthenticated &&
       userDataLocal &&
+      (location.pathname === '/login' ||
+        location.pathname === '/register' ||
+        location.pathname === '/') &&
       !location.pathname.includes('/google-callback') &&
       !hasRedirected.current &&
       !isProcessingAuth.current
     ) {
       hasRedirected.current = true;
-      navigate('/');
+      navigate('/dashboard'); // Redirect to dashboard instead of root
     }
-  }, [isAuthenticated, userDataLocal]);
+
+    // Mark as not initial load after first effect run
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+    }
+  }, [isAuthenticated, userDataLocal, location.pathname]);
 
   // Reset redirect flag khi user logout
   useEffect(() => {
     if (!isAuthenticated) {
       hasRedirected.current = false;
       isProcessingAuth.current = false;
+      isInitialLoad.current = true; // Reset for next login
     }
   }, [isAuthenticated]);
 
@@ -102,7 +140,6 @@ export const Common = ({ children }) => {
 
     // Kiểm tra nếu userDataLocal chưa được set và không phải force call
     if (!force && !userDataLocal) {
-      console.log('⏳ userDataLocal not set yet, skipping checkGoogleAuth');
       return;
     }
 
@@ -260,28 +297,28 @@ export const Common = ({ children }) => {
         });
         console.log('✅ Socket initialization completed');
 
-        try {
-          const response = await axios.post(
-            `https://api.cloudinary.com/v1_1/${
-              import.meta.env.VITE_CLOUDINARY_NAME
-            }/image/upload`,
-            formData
-          );
-          console.log(
-            'VITE_CLOUDINARY_NAME',
-            import.meta.env.VITE_CLOUDINARY_NAME
-          );
-          console.log('response', response);
-          console.log('response.data', response.data);
-          console.log('response.data.secureurl', response.data.secure_url);
-          if (response.status === 200) {
-            console.log('oke upload thành công');
-            return response.data.secure_url; // Trả về URL ảnh đã upload
-          }
-        } catch (error) {
-          console.error('Error uploading to Cloudinary:', error);
-          throw new Error('Upload to Cloudinary failed');
-        }
+        // try {
+        //   const response = await axios.post(
+        //     `https://api.cloudinary.com/v1_1/${
+        //       import.meta.env.VITE_CLOUDINARY_NAME
+        //     }/image/upload`,
+        //     formData
+        //   );
+        //   console.log(
+        //     'VITE_CLOUDINARY_NAME',
+        //     import.meta.env.VITE_CLOUDINARY_NAME
+        //   );
+        //   console.log('response', response);
+        //   console.log('response.data', response.data);
+        //   console.log('response.data.secureurl', response.data.secure_url);
+        //   if (response.status === 200) {
+        //     console.log('oke upload thành công');
+        //     return response.data.secure_url; // Trả về URL ảnh đã upload
+        //   }
+        // } catch (error) {
+        //   console.error('Error uploading to Cloudinary:', error);
+        //   throw new Error('Upload to Cloudinary failed');
+        // }
 
         // Kiểm tra bổ sung sau một khoảng thời gian ngắn
         setTimeout(() => {
@@ -315,7 +352,7 @@ export const Common = ({ children }) => {
     // Tải các dữ liệu khác trong background
     setTimeout(async () => {
       try {
-        await Promise.all([fetchNotifications(), getCalendarUser()]);
+        await Promise.all([fetchNotifications(true), getCalendarUser()]);
       } catch (error) {
         console.error('Error loading background data:', error);
       }
@@ -336,43 +373,13 @@ export const Common = ({ children }) => {
       }
     }, 2000);
 
-    const fetchBoards = async (workspaceId) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await axios.get(
-          `${apiBaseUrl}/workspace/${workspaceId}/board`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            withCredentials: true, // ← gửi cookie kèm request
-          }
-        );
-
-        // lấy mảng boards từ payload
-        const raw = res.data.boards || [];
-        // chuẩn hóa các trường luôn luôn có mảng và có listsCount
-        const norm = raw.map((board) => ({
-          ...board,
-          members: board.members || [],
-          tasks: board.tasks || [],
-          listsCount: board.listsCount || 0,
-        }));
-
-        setBoards(norm);
-      } catch (err) {
-        setError(err.response?.data?.message || err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     // Chỉ hiển thị toast và navigate nếu không phải Google login
     if (!isGoogleLogin) {
       toast.success('Login successful!');
-      navigate('/');
+      // Chỉ navigate nếu đang ở auth pages
+      if (location.pathname === '/login' || location.pathname === '/register') {
+        navigate('/dashboard');
+      }
     }
 
     // Reset processing flag sau khi hoàn thành
@@ -444,9 +451,16 @@ export const Common = ({ children }) => {
     setIsAuthenticated(false);
     setNotifications([]);
     setCalendarUser(null);
+    setCalendarBoard(null);
     setIsGoogleAuthenticated(false);
     setShowGoogleAuthModal(false);
     setIsCheckingGoogleAuth(false);
+    setNotificationPagination({
+      hasMore: true,
+      currentPage: 1,
+      totalCount: 0,
+      loading: false,
+    });
 
     disconnectSocket();
     socketInitialized.current = false;
@@ -516,27 +530,91 @@ export const Common = ({ children }) => {
     }
   };
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
+  // Fetch notifications (initial load)
+  const fetchNotifications = async (reset = false) => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!accessToken || !userId) return;
 
     try {
+      const skip = reset ? 0 : notifications.length;
       const response = await axios.get(`${apiBaseUrl}/notification`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        params: { limit: 20, skip },
         timeout: 10000,
       });
 
       if (response.data.status === 'success') {
-        const notifs = response.data.data?.notifications || [];
-        setNotifications(notifs);
-        localStorage.setItem('notifications', JSON.stringify(notifs));
+        const newNotifs = response.data.data?.notifications || [];
+        const pagination = response.data.pagination || {};
+
+        if (reset) {
+          setNotifications(newNotifs);
+          localStorage.setItem('notifications', JSON.stringify(newNotifs));
+        } else {
+          const updatedNotifs = [...notifications, ...newNotifs];
+          setNotifications(updatedNotifs);
+          localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
+        }
+
+        setNotificationPagination({
+          hasMore: pagination.hasMore || false,
+          currentPage: pagination.currentPage || 1,
+          totalCount: pagination.totalCount || 0,
+          loading: false,
+        });
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      setNotifications([]);
-      localStorage.removeItem('notifications');
+      if (reset) {
+        setNotifications([]);
+        localStorage.removeItem('notifications');
+      }
+      setNotificationPagination((prev) => ({ ...prev, loading: false }));
       // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
+    }
+  };
+
+  // Load more notifications for infinite scroll
+  const loadMoreNotifications = async () => {
+    let userId = userDataLocal?.id || userDataLocal?._id;
+    if (
+      !accessToken ||
+      !userId ||
+      notificationPagination.loading ||
+      !notificationPagination.hasMore
+    ) {
+      return;
+    }
+
+    setNotificationPagination((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const skip = notifications.length;
+      const response = await axios.get(`${apiBaseUrl}/notification`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: { limit: 20, skip },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        const newNotifs = response.data.data?.notifications || [];
+        const pagination = response.data.pagination || {};
+
+        const updatedNotifs = [...notifications, ...newNotifs];
+        setNotifications(updatedNotifs);
+        localStorage.setItem('notifications', JSON.stringify(updatedNotifs));
+
+        setNotificationPagination({
+          hasMore: pagination.hasMore || false,
+          currentPage: pagination.currentPage || 1,
+          totalCount: pagination.totalCount || 0,
+          loading: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading more notifications:', error);
+      setNotificationPagination((prev) => ({ ...prev, loading: false }));
+      toast.error('Không thể tải thêm thông báo');
     }
   };
 
@@ -549,11 +627,8 @@ export const Common = ({ children }) => {
       (n) => n.notificationId === notificationId
     );
     if (notification && notification.isRead) {
-      console.log('📖 Notification already marked as read, skipping request');
       return;
     }
-
-    console.log(`📝 Marking notification ${notificationId} as read...`);
 
     try {
       const response = await axios.patch(
@@ -566,7 +641,6 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        console.log('✅ Notification marked as read successfully');
         setNotifications((prev) => {
           const updated = prev.map((n) =>
             n.notificationId === notificationId
@@ -587,14 +661,19 @@ export const Common = ({ children }) => {
   };
 
   // Respond to event invitation
-  const respondToEventInvitation = async (eventId, status, notificationId) => {
+  const respondToEventInvitation = async (
+    eventId,
+    status,
+    notificationId,
+    forceAccept = false
+  ) => {
     let userId = userDataLocal?.id || userDataLocal?._id;
-    if (!accessToken || !eventId || !userId) return false;
+    if (!accessToken || !eventId || !userId) return { success: false };
 
     try {
       const response = await axios.patch(
         `${apiBaseUrl}/event/${eventId}/participants/${userId}/update-status`,
-        { status },
+        { status, forceAccept },
         {
           headers: { Authorization: `Bearer ${accessToken}` },
           timeout: 10000,
@@ -602,27 +681,94 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200) {
+        console.log('✅ Event invitation response successful:', {
+          eventId,
+          status,
+          notificationId,
+        });
+
+        // Cập nhật local state ngay lập tức để UI phản hồi nhanh
+        setNotifications((prevNotifications) =>
+          prevNotifications.map((notif) => {
+            if (
+              notif.notificationId === notificationId &&
+              notif.type === 'event_invitation'
+            ) {
+              console.log('🔄 Updating notification state locally:', {
+                notificationId,
+                oldStatus: notif.responseStatus,
+                newStatus: status,
+              });
+              return {
+                ...notif,
+                responseStatus: status,
+                responded: true,
+              };
+            }
+            return notif;
+          })
+        );
+
         // Mark notification as read
         await markNotificationAsRead(notificationId);
 
-        toast.success(
-          status === 'accepted'
-            ? 'Đã chấp nhận lời mời tham gia sự kiện'
-            : 'Đã từ chối lời mời tham gia sự kiện'
-        );
-        return true;
+        // Refresh notifications sau khi cập nhật local state để đảm bảo đồng bộ
+        setTimeout(() => {
+          console.log('🔄 Refreshing notifications after response');
+          fetchNotifications(true);
+        }, 1000);
+
+        // Không hiển thị toast ở đây nữa, để Header.jsx handle
+        return { success: true };
       }
     } catch (error) {
       console.error('❌ Error responding to event invitation:', error);
+
+      // Handle conflict case
+      if (error.response?.status === 409 && error.response?.data?.hasConflict) {
+        return {
+          success: false,
+          hasConflict: true,
+          conflictData: error.response.data,
+        };
+      }
+
       toast.error(
         error.response?.data?.message ||
           'Không thể phản hồi lời mời tham gia sự kiện'
       );
-      return false;
+      return { success: false };
     }
   };
 
-  // Update event status based on time
+  // Update event status based on time (improved - bulk update all user events)
+  const updateAllUserEventsStatusByTime = async () => {
+    if (!accessToken) return null;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/update-all-status-by-time`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 15000, // Tăng timeout cho bulk operation
+        }
+      );
+
+      if (response.data.status === 200) {
+        console.log(
+          `✅ Updated ${response.data.data.updatedEvents}/${response.data.data.totalEvents} events status`
+        );
+        return response.data.data;
+      }
+    } catch (error) {
+      console.error('❌ Error updating all user events status by time:', error);
+      // Không hiển thị toast error vì đây là background process
+      return null;
+    }
+  };
+
+  // Update event status based on time (legacy - single event)
   const updateEventStatusByTime = async (eventId) => {
     if (!accessToken || !eventId) return null;
 
@@ -650,13 +796,11 @@ export const Common = ({ children }) => {
   const setupSocketListeners = () => {
     let userId = userDataLocal?.id || userDataLocal?._id;
     if (!userId) {
-      console.log('⚠️ No user ID available for socket listeners');
       return;
     }
 
     try {
       const socket = getSocket();
-      console.log('🔧 Setting up socket listeners for user:', userId);
 
       // Remove existing listeners first to avoid duplicates
       socket.off('new_notification');
@@ -664,6 +808,9 @@ export const Common = ({ children }) => {
       socket.off('connect');
       socket.off('disconnect');
       socket.off('test_pong');
+      socket.off('new_event_message');
+      socket.off('edit_event_message');
+      socket.off('delete_event_message');
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
@@ -690,6 +837,13 @@ export const Common = ({ children }) => {
               duration: 3000,
             });
           }
+        } else if (notification.type === 'new_message') {
+          // Thông báo tin nhắn mới với icon đặc biệt
+          toast(notification.title, {
+            description: notification.content,
+            duration: 4000,
+            icon: '💬',
+          });
         } else {
           toast.success(notification.title, {
             description: notification.content,
@@ -745,6 +899,37 @@ export const Common = ({ children }) => {
       // Đăng ký listeners
       socket.on('new_notification', handleNewNotification);
       socket.on('notification_updated', handleNotificationUpdate);
+
+      // Event messaging listeners
+      socket.on('new_event_message', (data) => {
+        console.log('📨 New event message received:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('new_event_message', {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on('edit_event_message', (data) => {
+        console.log('✏️ Event message edited:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('edit_event_message', {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on('delete_event_message', (data) => {
+        console.log('🗑️ Event message deleted:', data);
+        // Emit custom event for Calendar component to handle
+        window.dispatchEvent(
+          new CustomEvent('delete_event_message', {
+            detail: data,
+          })
+        );
+      });
 
       // Check if socket is already connected
       if (socket.connected) {
@@ -815,6 +1000,50 @@ export const Common = ({ children }) => {
     }
   };
 
+  // Get board calendar
+  const getBoardCalendar = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/calendar/get-by-board/${boardId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200 && response.data.data?.length > 0) {
+        console.log('lich cua board', response.data.data[0]);
+        setCalendarBoard(response.data.data[0]);
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      } else {
+        return {
+          success: true,
+          data: [],
+        };
+      }
+    } catch (error) {
+      console.error(
+        'Lỗi khi lấy lịch board:',
+        error.response?.data?.message || error.message
+      );
+      if (error.response?.status === 404) {
+        // Không tìm thấy lịch, thử tạo mới
+        const created = await createInitialCalendarForBoard(boardId);
+        if (created) {
+          return { success: true, data: [created] };
+        }
+      }
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   // Xử lý xác thực Google
   const handleGoogleAuth = async () => {
     try {
@@ -831,6 +1060,7 @@ export const Common = ({ children }) => {
     }
   };
 
+  // !!!----------------------------Hàm này chưa sửa chưa upload được----------------------------!!!
   const uploadImageToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -930,6 +1160,36 @@ export const Common = ({ children }) => {
     return res.data.workspace;
   };
 
+  // **Close workspace**:
+  const closeWorkspace = async (workspaceId) => {
+    const res = await axios.patch(
+      `${apiBaseUrl}/workspace/${workspaceId}/close`, // đường dẫn route BE bạn đã định nghĩa
+      {},
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.status !== 200) {
+      throw new Error(res.data.message || 'Đóng workspace thất bại');
+    }
+    // Loại bỏ workspace đã đóng khỏi state
+    setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
+    toast.success('Workspace đã được đóng thành công');
+    return res.data.workspace;
+  };
+
+  //Delete workspace vĩnh viễn
+  const deleteWorkspace = async (workspaceId) => {
+    const res = await axios.delete(`${apiBaseUrl}/workspace/${workspaceId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.status !== 200) {
+      throw new Error(res.data.message || 'Xóa workspace thất bại');
+    }
+    // remove khỏi state
+    setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
+    toast.success('Workspace đã bị xóa vĩnh viễn');
+    return true;
+  };
+
   const fetchBoards = async (workspaceId) => {
     setLoading(true);
     setError(null);
@@ -950,6 +1210,66 @@ export const Common = ({ children }) => {
       setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  //Tạo calendar riêng cho từng board (nếu chưa có) sau khi fetch toàn bộ boards của user
+  const createInitialCalendarForBoard = async (boardId) => {
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/calendar`,
+        {
+          name: 'Board Calendar',
+          description: 'A calendar for board',
+          ownerType: 'board',
+          boardId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            timeout: 10000,
+          },
+        }
+      );
+    } catch (error) {
+      // console.error('Error creating calendar:', error.response?.data?.message);
+    }
+  };
+
+  //close board
+  const closeBoard = async (workspaceId, boardId) => {
+    try {
+      const res = await axios.patch(
+        `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}/close`,
+        {},
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.status !== 200) {
+        throw new Error(res.data.message || 'Đóng board thất bại');
+      }
+      toast.success(res.data.message);
+      return res.data.board;
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      throw err;
+    }
+  };
+
+  //xóa board
+  const deleteBoard = async (workspaceId, boardId) => {
+    try {
+      const res = await axios.delete(
+        `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.status !== 200) {
+        throw new Error(res.data.message || 'Xóa board thất bại');
+      }
+      toast.success(res.data.message);
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message);
+      throw err;
     }
   };
 
@@ -1057,7 +1377,7 @@ export const Common = ({ children }) => {
       const loadInitialData = async () => {
         try {
           await Promise.all([
-            fetchNotifications(),
+            fetchNotifications(true),
             checkGoogleAuth(),
             getCalendarUser(),
           ]);
@@ -1112,6 +1432,364 @@ export const Common = ({ children }) => {
     }
   }, [location, navigate]);
 
+  // Cancel event participation with reason
+  const cancelEventParticipation = async (eventId, reason) => {
+    if (!accessToken || !eventId || !reason) return false;
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/event/${eventId}/cancel-invitation-and-give-reason`,
+        { reason },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        toast.success('Đã hủy tham gia sự kiện thành công');
+
+        // Trigger calendar refresh
+        window.dispatchEvent(
+          new CustomEvent('eventUpdated', {
+            detail: { eventId: eventId },
+          })
+        );
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error canceling event participation:', error);
+      toast.error(
+        error.response?.data?.message || 'Không thể hủy tham gia sự kiện'
+      );
+      return false;
+    }
+  };
+
+  // Event messaging functions
+  const sendEventMessage = async (eventId, content) => {
+    if (!accessToken || !eventId || !content?.trim()) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        { content: content.trim() },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return { success: true, message: response.data.data.message };
+      }
+    } catch (error) {
+      console.error('Error sending event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi gửi tin nhắn');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getEventMessages = async (eventId, limit = 50, skip = 0) => {
+    if (!accessToken || !eventId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: { limit, skip },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data,
+          messages: response.data.data.messages,
+          canSendMessage: response.data.data.canSendMessage,
+          pagination: response.data.data.pagination,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting event messages:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const loadMoreEventMessages = async (
+    eventId,
+    currentMessages,
+    limit = 20
+  ) => {
+    if (!accessToken || !eventId) return { success: false };
+
+    try {
+      // Sử dụng cursor-based pagination với timestamp của message cũ nhất
+      const oldestMessage = currentMessages[0];
+      const params = { limit };
+      if (oldestMessage) {
+        params.before = oldestMessage.createdAt;
+      }
+
+      const response = await axios.get(
+        `${apiBaseUrl}/message/event/${eventId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params,
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          messages: response.data.data.messages,
+          pagination: response.data.data.pagination,
+        };
+      }
+    } catch (error) {
+      console.error('Error loading more event messages:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const editEventMessage = async (messageId, content) => {
+    if (!accessToken || !messageId || !content?.trim())
+      return { success: false };
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/message/${messageId}`,
+        { content: content.trim() },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return { success: true, message: response.data.data.message };
+      }
+    } catch (error) {
+      console.error('Error editing event message:', error);
+      toast.error(
+        error.response?.data?.message || 'Lỗi khi chỉnh sửa tin nhắn'
+      );
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const deleteEventMessage = async (messageId) => {
+    if (!accessToken || !messageId) return { success: false };
+
+    try {
+      const response = await axios.delete(
+        `${apiBaseUrl}/message/${messageId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Tin nhắn đã được xóa');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting event message:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa tin nhắn');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // ============= TASK FUNCTIONS FOR BOARD CALENDAR SYNC =============
+
+  const getBoardTasks = async (boardId, startDate, endDate) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const response = await axios.get(
+        `${apiBaseUrl}/task/calendar/board/${boardId}?${params}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200 || response.status === 200) {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      } else {
+        console.error('API response not successful:', response.data);
+        return { success: false, error: 'API response not successful' };
+      }
+    } catch (error) {
+      console.error('Error getting board tasks:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const createTaskFromCalendar = async (taskData) => {
+    if (!accessToken) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/task/calendar/create`,
+        taskData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Tạo task thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error creating task from calendar:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi tạo task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const updateTask = async (taskId, taskData) => {
+    if (!accessToken || !taskId) return { success: false };
+
+    try {
+      const response = await axios.put(
+        `${apiBaseUrl}/task/updateTask/${taskId}`,
+        taskData,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Cập nhật task thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    if (!accessToken || !taskId) return { success: false };
+
+    try {
+      const response = await axios.delete(
+        `${apiBaseUrl}/task/deleteTask/${taskId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Xóa task thành công');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa task');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getBoardLists = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/list/board/${boardId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting board lists:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  const getBoardDetails = async (boardId) => {
+    if (!accessToken || !boardId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/workspace/board/${boardId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        return {
+          success: true,
+          data: response.data.board || response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting board details:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // ============= ENHANCED CONFLICT RESOLUTION =============
+
+  const findAvailableTimeSlots = async (data) => {
+    if (!accessToken) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/event/find-available-slots`,
+        data,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      } else {
+        return { success: false, error: 'API response not successful' };
+      }
+    } catch (error) {
+      console.error('Error finding available time slots:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1131,9 +1809,13 @@ export const Common = ({ children }) => {
         googleLogin,
         handleLoginSuccess,
         createInitialCalendar,
+        createInitialCalendarForBoard,
         getCalendarUser,
+        getBoardCalendar,
         calendarUser,
         setCalendarUser,
+        calendarBoard,
+        setCalendarBoard,
         showGoogleAuthModal,
         setShowGoogleAuthModal,
         handleGoogleAuth,
@@ -1145,10 +1827,15 @@ export const Common = ({ children }) => {
         fetchNotifications,
         markNotificationAsRead,
         respondToEventInvitation,
+        updateAllUserEventsStatusByTime,
         updateEventStatusByTime,
         formatDateAMPMForVN,
+        formatDateForNotification,
+        formatDateShortForVN,
         workspaces,
         createWorkspace,
+        closeWorkspace,
+        deleteWorkspace,
         updateWorkspace,
         loadingWorkspaces,
         workspacesError,
@@ -1156,12 +1843,31 @@ export const Common = ({ children }) => {
         setCurrentWorkspaceId,
         boards,
         fetchBoards,
+        closeBoard,
+        deleteBoard,
         loadingBoards,
         boardsError,
         socketConnected,
         setupSocketListeners,
         fetchUserProfile,
         updateUserProfile,
+        cancelEventParticipation,
+        loadMoreNotifications,
+        notificationPagination,
+        sendEventMessage,
+        getEventMessages,
+        loadMoreEventMessages,
+        editEventMessage,
+        deleteEventMessage,
+        // Task functions for board calendar sync
+        getBoardTasks,
+        createTaskFromCalendar,
+        updateTask,
+        deleteTask,
+        getBoardLists,
+        getBoardDetails,
+        // Enhanced conflict resolution
+        findAvailableTimeSlots,
       }}
     >
       <Toaster

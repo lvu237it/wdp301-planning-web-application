@@ -5,6 +5,8 @@ const User = require('../models/userModel');
 const sendEmail = require('../utils/sendMail');
 const Board = require('../models/boardModel');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 // Lấy workspace mà user đã tạo hoặc đã tham gia, kèm countBoard
 exports.getAllWorkspace = async (req, res) => {
@@ -180,7 +182,7 @@ exports.closeWorkspace = async (req, res) => {
 exports.deleteWorkspace = async (req, res) => {
 	try {
 		const { workspaceId } = req.params;
-
+		console.log('🔥 DELETE /workspace/:id hit with', req.params.workspaceId);
 		const workspace = await Workspace.findByIdAndDelete(workspaceId);
 		if (!workspace) {
 			return res
@@ -256,10 +258,19 @@ exports.inviteMember = async (req, res) => {
       <td align="center">
         <!-- Container chính -->
         <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; font-family:Arial, sans-serif; color:#333333;">
-          <!-- Header với logo -->
+                   <!-- Header với title PlanPro -->
           <tr>
             <td align="center" style="padding:30px 0; background-color:#004080;">
-              <img src="http://localhost:5173/images/Logo_email.png" alt="Company Logo" width="150" style="display:block;" />
+              <span style="
+                font-size:32px;
+                font-weight:bold;
+                color:#ffffff;
+                font-family:Arial, sans-serif;
+                text-transform:uppercase;
+                letter-spacing:2px;
+              ">
+               PlanPro
+              </span>
             </td>
           </tr>
 
@@ -311,7 +322,7 @@ exports.inviteMember = async (req, res) => {
                 © ${new Date().getFullYear()} WebPlanPro. Đã đăng ký bản quyền.
               </p>
               <p style="margin:5px 0 0;">
-                Địa chỉ: WebPlanPro, Hà Nội, Việt Nam
+                Địa chỉ: WebPlanPro, Thạch Thất, Hà Nội, Việt Nam
               </p>
             </td>
           </tr>

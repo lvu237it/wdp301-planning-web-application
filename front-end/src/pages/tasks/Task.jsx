@@ -21,12 +21,7 @@ const toDateLocal = (date) => {
     D = pad(date.getDate());
   return `${Y}-${M}-${D}`;
 };
-const parseLocalToUTC = (s) => {
-  const [date, time] = s.split("T");
-  const [Y, M, D] = date.split("-").map(Number);
-  const [h, m] = time.split(":").map(Number);
-  return new Date(Date.UTC(Y, M - 1, D, h, m));
-};
+const parseLocalToUTC = (s) => new Date(s + ':00Z');
 
 const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const { accessToken, apiBaseUrl } = useCommon();
@@ -44,22 +39,20 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const fileInputRef = useRef(null);
-  // Khởi động khi task thay đổi
-  useEffect(() => {
-    if (!task) return;
-    setEditedTitle(task.title || "");
-    setIsEditingTitle(false);
-    setEditedDesc(task.description || "");
-    setIsEditingDesc(false);
-    setAllDay(!!task.allDay);
 
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  // Khởi động khi task thay đổi
+ useEffect(() => {
+  if (showDateInputs && task) {
     const s = task.startDate ? new Date(task.startDate) : null;
-    const e = task.endDate ? new Date(task.endDate) : null;
+    const e = task.endDate   ? new Date(task.endDate)   : null;
+    setAllDay(!!task.allDay);
     setStartInput(toDateTimeLocal(s));
     setEndInput(toDateTimeLocal(e));
     setDateInput(toDateLocal(s));
-    setShowDateInputs(false);
-  }, [task]);
+  }
+}, [showDateInputs, task]);
 
   if (!isOpen || !task) return null;
 
@@ -73,7 +66,6 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
-        timeZone: "UTC",
       })
       .replace(",", "");
   };
@@ -92,6 +84,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         ...task,
         ...res.data.data,
       });
+
       setIsEditingTitle(false);
     } catch (err) {
       console.error(err);
@@ -151,38 +144,36 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   };
 
   // Hàm lưu ngày với thông báo thành công
-  const handleSaveDates = async () => {
-    try {
-      const payload = {};
-      if (allDay && dateInput) {
-        payload.startDate = parseLocalToUTC(dateInput + "T00:00").toISOString();
-        payload.endDate = parseLocalToUTC(dateInput + "T23:59").toISOString();
-      } else {
-        if (startInput)
-          payload.startDate = parseLocalToUTC(startInput).toISOString();
-        if (endInput) payload.endDate = parseLocalToUTC(endInput).toISOString();
-      }
-      payload.allDay = allDay;
+ const handleSaveDates = async () => {
+  try {
+    const payload = {};
+    payload.allDay = allDay;
 
-      const res = await axios.put(
-        `${apiBaseUrl}/task/updateTask/${task._id}`,
-        payload,
-        {
-          withCredentials: true,
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      onUpdate({ ...task, ...res.data.data });
-      setShowDateInputs(false);
-      setShowToast(true);
-    } catch (err) {
-      console.error(err);
-      alert(
-        "Cập nhật ngày thất bại: " +
-          (err.response?.data?.message || err.message)
-      );
+    if (allDay && dateInput) {
+      const [Y, M, D] = dateInput.split('-').map(Number);
+      payload.startDate = new Date(Y, M - 1, D, 0, 0).toISOString();
+      payload.endDate   = new Date(Y, M - 1, D, 23, 59).toISOString();
+    } else {
+      if (startInput) payload.startDate = new Date(startInput).toISOString();
+      if (endInput)   payload.endDate   = new Date(endInput).toISOString();
     }
-  };
+
+    const res = await axios.put(
+      `${apiBaseUrl}/task/updateTask/${task._id}`,
+      payload,
+      {
+        withCredentials: true,
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    onUpdate({ ...task, ...res.data.data });
+    setShowDateInputs(false);
+  } catch (err) {
+    console.error(err);
+    alert("Cập nhật ngày thất bại: " + (err.response?.data?.message || err.message));
+  }
+};
+
 
   //CHECKLIST PROGRESS
   const totalItems = task.checklist?.length || 0;
@@ -226,9 +217,60 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       alert("Không thể xóa mục: " + (e.response?.data?.message || e.message));
     }
   };
-
+  // Hàm gọi API mời member
+  const handleInvite = async () => {
+    try {
+      console.log("Gửi invite đến:", inviteEmail);
+      const res = await axios.post(
+        `${apiBaseUrl}/task/${task._id}/invite`,
+        { email: inviteEmail.trim() },
+        {
+          withCredentials: true,
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      console.log("Invite API response:", res.data);
+      onUpdate(res.data.data);
+      setInviteEmail("");
+      setShowInviteModal(false);
+      setShowToast(true);
+    } catch (err) {
+      console.error("Gửi invite thất bại:", err.response?.data || err);
+      alert(
+        "Gửi lời mời thất bại: " + (err.response?.data?.message || err.message)
+      );
+    }
+  };
   return (
     <>
+      <Modal
+        show={showInviteModal}
+        onHide={() => setShowInviteModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Mời thành viên vào Task</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group>
+            <Form.Label>Nhập email của người nhận</Form.Label>
+            <Form.Control
+              type="email"
+              placeholder="ví dụ: user@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowInviteModal(false)}>
+            Hủy
+          </Button>
+          <Button variant="primary" onClick={handleInvite}>
+            Gửi lời mời
+          </Button>
+        </Modal.Footer>
+      </Modal>
       <Toast
         show={showToast}
         bg="success"
@@ -314,7 +356,11 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
             {/* ACTION BUTTONS */}
             <div className="task-modal-actions">
-              <Button variant="warning" className="btn-action">
+              <Button
+                variant="warning"
+                className="btn-action"
+                onClick={() => setShowInviteModal(true)}
+              >
                 <i className="fas fa-person" /> Thêm Member
               </Button>
               <Button
@@ -465,24 +511,30 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
             {/* ATTACHMENTS */}
             <div className="task-modal-section">
-  <label className="section-label">Các tệp đính kèm</label>
-  
-  
-  {task.documents?.length ? (
-    <ul className="list-unstyled mt-2">
-      {task.documents.map(doc => (
-        <li key={doc._id} className="d-flex align-items-center mb-1">
-          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="me-auto">
-            <i className={`fas fa-file-${doc.type}`} /> {doc.name}
-          </a>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-muted">Chưa có tệp đính kèm.</p>
-  )}
-</div>
+              <label className="section-label">Các tệp đính kèm</label>
 
+              {task.documents?.length ? (
+                <ul className="list-unstyled mt-2">
+                  {task.documents.map((doc) => (
+                    <li
+                      key={doc._id}
+                      className="d-flex align-items-center mb-1"
+                    >
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="me-auto"
+                      >
+                        <i className={`fas fa-file-${doc.type}`} /> {doc.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted">Chưa có tệp đính kèm.</p>
+              )}
+            </div>
 
             {/* CHECKLIST */}
             <div className="task-modal-section">

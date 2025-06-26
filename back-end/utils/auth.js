@@ -13,7 +13,7 @@ exports.protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // Giải mã và lấy thông tin liên quan tới người dùng trong token
     const id = decoded?._id || decoded?.id;
-    req.user = await User.findById(id).select('role email createdAt'); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
+    req.user = await User.findById(id).select('role email username createdAt'); // Tìm user với role cụ thể để gán vào req.user, phục vụ cho việc phân quyền
     next();
   } catch (error) {
     res.status(401).json({ status: 'error', message: error.message });
@@ -22,10 +22,10 @@ exports.protect = async (req, res, next) => {
 
 // creator của workspace
 exports.isCreator = async (req, res, next) => {
-  const { id } = req.params;
+  const workspaceId = req.params.workspaceId;
   const userId = req.user._id;
 
-  const workspace = await Workspace.findById(id);
+  const workspace = await Workspace.findById(workspaceId);
   if (!workspace) {
     return res
       .status(404)

@@ -32,7 +32,7 @@ const googleTokenSchema = new mongoose.Schema(
     },
     status: {
       type: String, // Trạng thái token: 'active', 'revoked', 'expired'
-      enum: ['active', 'revoked', 'expired'],
+      enum: ['active', 'revoked', 'expired'], //đang hoạt động - đã thu hồi (bị vô hiệu hoá thủ công/ko đc chấp nhận nữa) - hết hạn
       default: 'active',
     },
   },

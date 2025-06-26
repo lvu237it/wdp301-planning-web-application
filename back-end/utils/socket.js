@@ -195,10 +195,32 @@ function emitToBoard(boardId, event, data) {
   console.log(`Emitted ${event} to board board_${boardId}`);
 }
 
+// Check if user is online
+function isUserOnline(userId) {
+  if (!io) return false;
+  const room = io.sockets.adapter.rooms.get(userId.toString());
+  return room && room.size > 0;
+}
+
+// Get all online users from a list of user IDs
+function getOnlineUsers(userIds) {
+  if (!io) return [];
+  return userIds.filter((userId) => isUserOnline(userId));
+}
+
+// Get offline users from a list of user IDs
+function getOfflineUsers(userIds) {
+  if (!io) return userIds;
+  return userIds.filter((userId) => !isUserOnline(userId));
+}
+
 module.exports = {
   initSocket,
   getIO,
   emitToUser,
   emitToWorkspace,
   emitToBoard,
+  isUserOnline,
+  getOnlineUsers,
+  getOfflineUsers,
 };

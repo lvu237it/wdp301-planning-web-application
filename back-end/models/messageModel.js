@@ -18,6 +18,8 @@ const messageSchema = new mongoose.Schema(
     isPinned: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
+    isEdited: { type: Boolean, default: false },
+    editedAt: { type: Date },
   },
   {
     timestamps: true,

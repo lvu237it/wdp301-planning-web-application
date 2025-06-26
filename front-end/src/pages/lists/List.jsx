@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "../../styles/board.css";
 import { useCommon } from "../../contexts/CommonContext";
 import TaskModal from "../tasks/Task";
-
+import { useParams } from 'react-router-dom';
 const List = ({ boardId }) => {
   const {
     accessToken,
@@ -22,6 +22,8 @@ const List = ({ boardId }) => {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedTask, setSelectedTask] = useState(null);
   const menuRefs = useRef({});
+
+const { workspaceId } = useParams();
 
   // Fetch lists and tasks
   useEffect(() => {
@@ -94,7 +96,7 @@ const List = ({ boardId }) => {
   };
 
   // Save edited list title
-  const saveListTitle = async (id) => {
+   const saveListTitle = async (id) => {
     const title = editTitle.trim();
     if (!title) return;
     try {
@@ -109,7 +111,19 @@ const List = ({ boardId }) => {
       });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
-      setLists(lists.map((l) => (l._id === id ? js.data : l)));
+
+      // chỉ merge lại title, không đụng tasks
+      setLists((prev) =>
+        prev.map((l) =>
+          l._id === id ? { ...l, title: js.data.title } : l
+        )
+      );
+      // nếu TaskModal đang mở của list này, cập nhật luôn
+      setSelectedTask((prev) =>
+        prev && prev.listId === id
+          ? { ...prev, listTitle: js.data.title }
+          : prev
+      );
       setEditingId(null);
       setMenuOpenId(null);
     } catch (err) {
@@ -142,11 +156,11 @@ const List = ({ boardId }) => {
       title,
       description: "",
       calendarId: calendarUser?._id,
-      workspaceId: currentWorkspaceId || null,
+      workspaceId: workspaceId || null,
       boardId,
       listId,
       eventId: null,
-      assignedTo: currentUser._id,
+      assignedTo: null,
       assignedBy: currentUser._id,
       startDate: new Date().toISOString(),
       endDate: new Date().toISOString(),
@@ -332,4 +346,3 @@ const List = ({ boardId }) => {
 };
 
 export default List;
-

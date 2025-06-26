@@ -3,7 +3,64 @@ const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const sendEmail = require("../utils/sendMail");
 const List = require("../models/listModel");
-const notifyAssignedUser = async (task) => {
+exports.assignTask = async (req, res, next) => {
+  try {
+    const { id }    = req.params;
+    const { email } = req.body;
+
+    // 1) Tìm Task
+    const task = await Task.findById(id);
+    if (!task) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Không tìm thấy Task'
+      });
+    }
+
+    // 2) Tìm User theo email
+    const user = await User.findOne({ email });
+    if (!user || !user.email) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Không tìm thấy User hoặc User chưa có email'
+      });
+    }
+
+    // 3) Gán assignedTo/assignedBy
+    task.assignedTo = user._id; //id của người nhận 
+    // task.assignedBy = req.user._id;// id của người mời
+    await task.save();
+
+    // 4) Gửi mail thông báo
+    const subject = `Bạn đã được giao task: "${task.title}"`;
+    const deadlineText = task.endDate
+      ? new Date(task.endDate).toLocaleString('vi-VN')
+      : 'Chưa có hạn chót';
+    const html = `
+      <h2>Chào ${user.name || user.email},</h2>
+      <p>Bạn vừa được giao một công việc mới trên WebPlanPro:</p>
+      <ul>
+        <li><strong>Tiêu đề:</strong> ${task.title}</li>
+        <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
+        <li><strong>Hạn chót:</strong> ${deadlineText}</li>
+      </ul>
+      <p>Vui lòng đăng nhập để xem chi tiết và cập nhật tiến độ.</p>
+      <p>Trân trọng,</p>
+      <p>Đội ngũ WebPlanPro</p>
+    `;
+    await sendEmail(user.email, subject, html);
+    console.log(`✉️  Đã gửi mail thông báo tới ${user.email}`);
+
+    // 5) Trả về task đã cập nhật
+    res.status(200).json({
+      status: 'success',
+      data: task
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+exports.notifyAssignedUser = async (task) => {
   try {
     const assignedUser = await User.findById(task.assignedTo).select(
       "email name"
@@ -14,7 +71,7 @@ const notifyAssignedUser = async (task) => {
     }
     const subject = `Bạn đã được giao task mới: "${task.title}"`;
     const deadlineText = task.deadline
-      ? new Date(task.deadline).toLocaleString("vi-VN")
+      ? new Date(task.endDate).toLocaleString("vi-VN")
       : "Chưa có hạn chót";
 
     const htmlContent = `

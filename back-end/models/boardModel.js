@@ -14,10 +14,11 @@ const boardSchema = new mongoose.Schema(
       ref: 'Workspace',
       required: true,
     },
-    calendarId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Calendar',
-    },
+    // calendarId: {
+    //   //Có thể bỏ trường này (để null - ko thực sự cần thiết) - mục đích là để xác định board có calendar ko. Tuy nhiên đã có mối quan hệ ngược lại là calendarModel có ownerId (user/board)
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: 'Calendar',
+    // },
     backgroundColor: { type: String, default: '#ffffff' },
     backgroundImage: { type: String },
     lists: [{ type: mongoose.Schema.Types.ObjectId, ref: 'List' }],
@@ -65,7 +66,12 @@ const boardSchema = new mongoose.Schema(
         },
       },
     },
-    visibility: { type: String, enum: ['public', 'private'], default: 'public', required: true },
+    visibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public',
+      required: true,
+    },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },

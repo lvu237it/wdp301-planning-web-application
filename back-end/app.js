@@ -7,9 +7,10 @@ const swaggerUi = require('swagger-ui-express');
 const session = require('express-session');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
-
 // utils
 const AppError = require('./utils/appError');
+const cronJobs = require('./utils/cronJobs');
+
 // import routers
 const authenticationRoutes = require('./routes/authenticationRoutes');
 const userRouter = require('./routes/userRoutes');
@@ -20,7 +21,9 @@ const calendarRouter = require('./routes/calendarRoutes');
 const eventRouter = require('./routes/eventRoutes');
 const boardRouter = require('./routes/boardRoutes');
 const fileRouter = require('./routes/fileRoutes');
+const skillRouter = require('./routes/skillRoutes');
 const notificationRouter = require('./routes/notificationRoutes');
+const messageRouter = require('./routes/messageRoutes');
 
 const fileController = require('./controllers/fileController');
 
@@ -104,11 +107,17 @@ app.use('/calendar', calendarRouter);
 app.use('/event', eventRouter);
 app.use('/list', listRoutes);
 app.use('/task', taskRoutes);
-app.use('/workspace', workspaceRouter);
-app.use('/workspace/:workspaceId/board', boardRouter);
+app.use('/workspace', workspaceRouter);//cha
+app.use('/workspace/:workspaceId/board', boardRouter);//con
 app.use('/files', fileRouter);
+app.use('/skills', skillRouter);
 app.use('/notification', notificationRouter);
+app.use('/message', messageRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
+
+// Initialize all cron jobs
+cronJobs.initializeCronJobs();
+
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
