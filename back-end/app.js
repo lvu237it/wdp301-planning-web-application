@@ -100,7 +100,6 @@ initializeAdminId()
     console.error('Failed to initialize admin ID:', err);
     process.exit(1);
   });
-
 // routing handlers
 app.use('/', authenticationRoutes);
 app.use('/users', userRouter);
@@ -108,8 +107,8 @@ app.use('/calendar', calendarRouter);
 app.use('/event', eventRouter);
 app.use('/list', listRoutes);
 app.use('/task', taskRoutes);
-app.use('/workspace', workspaceRouter);
-app.use('/workspace/:workspaceId/board', boardRouter);
+app.use('/workspace', workspaceRouter);//cha
+app.use('/workspace/:workspaceId/board', boardRouter);//con
 app.use('/files', fileRouter);
 app.use('/skills', skillRouter);
 app.use('/notification', notificationRouter);

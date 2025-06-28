@@ -21,6 +21,11 @@ router.get(
   auth.protect,
   calendarController.getCalendarByUserId
 ); //ok
+router.get(
+  '/get-by-board/:boardId',
+  auth.protect,
+  calendarController.getCalendarByBoardId
+); //ok
 // router.delete(
 //   '/delete-calendar/:id',
 //   auth.protect,

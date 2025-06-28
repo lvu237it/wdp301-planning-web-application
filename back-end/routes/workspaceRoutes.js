@@ -31,4 +31,11 @@ router.post(
 );
 router.post('/invite-response', workspaceController.respondToInvite);
 
+// Route để lấy board details mà không cần workspaceId
+router.get(
+  '/board/:boardId',
+  protect,
+  require('../controllers/boardController').getBoardById
+);
+
 module.exports = router;
