@@ -5,7 +5,6 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import List from '../lists/List';
 import { useCommon } from '../../contexts/CommonContext';
-
 const BoardDetail = () => {
   const { workspaceId, boardId } = useParams();
   const {
@@ -15,7 +14,6 @@ const BoardDetail = () => {
     calendarBoard,
     setCalendarBoard,
   } = useCommon();
-
   // useEffect(() => {
   //   if (workspaceId) {
   //     console.log('workspaceId in boardDetail', workspaceId);

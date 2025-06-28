@@ -192,7 +192,7 @@ const Boards = () => {
                 <Col key={board._id}>
                   <Card
                     className='board-card h-100 d-flex flex-column'
-                    onClick={() => navigate(`/boards/${board._id}`)}
+                    onClick={() => navigate(`/workspace/${workspaceId}/boards/${board._id}`)}
                   >
                     {/* HEADER */}
                     <Card.Header className='board-card-header'>

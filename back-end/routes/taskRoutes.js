@@ -1,19 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const taskController = require('../controllers/taskController');
-
 const { protect } = require('../utils/auth');
 router.get('/', taskController.getAllTask);
 router.get('/get-by-board/:boardId', protect, taskController.getTasksByBoard);
-router.get(
-  '/calendar/board/:boardId',
-  protect,
-  taskController.getBoardTasksForCalendar
-);
-router.get('/:id', taskController.getTaskId);
+router.get('/:id',protect, taskController.getTaskId);
 router.post('/createTask', taskController.createTask);
-router.post('/calendar/create', protect, taskController.createTaskFromCalendar);
 router.put('/updateTask/:id', protect, taskController.updateTask);
 router.delete('/deleteTask/:id', taskController.deleteTask);
+router.post('/:id/invite', taskController.assignTask);
 
 module.exports = router;

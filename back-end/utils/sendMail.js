@@ -1,5 +1,6 @@
-const nodemailer = require('nodemailer');
 require('dotenv').config();
+const nodemailer = require('nodemailer');
+
 
 // Cấu hình transporter (dùng Gmail hoặc SMTP service khác)
 const transporter = nodemailer.createTransport({
@@ -9,7 +10,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD, // dùng App Password nếu 2FA
   },
 });
-
 // Hàm gửi email
 const sendEmail = async (to, subject, htmlContent) => {
 
