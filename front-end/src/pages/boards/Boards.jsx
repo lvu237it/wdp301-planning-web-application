@@ -47,7 +47,7 @@ const Boards = () => {
 	// Tìm workspace hiện tại để hiển thị breadcrumb + check quyền
 	const currentWs = workspaces.find((w) => String(w._id) === workspaceId);
 	const creatorId = currentWs?.creator?._id || currentWs?.creator;
-	const currentUserId = JSON.parse(localStorage.getItem('userData'))?.id;
+	const currentUserId = JSON.parse(localStorage.getItem('userData'))?.id ||JSON.parse(localStorage.getItem('userData'))?._id;
 	const isCreator = String(creatorId) === String(currentUserId);
 
   const handleDelete = async (e, board) => {
@@ -174,6 +174,7 @@ const Boards = () => {
 									String(m.userId?._id) === String(currentUserId) &&
 									m.role === 'admin'
 							);
+
               console.log('isBoardAdmin', isBoardAdmin);
 							const canDelete = isCreator || isBoardAdmin;
 							const handleClose = async (e) => {

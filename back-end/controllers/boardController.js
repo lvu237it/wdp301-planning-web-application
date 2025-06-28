@@ -27,7 +27,7 @@ exports.getBoardsByWorkspace = async (req, res) => {
 		const isMember = await WorkspaceMembership.exists({
 			userId,
 			workspaceId: wsId,
-			invitationStatus: 'accepted', 
+			invitationStatus: 'accepted',
 			isDeleted: false,
 		});
 		if (!isCreator && !isMember) {
@@ -258,72 +258,75 @@ exports.deleteBoard = async (req, res) => {
 };
 
 // thêm người dùng với read-only role trên Board
-exports.inviteBoardMember = async (req, res) => {
+exports.inviteBoardMembers = async (req, res) => {
 	try {
-		const { boardId } = req.params;
-		const { email, role = 'read-only' } = req.body;
+		const { workspaceId, boardId } = req.params;
+		const { emails, role = 'read-only' } = req.body;
 		const inviterId = req.user._id;
 
-		// 5.1 Kiểm tra Board tồn tại
+		// 1) Tìm board
 		const board = await Board.findById(boardId);
 		if (!board) {
 			return res.status(404).json({ message: 'Board không tồn tại' });
 		}
 
-		// 5.2 Tìm user theo email
-		const user = await User.findOne({ email });
-		if (!user) {
-			return res.status(404).json({ message: 'Người dùng không tồn tại' });
+		// 2) Lấy tất cả user theo emails
+		const users = await User.find({ email: { $in: emails } });
+		if (users.length === 0) {
+			return res
+				.status(400)
+				.json({ message: 'Không tìm thấy user nào với emails đã cho' });
 		}
 
-		// 5.3 Kiểm tra xem đã có membership chưa
+		// 3) Check xem đã có bất kỳ membership nào (pending hoặc accepted) trên board này
 		const existing = await BoardMembership.findOne({
 			boardId,
-			userId: user._id,
+			userId: { $in: users.map((u) => u._id) },
 			isDeleted: false,
 		});
 		if (existing) {
 			return res
 				.status(400)
-				.json({ message: 'Người dùng đã là member hoặc đang chờ xét' });
+				.json({
+					message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
+				});
 		}
 
-		// 5.4 Tạo token mời
+		// 4) Nếu chưa có, thì invite tất cả
 		const token = crypto.randomBytes(32).toString('hex');
-
-		// 5.5 Tạo BoardMembership với invitationResponse = 'pending'
-		const membership = await BoardMembership.create({
+		const invites = users.map((u) => ({
 			boardId,
-			userId: user._id,
-			role, // read-only hoặc admin (thường vẫn để read-only)
-			applicationStatus: 'applied', // lúc invite, coi như đã applied để chờ xét
+			userId: u._id,
+			role,
+			applicationStatus: 'applied',
 			invitationResponse: 'pending',
 			invitedBy: inviterId,
 			invitedAt: new Date(),
 			invitationToken: token,
-		});
+		}));
+		await BoardMembership.insertMany(invites);
 
-		// 5.6 Gửi email
-		const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
-		await sendEmail(
-			user.email,
-			`Bạn được mời vào Board "${board.name}"`,
-			`
-        <p>Xin chào ${user.username},</p>
-        <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
-        <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
-        <p><a href="${inviteLink}">${inviteLink}</a></p>
-        <p>Nếu không quan tâm, có thể bỏ qua email này.</p>
-      `
-		);
+		// 5) Gửi mail cho từng user
+		for (const user of users) {
+			const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
+			await sendEmail(
+				user.email,
+				`Bạn được mời vào Board "${board.name}"`,
+				`
+          <p>Xin chào ${user.username},</p>
+          <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
+          <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
+          <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
+        `
+			);
+		}
 
-		res.status(200).json({
-			message: 'Đã gửi lời mời thành công',
-			inviteLink,
-		});
+		return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
 	} catch (err) {
-		console.error('Lỗi khi mời Board member:', err);
-		res.status(500).json({ message: 'Lỗi server', error: err.message });
+		console.error(err);
+		return res
+			.status(500)
+			.json({ message: 'Server error', error: err.message });
 	}
 };
 
@@ -385,6 +388,91 @@ exports.respondToBoardInvite = async (req, res) => {
 		console.error('Lỗi khi xử lý invite-response:', err);
 		return res.status(500).json({
 			message: 'Lỗi server khi phản hồi lời mời',
+			error: err.message,
+		});
+	}
+};
+
+//get qualified users for board
+exports.getQualifiedUsers = async (req, res) => {
+	try {
+		const { boardId } = req.params;
+
+		// 1) Tìm board
+		const board = await Board.findById(boardId);
+		if (!board) {
+			return res.status(404).json({ message: 'Board không tồn tại' });
+		}
+
+		// 2) Lấy các user đã accepted trong workspace (loại bỏ creator)
+		const workspaceMems = await WorkspaceMembership.find({
+			workspaceId: board.workspaceId,
+			invitationStatus: 'accepted',
+			isDeleted: false,
+			role: { $ne: 'creatorWorkspace' },
+		}).select('userId');
+		const workspaceUserIds = workspaceMems.map((m) => m.userId);
+
+		if (!workspaceUserIds.length) {
+			return res
+				.status(200)
+				.json({ users: [], message: 'Chưa có thành viên nào trong workspace' });
+		}
+
+		// 3) Lấy các user đã là member của board này
+		const boardMems = await BoardMembership.find({
+			boardId: board._id,
+			invitationResponse: 'accepted', // hoặc invitationStatus tuỳ model
+			isDeleted: false,
+		}).select('userId');
+		const boardUserIds = boardMems.map((m) => m.userId);
+
+		// 4) Chỉ giữ những user vừa ở workspace, vừa chưa ở board
+		const candidateIds = workspaceUserIds.filter(
+			(uId) => !boardUserIds.some((bId) => bId.equals(uId))
+		);
+		if (!candidateIds.length) {
+			return res
+				.status(200)
+				.json({ users: [], message: 'Không có user nào đủ điều kiện' });
+		}
+
+		// 5) Build query động dựa trên criteria
+		const { skills, yearOfExperience, workDuration } = board.criteria || {};
+		const userQuery = { _id: { $in: candidateIds } };
+
+		if (Array.isArray(skills) && skills.length) {
+			userQuery.skills = { $in: skills };
+		}
+		if (yearOfExperience?.min != null) {
+			userQuery.yearOfExperience = { $gte: yearOfExperience.min };
+		}
+		if (workDuration?.startDate && workDuration?.endDate) {
+			const span =
+				workDuration.endDate.getTime() - workDuration.startDate.getTime();
+			userQuery.$expr = {
+				$gte: [
+					{
+						$subtract: [
+							'$expectedWorkDuration.endDate',
+							'$expectedWorkDuration.startDate',
+						],
+					},
+					span,
+				],
+			};
+		}
+
+		// 6) Trả về danh sách user
+		const users = await User.find(userQuery).select(
+			'username email skills yearOfExperience expectedWorkDuration'
+		);
+
+		return res.status(200).json({ users });
+	} catch (err) {
+		console.error('Lỗi getQualifiedUsers:', err);
+		return res.status(500).json({
+			message: 'Server lỗi khi lấy người dùng theo tiêu chí',
 			error: err.message,
 		});
 	}
