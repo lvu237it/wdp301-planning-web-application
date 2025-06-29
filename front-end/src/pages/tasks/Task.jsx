@@ -5,6 +5,7 @@ import { useCommon } from "../../contexts/CommonContext";
 import { Modal, Button, Form, Toast } from "react-bootstrap";
 import Deadline from "./Deadline";
 import ChecklistModal from "./ChecklistModal";
+import ProgressTask from "./ProgressTask";
 import SuggestMembersBySkills from "./SuggestMemberBySkills";
 
 const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
@@ -146,49 +147,6 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     }
   };
 
-  //CHECKLIST PROGRESS
-  const totalItems = task.checklist?.length || 0;
-  const doneCount = task.checklist?.filter((i) => i.completed).length || 0;
-  const percentDone = totalItems
-    ? Math.round((doneCount / totalItems) * 100)
-    : 0;
-
-  //CHECKLIST TOGGLE / DELETE
-  const updateChecklist = async (newChecklist) => {
-    const res = await axios.put(
-      `${apiBaseUrl}/task/updateTask/${task._id}`,
-      { checklist: newChecklist },
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
-    onUpdate(mergeTask(res.data.data));
-  };
-  const handleToggleChecklist = async (item) => {
-    const updated = task.checklist.map((i) =>
-      i._id === item._id ? { ...i, completed: !i.completed } : i
-    );
-    try {
-      await updateChecklist(updated);
-    } catch (e) {
-      console.error(e);
-      alert(
-        "Không thể cập nhật checklist: " +
-          (e.response?.data?.message || e.message)
-      );
-    }
-  };
-  const handleDeleteChecklist = async (item) => {
-    const updated = task.checklist.filter((i) => i._id !== item._id);
-    try {
-      await updateChecklist(updated);
-    } catch (e) {
-      console.error(e);
-      alert("Không thể xóa mục: " + (e.response?.data?.message || e.message));
-    }
-  };
-
   // hàm mời thành viên
   const handleAssign = async (user) => {
     try {
@@ -211,7 +169,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     }
   };
 
-  // hàm xóa thành viên 
+  // hàm xóa thành viên
   const handleUnassign = async () => {
     try {
       const res = await axios.delete(`${apiBaseUrl}/task/${task._id}/assign`, {
@@ -501,7 +459,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   )}
                 </div>
               ) : (
-                <div className="mt-1 text-muted">Chưa có</div>
+                <div className="text-muted-nguoidcgiao">Chưa có</div>
               )}
             </div>
 
@@ -533,63 +491,12 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
             </div>
 
             {/* CHECKLIST */}
-            <div className="task-modal-section">
-              <label className="section-label">Tiến độ công việc</label>
-              {totalItems ? (
-                <>
-                  <div className="checklist-progress">
-                    <div className="progress">
-                      <div
-                        className="progress-bar"
-                        role="progressbar"
-                        style={{ width: `${percentDone}%` }}
-                      />
-                    </div>
-                    <span className="ms-2">{percentDone}%</span>
-                  </div>
-                  <ul className="checklist-list">
-                    {task.checklist.map((item) => (
-                      <li
-                        key={item._id}
-                        className="d-flex align-items-center mb-1"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          onChange={() => handleToggleChecklist(item)}
-                          className="form-check-input me-2"
-                        />
-                        <span
-                          style={{
-                            textDecoration: item.completed
-                              ? "line-through"
-                              : "none",
-                            flexGrow: 1,
-                          }}
-                        >
-                          {item.title}
-                        </span>
-                        {!isAssignee && (
-                          <button
-                            className="btn btn-sm btn-link text-danger"
-                            onClick={() => handleDeleteChecklist(item)}
-                          >
-                            Xóa
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p
-                  style={{ textAlign: "center", fontWeight: "bold" }}
-                  className="text-muted"
-                >
-                  Chưa có công việc nào.
-                </p>
-              )}
-            </div>
+            <ProgressTask
+              task={task}
+              mergeTask={mergeTask}
+              onUpdate={onUpdate}
+              isAssignee={isAssignee}
+            />
           </div>
         </div>
       </div>

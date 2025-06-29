@@ -201,3 +201,11 @@
   font-weight: bold;
   margin-left: 10px;
 }
+.text-muted-progressTask{
+  color: red;
+  font-weight: bold;
+}
+.text-muted-nguoidcgiao{
+    color: red;
+  font-weight: bold;
+}
