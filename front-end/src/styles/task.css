@@ -196,3 +196,16 @@
   background-color: rgba(0,0,0,0.2);
   border-radius: 3px;
 }
+.mt-1-text-muted{
+  color: red;
+  font-weight: bold;
+  margin-left: 10px;
+}
+.text-muted-progressTask{
+  color: red;
+  font-weight: bold;
+}
+.text-muted-nguoidcgiao{
+    color: red;
+  font-weight: bold;
+}

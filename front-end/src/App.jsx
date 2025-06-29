@@ -13,7 +13,6 @@ import Profile from "./pages/profile/Profile";
 import BoardDetail from "./pages/boards/BoardDetail";
 import InviteResponse from "./pages/workspaces/InviteResponse";
 import BoardInviteResponse from "./pages/boards/BoardInviteResponse";
-
 function App() {
   return (
     <Routes>

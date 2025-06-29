@@ -3,58 +3,64 @@ import axios from "axios";
 import "../../styles/task.css";
 import { useCommon } from "../../contexts/CommonContext";
 import { Modal, Button, Form, Toast } from "react-bootstrap";
+import Deadline from "./Deadline";
 import ChecklistModal from "./ChecklistModal";
-const pad = (n) => n.toString().padStart(2, "0");
-const toDateTimeLocal = (date) => {
-  if (!date) return "";
-  const Y = date.getFullYear(),
-    M = pad(date.getMonth() + 1),
-    D = pad(date.getDate()),
-    h = pad(date.getHours()),
-    m = pad(date.getMinutes());
-  return `${Y}-${M}-${D}T${h}:${m}`;
-};
-const toDateLocal = (date) => {
-  if (!date) return "";
-  const Y = date.getFullYear(),
-    M = pad(date.getMonth() + 1),
-    D = pad(date.getDate());
-  return `${Y}-${M}-${D}`;
-};
-const parseLocalToUTC = (s) => new Date(s + ':00Z');
+import ProgressTask from "./ProgressTask";
+import SuggestMembersBySkills from "./SuggestMemberBySkills";
 
 const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
-  const { accessToken, apiBaseUrl } = useCommon();
-
+  const { accessToken, apiBaseUrl, userDataLocal } = useCommon();
+  const currentUser = userDataLocal;
+  const fileInputRef = useRef(null);
   // States chung
   const [editedTitle, setEditedTitle] = useState("");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedDesc, setEditedDesc] = useState("");
   const [isEditingDesc, setIsEditingDesc] = useState(false);
-  const [showDateInputs, setShowDateInputs] = useState(false);
-  const [allDay, setAllDay] = useState(false);
-  const [startInput, setStartInput] = useState("");
-  const [endInput, setEndInput] = useState("");
-  const [dateInput, setDateInput] = useState("");
   const [showChecklistModal, setShowChecklistModal] = useState(false);
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const fileInputRef = useRef(null);
-
+  const [toastMessage, setToastMessage] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  // Khởi động khi task thay đổi
- useEffect(() => {
-  if (showDateInputs && task) {
-    const s = task.startDate ? new Date(task.startDate) : null;
-    const e = task.endDate   ? new Date(task.endDate)   : null;
-    setAllDay(!!task.allDay);
-    setStartInput(toDateTimeLocal(s));
-    setEndInput(toDateTimeLocal(e));
-    setDateInput(toDateLocal(s));
-  }
-}, [showDateInputs, task]);
+
+  useEffect(() => {
+    if (isOpen && task) {
+      setEditedTitle(task.title);
+      setEditedDesc(task.description || "");
+    }
+  }, [isOpen, task]);
 
   if (!isOpen || !task) return null;
+
+  const isAssigner =
+    currentUser &&
+    ((task.assignedBy && task.assignedBy._id === currentUser._id) ||
+      (!task.assignedBy && !task.assignedTo));
+  const isAssignee =
+    task.assignedTo && currentUser && task.assignedTo._id === currentUser._id;
+
+  const mergeTask = (updatedFields) => {
+    let assignedTo;
+    if (updatedFields.hasOwnProperty("assignedTo")) {
+      if (updatedFields.assignedTo === null) {
+        assignedTo = null;
+      } else if (typeof updatedFields.assignedTo === "object") {
+        assignedTo = updatedFields.assignedTo;
+      } else {
+        assignedTo = task.assignedTo;
+      }
+    } else {
+      assignedTo = task.assignedTo;
+    }
+
+    return {
+      ...task,
+      ...updatedFields,
+      assignedTo,
+      listTitle: task.listTitle,
+      assignedBy: task.assignedBy,
+    };
+  };
 
   const isOverdue = task.endDate && new Date(task.endDate) < new Date();
   const formatBadge = (iso) => {
@@ -80,11 +86,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate({
-        ...task,
-        ...res.data.data,
-      });
-
+      onUpdate(mergeTask(res.data.data));
+      setToastMessage("Cập nhật tiêu đề thành công");
+      setShowToast(true);
       setIsEditingTitle(false);
     } catch (err) {
       console.error(err);
@@ -108,9 +112,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           "Content-Type": "multipart/form-data",
         },
       });
-
-      // API trả về task mới kèm documents
-      onUpdate(res.data.data);
+      onUpdate(mergeTask(res.data.data));
     } catch (err) {
       console.error("Upload file error:", err);
       alert(
@@ -121,6 +123,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     }
   };
 
+  // hàm lưu mô tả
   const handleSaveDesc = async () => {
     try {
       const res = await axios.put(
@@ -131,8 +134,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate({ ...task, ...res.data.data });
+      onUpdate(mergeTask(res.data.data));
       setIsEditingDesc(false);
+      setToastMessage("Cập nhật mô tả thành công");
       setShowToast(true);
     } catch (err) {
       console.error(err);
@@ -143,134 +147,72 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
     }
   };
 
-  // Hàm lưu ngày với thông báo thành công
- const handleSaveDates = async () => {
-  try {
-    const payload = {};
-    payload.allDay = allDay;
-
-    if (allDay && dateInput) {
-      const [Y, M, D] = dateInput.split('-').map(Number);
-      payload.startDate = new Date(Y, M - 1, D, 0, 0).toISOString();
-      payload.endDate   = new Date(Y, M - 1, D, 23, 59).toISOString();
-    } else {
-      if (startInput) payload.startDate = new Date(startInput).toISOString();
-      if (endInput)   payload.endDate   = new Date(endInput).toISOString();
-    }
-
-    const res = await axios.put(
-      `${apiBaseUrl}/task/updateTask/${task._id}`,
-      payload,
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
-    onUpdate({ ...task, ...res.data.data });
-    setShowDateInputs(false);
-  } catch (err) {
-    console.error(err);
-    alert("Cập nhật ngày thất bại: " + (err.response?.data?.message || err.message));
-  }
-};
-
-
-  //CHECKLIST PROGRESS
-  const totalItems = task.checklist?.length || 0;
-  const doneCount = task.checklist?.filter((i) => i.completed).length || 0;
-  const percentDone = totalItems
-    ? Math.round((doneCount / totalItems) * 100)
-    : 0;
-
-  //CHECKLIST TOGGLE / DELETE
-  const updateChecklist = async (newChecklist) => {
-    const res = await axios.put(
-      `${apiBaseUrl}/task/updateTask/${task._id}`,
-      { checklist: newChecklist },
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
-    onUpdate({ ...task, ...res.data.data });
-  };
-  const handleToggleChecklist = async (item) => {
-    const updated = task.checklist.map((i) =>
-      i._id === item._id ? { ...i, completed: !i.completed } : i
-    );
+  // hàm mời thành viên
+  const handleAssign = async (user) => {
     try {
-      await updateChecklist(updated);
-    } catch (e) {
-      console.error(e);
-      alert(
-        "Không thể cập nhật checklist: " +
-          (e.response?.data?.message || e.message)
-      );
-    }
-  };
-  const handleDeleteChecklist = async (item) => {
-    const updated = task.checklist.filter((i) => i._id !== item._id);
-    try {
-      await updateChecklist(updated);
-    } catch (e) {
-      console.error(e);
-      alert("Không thể xóa mục: " + (e.response?.data?.message || e.message));
-    }
-  };
-  // Hàm gọi API mời member
-  const handleInvite = async () => {
-    try {
-      console.log("Gửi invite đến:", inviteEmail);
       const res = await axios.post(
-        `${apiBaseUrl}/task/${task._id}/invite`,
-        { email: inviteEmail.trim() },
-        {
-          withCredentials: true,
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        `${apiBaseUrl}/task/${task._id}/assign`,
+        { email: user.email },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      console.log("Invite API response:", res.data);
-      onUpdate(res.data.data);
-      setInviteEmail("");
+
+      const updatedFields = res.data.data;
+      onUpdate(mergeTask({ ...updatedFields, assignedTo: user }));
+      setToastMessage(`Đã giao task cho ${user.username || user.email}`);
+      setShowToast(true);
       setShowInviteModal(false);
+    } catch (err) {
+      console.error("Giao task thất bại:", err);
+      alert(
+        "Giao task thất bại: " + (err.response?.data?.message || err.message)
+      );
+    }
+  };
+
+  // hàm xóa thành viên
+  const handleUnassign = async () => {
+    try {
+      const res = await axios.delete(`${apiBaseUrl}/task/${task._id}/assign`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const updatedFields = res.data.data;
+      onUpdate(mergeTask(updatedFields));
+      setToastMessage("Đã xóa người được giao");
       setShowToast(true);
     } catch (err) {
-      console.error("Gửi invite thất bại:", err.response?.data || err);
+      console.error("Unassign thất bại:", err);
       alert(
-        "Gửi lời mời thất bại: " + (err.response?.data?.message || err.message)
+        "Không thể xóa người được giao: " +
+          (err.response?.data?.message || err.message)
       );
     }
   };
+
   return (
     <>
       <Modal
         show={showInviteModal}
         onHide={() => setShowInviteModal(false)}
         centered
+        size="lg"
       >
         <Modal.Header closeButton>
-          <Modal.Title>Mời thành viên vào Task</Modal.Title>
+          <Modal.Title>Gợi ý & Mời thành viên theo kỹ năng</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group>
-            <Form.Label>Nhập email của người nhận</Form.Label>
-            <Form.Control
-              type="email"
-              placeholder="ví dụ: user@example.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-          </Form.Group>
+          <SuggestMembersBySkills
+            workspaceId={task.workspaceId}
+            boardId={task.boardId}
+            onAssignSuccess={handleAssign}
+          />
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowInviteModal(false)}>
-            Hủy
-          </Button>
-          <Button variant="primary" onClick={handleInvite}>
-            Gửi lời mời
+            Đóng
           </Button>
         </Modal.Footer>
       </Modal>
+
       <Toast
         show={showToast}
         bg="success"
@@ -287,11 +229,15 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         }}
       >
         <Toast.Body className="text-white text-center">
-          Cập nhật thành công
+          {toastMessage}
         </Toast.Body>
       </Toast>
       <div className="task-modal-overlay" onClick={onClose}>
-        <div className="task-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="task-modal"
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxHeight: "80vh", overflowY: "auto" }}
+        >
           {/* HEADER */}
           <div className="task-modal-header">
             <div value={task.listId}>{task.listTitle}</div>
@@ -331,7 +277,6 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       setIsEditingTitle(false);
                       setEditedTitle(task.title);
                     }}
-                    style={{ marginLeft: 4 }}
                   >
                     Hủy
                   </Button>
@@ -341,139 +286,103 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   <h2 className="task-modal-title" style={{ margin: 0 }}>
                     {task.title}
                   </h2>
-                  <button
-                    className="icon-btn-taskTitle"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsEditingTitle(true);
-                    }}
-                  >
-                    <i className="fas fa-pen fa-lg text-secondary" />
-                  </button>
+                  {isAssigner && (
+                    <button
+                      onClick={() => {
+                        setIsEditingTitle(true);
+                      }}
+                    >
+                      <i className="fas fa-pen fa-lg text-secondary" />
+                    </button>
+                  )}
                 </>
               )}
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="task-modal-actions">
-              <Button
-                variant="warning"
-                className="btn-action"
-                onClick={() => setShowInviteModal(true)}
-              >
-                <i className="fas fa-person" /> Thêm Member
-              </Button>
-              <Button
-                variant="secondary"
-                className="btn-action"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <i className="fas fa-file" /> Tệp đính kèm
-              </Button>
-
-              {/* input ẩn để trigger file picker */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                multiple
-                style={{ display: "none" }}
-                onChange={handleFileChange}
-              />
-
-              {task.endDate ? (
-                <div
-                  className={`due-badge ${isOverdue ? "overdue" : ""}`}
-                  onClick={() => setShowDateInputs(true)}
-                >
-                  {formatBadge(task.endDate)}
-                  <i
-                    className="fas fa-chevron-down"
-                    style={{ marginLeft: 6 }}
-                  />
-                </div>
-              ) : (
-                <Button
-                  className="btn-action"
-                  onClick={() => setShowDateInputs((v) => !v)}
-                >
-                  <i className="fas fa-clock" /> Ngày
-                </Button>
-              )}
-              <Button
-                variant="success"
-                className="icon-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowChecklistModal(true);
-                }}
-              >
-                <i className="fas fa-list" /> Việc cần làm
-              </Button>
-            </div>
-
-            {/* modal chọn deadline */}
-            <Modal
-              show={showDateInputs}
-              onHide={() => setShowDateInputs(false)}
-              centered
-            >
-              <Modal.Header closeButton>
-                <Modal.Title>Chọn ngày</Modal.Title>
-              </Modal.Header>
-              <Modal.Body>
-                {!allDay ? (
-                  <>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Ngày bắt đầu</Form.Label>
-                      <Form.Control
-                        type="datetime-local"
-                        value={startInput}
-                        onChange={(e) => setStartInput(e.target.value)}
-                      />
-                    </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Ngày kết thúc</Form.Label>
-                      <Form.Control
-                        type="datetime-local"
-                        value={endInput}
-                        onChange={(e) => setEndInput(e.target.value)}
-                      />
-                    </Form.Group>
-                  </>
-                ) : (
-                  <Form.Group className="mb-3">
-                    <Form.Label>Chọn ngày</Form.Label>
-                    <Form.Control
-                      type="date"
-                      value={dateInput}
-                      onChange={(e) => setDateInput(e.target.value)}
-                    />
-                  </Form.Group>
+            {isAssigner && (
+              <div className="task-modal-actions">
+                {!task.assignedTo && (
+                  <Button
+                    variant="warning"
+                    className="btn-action"
+                    onClick={() => setShowInviteModal(true)}
+                  >
+                    <i className="fas fa-person" /> Thêm Member
+                  </Button>
                 )}
-                <Form.Check
-                  type="checkbox"
-                  label="Cả ngày"
-                  checked={allDay}
-                  onChange={(e) => setAllDay(e.target.checked)}
-                />
-              </Modal.Body>
-              <Modal.Footer>
-                <Button variant="primary" onClick={handleSaveDates}>
-                  Lưu
-                </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => setShowDateInputs(false)}
+                  className="btn-action"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  Hủy
+                  <i className="fas fa-file" /> Tệp đính kèm
                 </Button>
-              </Modal.Footer>
-            </Modal>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
+
+                {task.endDate ? (
+                  <div
+                    className={`due-badge ${isOverdue ? "overdue" : ""}`}
+                    onClick={() => setShowDeadlineModal(true)}
+                  >
+                    {formatBadge(task.endDate)}
+                    <i
+                      className="fas fa-chevron-down"
+                      style={{ marginLeft: 6 }}
+                    />
+                  </div>
+                ) : (
+                  <Button
+                    className="btn-action"
+                    onClick={() => setShowDeadlineModal(true)}
+                  >
+                    <i className="fas fa-clock" /> Ngày
+                  </Button>
+                )}
+                <Deadline
+                  show={showDeadlineModal}
+                  onClose={() => setShowDeadlineModal(false)}
+                  task={task}
+                  onUpdate={onUpdate}
+                  mergeTask={mergeTask}
+                />
+                <Button
+                  variant="success"
+                  className="icon-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowChecklistModal(true);
+                  }}
+                >
+                  <i className="fas fa-list" /> Việc cần làm
+                </Button>
+                {/* Modal Thêm checklist */}
+                <ChecklistModal
+                  isOpen={showChecklistModal}
+                  onClose={() => setShowChecklistModal(false)}
+                  task={task}
+                  onAdd={(updatedField) => {
+                    onUpdate(mergeTask(updatedField));
+                    setShowChecklistModal(false);
+                  }}
+                />
+              </div>
+            )}
 
             {/* DESCRIPTION */}
             <div className="task-modal-section">
               <label className="section-label">Mô tả</label>
-              {isEditingDesc ? (
+              {isAssignee ? (
+                <div className="desc-view">
+                  <p>{task.description || "Chưa có mô tả."}</p>
+                </div>
+              ) : isEditingDesc ? (
                 <>
                   <textarea
                     className="section-textarea"
@@ -486,7 +395,10 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={() => setIsEditingDesc(false)}
+                      onClick={() => {
+                        setIsEditingDesc(false);
+                        setEditedDesc(task.description || "");
+                      }}
                       style={{ marginLeft: 8 }}
                     >
                       Hủy
@@ -498,14 +410,56 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   <div className="desc-view">
                     <p>{task.description || "Chưa có mô tả."}</p>
                   </div>
-                  <Button
-                    style={{ marginTop: "10px" }}
-                    className="btn-edit-desc"
-                    onClick={() => setIsEditingDesc(true)}
-                  >
-                    Chỉnh sửa
-                  </Button>
+                  {isAssigner && (
+                    <Button
+                      style={{ marginTop: "10px" }}
+                      className="btn-edit-desc"
+                      onClick={() => {
+                        setEditedDesc(task.description || "");
+                        setIsEditingDesc(true);
+                      }}
+                    >
+                      Chỉnh sửa
+                    </Button>
+                  )}
                 </div>
+              )}
+            </div>
+
+            {/* Người đc giao trong task */}
+            <div className="task-modal-section assigned-info mb-3">
+              <strong>Người được giao:</strong>
+              {task.assignedTo ? (
+                <div className="d-flex align-items-center mt-1">
+                  {task.assignedTo.avatar && (
+                    <img
+                      src={
+                        task.assignedTo.avatar.startsWith("http")
+                          ? task.assignedTo.avatar
+                          : `${apiBaseUrl}/uploads/avatars/${task.assignedTo.avatar}`
+                      }
+                      alt={task.assignedTo.username || task.assignedTo.email}
+                      className="rounded-circle"
+                      width={32}
+                      height={32}
+                    />
+                  )}
+                  <span className="ms-2">
+                    {task.assignedTo.username || task.assignedTo.email}
+                  </span>
+                  {isAssigner && (
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      className="ms-3"
+                      onClick={handleUnassign}
+                    >
+                      <i className="fas fa-user-times" /> Xóa
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="text-muted-nguoidcgiao">Chưa có</div>
               )}
             </div>
 
@@ -537,75 +491,15 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
             </div>
 
             {/* CHECKLIST */}
-            <div className="task-modal-section">
-              <label className="section-label">Tiến độ công việc</label>
-              {totalItems ? (
-                <>
-                  <div className="checklist-progress">
-                    <div className="progress">
-                      <div
-                        className="progress-bar"
-                        role="progressbar"
-                        style={{ width: `${percentDone}%` }}
-                      />
-                    </div>
-                    <span className="ms-2">{percentDone}%</span>
-                  </div>
-                  <ul className="checklist-list">
-                    {task.checklist.map((item) => (
-                      <li
-                        key={item._id}
-                        className="d-flex align-items-center mb-1"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          onChange={() => handleToggleChecklist(item)}
-                          className="form-check-input me-2"
-                        />
-                        <span
-                          style={{
-                            textDecoration: item.completed
-                              ? "line-through"
-                              : "none",
-                            flexGrow: 1,
-                          }}
-                        >
-                          {item.title}
-                        </span>
-                        <button
-                          className="btn btn-sm btn-link text-danger"
-                          onClick={() => handleDeleteChecklist(item)}
-                        >
-                          Xóa
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p
-                  style={{ textAlign: "center", fontWeight: "bold" }}
-                  className="text-muted"
-                >
-                  Chưa có công việc nào.
-                </p>
-              )}
-            </div>
+            <ProgressTask
+              task={task}
+              mergeTask={mergeTask}
+              onUpdate={onUpdate}
+              isAssignee={isAssignee}
+            />
           </div>
         </div>
       </div>
-
-      {/* Modal Thêm checklist */}
-      <ChecklistModal
-        isOpen={showChecklistModal}
-        onClose={() => setShowChecklistModal(false)}
-        task={task}
-        onAdd={(updated) => {
-          onUpdate(updated);
-          setShowChecklistModal(false);
-        }}
-      />
     </>
   );
 };

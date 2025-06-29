@@ -96,7 +96,7 @@
   background: rgba(255, 255, 255, 0.95);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 280px;
+  width: 370px;
   flex-shrink: 0;
   padding: 16px;
   display: flex;
@@ -105,6 +105,11 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
   max-height: calc(100vh - 250px);
+}
+.ms-2-text-muted{
+color: red;
+font-weight: bold;
+padding-left: 11px;
 }
 
 .list-card:hover {
@@ -214,6 +219,7 @@
   font-weight: 600;
   transition: all 0.2s ease;
   border: 2px dashed #e9ecef;
+  width: 350px;
 }
 
 .add-card-button:hover {
@@ -228,6 +234,7 @@
   gap: 8px;
 }
 
+
 .add-card-input,
 .add-list-input {
   padding: 8px 12px;
@@ -236,6 +243,7 @@
   border-radius: 6px;
   outline: none;
   transition: border-color 0.2s ease;
+  width: 350px;
 }
 
 .add-card-input:focus,
@@ -249,6 +257,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 10px;
 }
 
 .btn-add {

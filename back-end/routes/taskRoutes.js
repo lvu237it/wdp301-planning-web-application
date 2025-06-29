@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const taskController = require('../controllers/taskController');
 const { protect } = require('../utils/auth');
-router.get('/', taskController.getAllTask);
+router.get('/', protect, taskController.getAllTask);
 router.get('/get-by-board/:boardId', protect, taskController.getTasksByBoard);
 router.get('/:id',protect, taskController.getTaskId);
-router.post('/createTask', taskController.createTask);
+router.post('/createTask', protect, taskController.createTask);
 router.put('/updateTask/:id', protect, taskController.updateTask);
-router.delete('/deleteTask/:id', taskController.deleteTask);
-router.post('/:id/invite', taskController.assignTask);
+router.delete('/deleteTask/:id',protect, taskController.deleteTask);
+router.post('/:id/assign', protect, taskController.assignTask);
+router.delete('/:id/assign', protect, taskController.unassignTask);
 
 module.exports = router;

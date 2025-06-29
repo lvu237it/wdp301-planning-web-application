@@ -60,6 +60,33 @@ exports.assignTask = async (req, res, next) => {
     next(err);
   }
 };
+
+// Xóa người được giao việc
+exports.unassignTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    // 1) Kiểm tra ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ status:'fail', message:'ID không hợp lệ' });
+    }
+    // 2) Lấy task
+    const task = await Task.findOne({ _id: id, isDeleted: false });
+    if (!task) {
+      return res.status(404).json({ status:'fail', message:'Không tìm thấy task' });
+    }
+    // 3) Xóa assignedTo
+    task.assignedTo = null;
+    await task.save();
+    // 4) Trả về task đã cập nhật (có thể populate nếu cần)
+    const updated = await Task.findById(id)
+      .populate('assignedTo', 'username email avatar')
+      .populate('assignedBy', 'username email avatar');
+    res.status(200).json({ status:'success', data: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.notifyAssignedUser = async (task) => {
   try {
     const assignedUser = await User.findById(task.assignedTo).select(
@@ -119,7 +146,10 @@ exports.getTasksByBoard = async (req, res) => {
         message: "boardId không hợp lệ",
       });
     }
-    const tasks = await Task.find({ boardId, isDeleted: false });
+    // const tasks = await Task.find({ boardId, isDeleted: false });
+    const tasks = await Task.find({ boardId, isDeleted: false })
+   .populate("assignedTo", "username email avatar")
+   .populate("assignedBy", "username email avatar");
     res.status(200).json({
       status: "success",
       results: tasks.length,
@@ -141,7 +171,10 @@ exports.getTaskId = async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({ _id: id, isDeleted: false });
+    // const task = await Task.findOne({ _id: id, isDeleted: false });
+    const task = await Task.findOne({ _id: id, isDeleted: false })
+   .populate("assignedTo", "username email avatar")
+   .populate("assignedBy", "username email avatar");
     if (!task) {
       return res.status(404).json({
         status: "fail",
@@ -219,13 +252,14 @@ exports.createTask = async (req, res) => {
       listId,
       eventId: eventId || null,
       assignedTo: assignedTo || null,
-      assignedBy: assignedBy || null,
+     // assignedBy: assignedBy || null,
+      assignedBy: req.user._id,
       startDate: startDate ? new Date(startDate) : now,
       endDate: endDate ? new Date(endDate) : now,
       allDay: typeof allDay === "boolean" ? allDay : false,
       recurrence: recurrence || null,
       reminderSettings: Array.isArray(reminderSettings) ? reminderSettings : [],
-      checklist: Array.isArray(checklist) ? checklist : [],
+      checklist: Array.isArray(checklist) ? checklist : [], 
       documents: Array.isArray(documents) ? documents : [],
       isDeleted: false,
       deletedAt: null,

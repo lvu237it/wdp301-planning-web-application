@@ -586,3 +586,49 @@ exports.getQualifiedUsers = async (req, res) => {
 		});
 	}
 };
+exports.suggestMembersBySkills = async (req, res) => {
+  // 1) Ngăn browser cache response (tránh 304 Not Modified)
+  res.set('Cache-Control', 'no-store');
+
+  try {
+    const { boardId } = req.params;
+    const skills = (req.query.skills || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    // 2) Lấy tất cả membership đã accept trên board
+    const memberships = await BoardMembership.find({
+      boardId,
+      applicationStatus: 'accepted',
+      isDeleted: false
+    })
+    .select('userId')
+    .lean();
+
+    const userIds = memberships.map(m => m.userId);
+    if (!userIds.length) {
+      // Nếu chưa có member nào, trả về mảng rỗng luôn
+      return res.status(200).json({ success: true, users: [] });
+    }
+
+    // 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
+   const regexes = skills.map(s => new RegExp(`^${s}$`, 'i'));
+const users = await User.find({
+  _id: { $in: userIds },
+  skills: { $in: regexes }
+})
+.select('_id username email skills')  
+.lean();
+
+    // 4) Trả về kết quả
+    return res.status(200).json({ success: true, users });
+  } catch (err) {
+    console.error('suggestMembersBySkills error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi gợi ý thành viên',
+      error: err.message
+    });
+  }
+};
