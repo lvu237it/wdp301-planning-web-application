@@ -10,9 +10,6 @@ const {
 
 router.get('/', protect, boardController.getBoardsByWorkspace);
 
-// Lấy thông tin chi tiết board theo ID
-router.get('/:boardId', protect, boardController.getBoardById);
-
 // 1. Tạo Board (chỉ cần verifyToken, không cần check role)
 router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
 
@@ -40,7 +37,7 @@ router.post(
   '/:boardId/invite',
   protect,
   isAdminBoard,
-  boardController.inviteBoardMember
+  boardController.inviteBoardMembers
 );
 
 // 6. Phản hồi lời mời (không cần verifyToken, vì user có thể bấm link từ email)
@@ -52,5 +49,7 @@ router.get(
   protect,
   boardController.suggestMembersBySkills
 );
+//7. lấy ra user đủ điều kiện trên board
+router.get('/:boardId/qualified-users', protect, boardController.getQualifiedUsers);
 
 module.exports = router;

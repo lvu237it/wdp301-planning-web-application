@@ -165,18 +165,26 @@ const Boards = () => {
             </Alert>
           )}
 
-          {/* Boards Grid */}
-          <Row xs={1} md={2} lg={3} className='g-4'>
-            {boards.map((board) => {
-              const members = board.members || [];
-              const displayMems = members.slice(0, 3);
-              const moreCount = members.length > 3 ? members.length - 3 : 0;
-              const listsCount = board.lists?.length ?? 0;
-              const isBoardAdmin = members.some(
-                (m) =>
-                  String(m.userId?._id) === String(currentUserId) &&
-                  m.role === 'admin'
-              );
+					{/* Empty State */}
+					{boards.length === 0 && (
+						<Alert variant='info' className='boards-empty-alert'>
+							Chưa có board nào trong workspace này.
+						</Alert>
+					)}
+
+					{/* Boards Grid */}
+					<Row xs={1} md={2} lg={3} className='g-4'>
+						{boards.map((board) => {
+							const members = board.members || [];
+							const displayMems = members.slice(0, 3);
+							const moreCount = members.length > 3 ? members.length - 3 : 0;
+							const listsCount = board.lists?.length ?? 0;
+							const isBoardAdmin = members.some(
+								(m) =>
+									String(m.userId?._id) === String(currentUserId) &&
+									m.role === 'admin'
+							);
+
               console.log('isBoardAdmin', isBoardAdmin);
               const canDelete = isCreator || isBoardAdmin;
               const handleClose = async (e) => {
