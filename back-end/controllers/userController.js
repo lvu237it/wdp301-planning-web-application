@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/userModel");
+const Board = require("../models/boardModel");
 const Skill = require("../models/skillModel");
 const AppError = require("../utils/appError");
 

@@ -179,6 +179,19 @@ userSchema.methods.createPasswordResetToken = function () {
   return resetToken;
 };
 
+//validate startDate <= endDate
+// userSchema.pre('validate', function(next) {
+//   const d1 = this.expectedWorkDuration.startDate;
+//   const d2 = this.expectedWorkDuration.endDate;
+//   if (d1 && d2 && d1 > d2) {
+//     this.invalidate(
+//       'expectedWorkDuration.endDate',
+//       'endDate must be greater than or equal to startDate'
+//     );
+//   }
+//   next();
+// });
+
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ skills: 1 });

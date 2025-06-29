@@ -210,6 +210,7 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
   }
 };
 
+//Tác động tới các file đã được người dùng tạo từ trong ứng dụng (đã đồng bộ với google drive)
 exports.uploadFile = async (req, res, next) => {
   try {
     const userId = req.user._id;

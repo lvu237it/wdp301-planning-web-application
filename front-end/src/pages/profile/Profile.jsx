@@ -466,7 +466,7 @@ const Profile = () => {
               </Col>
               <Col md={4}>
                 <Form.Group>
-                  <Form.Label>Min Duration</Form.Label>
+                  <Form.Label>Min</Form.Label>
                   <Form.Control
                     type="number"
                     name="expectedWorkDuration.min"
@@ -478,7 +478,7 @@ const Profile = () => {
               </Col>
               <Col md={4}>
                 <Form.Group>
-                  <Form.Label>Max Duration</Form.Label>
+                  <Form.Label>Max</Form.Label>
                   <Form.Control
                     type="number"
                     name="expectedWorkDuration.max"

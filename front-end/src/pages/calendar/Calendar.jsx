@@ -25,12 +25,15 @@ import {
   FaPaperPlane,
   FaComments,
   FaChevronUp,
+  FaSun,
+  FaCloudSun,
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCommon } from '../../contexts/CommonContext';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 import '../../styles/calendar.css';
+import moment from 'moment';
 
 // Hàm chuyển đổi ngày giờ sang định dạng ISO cho backend
 const toISODateTime = (dateTime) => {
@@ -146,6 +149,7 @@ const Calendar = () => {
     loadMoreEventMessages,
     editEventMessage,
     deleteEventMessage,
+    findAvailableTimeSlots,
   } = useCommon();
 
   // Thêm ref cho FullCalendar
@@ -187,6 +191,12 @@ const Calendar = () => {
   const [conflictEventData, setConflictEventData] = useState(null);
   const [showCreateConflictModal, setShowCreateConflictModal] = useState(false);
   const [createConflictData, setCreateConflictData] = useState(null);
+
+  // Enhanced conflict handling states
+  const [showMainConflictModal, setShowMainConflictModal] = useState(false);
+  const [mainConflictData, setMainConflictData] = useState(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Chat states
   const [showChat, setShowChat] = useState(false);
@@ -265,6 +275,32 @@ const Calendar = () => {
       timeZone: 'Asia/Ho_Chi_Minh',
     }).format(date);
   }, []);
+
+  // Hàm định dạng ngày cho allDay events
+  const formatAllDayEventDate = useCallback((date) => {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    return new Intl.DateTimeFormat('vi-VN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'Asia/Ho_Chi_Minh',
+    }).format(date);
+  }, []);
+
+  // Hàm định dạng thời gian cho conflict display
+  const formatConflictEventTime = useCallback(
+    (event) => {
+      if (event.allDay) {
+        return `Cả ngày ${formatAllDayEventDate(new Date(event.startDate))}`;
+      } else {
+        return `${formatEventDate(
+          new Date(event.startDate)
+        )} - ${formatEventDate(new Date(event.endDate))}`;
+      }
+    },
+    [formatEventDate, formatAllDayEventDate]
+  );
 
   // Lấy danh sách sự kiện
   const debouncedFetchEvents = useCallback(
@@ -406,9 +442,6 @@ const Calendar = () => {
     };
 
     const handleEventStatusUpdated = (data) => {
-      console.log(
-        `📅 Event ${data.eventId} status updated: ${data.oldStatus} → ${data.newStatus}`
-      );
       // Refresh calendar
       if (dateRange.start && dateRange.end) {
         debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
@@ -416,7 +449,6 @@ const Calendar = () => {
     };
 
     const handleEventsStatusUpdatedScheduled = (data) => {
-      console.log(`📅 Scheduled update: ${data.updatedCount} events updated`);
       // Refresh calendar if there are updates
       if (data.updatedCount > 0 && dateRange.start && dateRange.end) {
         debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
@@ -898,13 +930,13 @@ const Calendar = () => {
       const endDate = new Date(formData.endDate);
 
       // Kiểm tra startDate không được trong quá khứ (theo múi giờ Việt Nam)
-      if (startDate < vietnamNow) {
+      if (!formData.allDay && startDate < vietnamNow) {
         toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
         return;
       }
 
       // Kiểm tra endDate không được trong quá khứ (theo múi giờ Việt Nam)
-      if (endDate < vietnamNow) {
+      if (!formData.allDay && endDate < vietnamNow) {
         toast.error('Thời gian kết thúc không được chọn trong quá khứ');
         return;
       }
@@ -973,16 +1005,16 @@ const Calendar = () => {
           error.response?.data || error.message
         );
 
-        // Handle conflict case
+        // Handle conflict case - use new enhanced modal
         if (
           error.response?.status === 409 &&
           error.response?.data?.hasConflict
         ) {
-          setCreateConflictData({
+          setMainConflictData({
             ...error.response.data,
-            formData: formData, // Store form data to reuse when forcing create
+            formData: formData, // Store form data to reuse
           });
-          setShowCreateConflictModal(true);
+          setShowMainConflictModal(true);
           return; // Don't show error toast, show conflict modal instead
         }
 
@@ -1254,7 +1286,6 @@ const Calendar = () => {
   };
 
   const handleEditMessage = async (messageId, content) => {
-    console.log('handle edit message', messageId, content);
     try {
       const result = await editEventMessage(messageId, content);
       if (result.success) {
@@ -1277,7 +1308,6 @@ const Calendar = () => {
   };
 
   const handleDeleteMessage = async (messageId) => {
-    console.log('handle delete message', messageId);
     try {
       const result = await deleteEventMessage(messageId);
       if (result.success) {
@@ -1298,7 +1328,6 @@ const Calendar = () => {
   };
 
   const startEditing = (message) => {
-    console.log('start editing message', message);
     setEditingMessageId(message._id);
     setEditingContent(message.content);
     setContextMenu(null);
@@ -1350,9 +1379,6 @@ const Calendar = () => {
       return eventDate.toDateString() === selectedDate.toDateString();
     });
   }, [events, selectedDate]);
-
-  // Debug selectedDateEvents
-  useEffect(() => {}, [selectedDate, selectedDateEvents]);
 
   // Render nội dung sự kiện
   const renderEventContent = useCallback(
@@ -1678,6 +1704,342 @@ const Calendar = () => {
     setCreateConflictData(null);
   };
 
+  // ========== ENHANCED CONFLICT HANDLING FUNCTIONS ==========
+
+  // 1. Cancel - Close modal and do nothing
+  const handleConflictCancel = () => {
+    setShowMainConflictModal(false);
+    // setShowCreateModal(false);
+    setMainConflictData(null);
+    setAvailableTimeSlots([]);
+  };
+
+  // 2. Edit Manually - Reopen create modal with existing data
+  const handleConflictEditManually = () => {
+    if (!mainConflictData?.formData) return;
+
+    // Fill form with existing data
+    setFormData(mainConflictData.formData);
+
+    // Clear previous suggestions
+    setAvailableTimeSlots([]);
+    setLoadingSuggestions(false);
+
+    // Close conflict modal and open create modal
+    setShowMainConflictModal(false);
+    setMainConflictData(null);
+
+    setShowCreateModal(true);
+  };
+
+  // 3. System Suggestions - Fetch and show suggested time slots
+  const handleConflictShowSuggestions = async () => {
+    if (!mainConflictData?.formData) return;
+
+    setLoadingSuggestions(true);
+    try {
+      const formData = mainConflictData.formData;
+
+      // Calculate event duration in minutes
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+      const duration = Math.round((end - start) / (1000 * 60));
+
+      // Prepare payload for finding available slots
+      const payload = {
+        startDate: fromLocalDateTime(formData.startDate),
+        endDate: fromLocalDateTime(formData.endDate),
+        duration: duration,
+        participantEmails: formData.participantEmails
+          ? formData.participantEmails
+              .split(',')
+              .map((email) => email.trim())
+              .filter((email) => email.length > 0)
+          : [],
+        timeZone: 'Asia/Ho_Chi_Minh',
+      };
+
+      const result = await findAvailableTimeSlots(payload);
+
+      if (result.success) {
+        setAvailableTimeSlots(result.data || []);
+        if (result.data.length === 0) {
+          toast.info('Không tìm thấy khoảng thời gian trống phù hợp');
+        }
+      } else {
+        throw new Error(result.error || 'Failed to fetch time slots');
+      }
+    } catch (error) {
+      console.error('Error fetching time suggestions:', error);
+      toast.error('Không thể lấy gợi ý thời gian');
+      setAvailableTimeSlots([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // 4. Create Anyway - Force create event despite conflicts
+  const handleConflictCreateAnyway = async () => {
+    if (!mainConflictData?.formData) return;
+
+    const formData = mainConflictData.formData;
+
+    // Create synthetic event for handleCreateSubmit
+    const syntheticEvent = { preventDefault: () => {} };
+
+    // Close conflict modal first
+    setShowMainConflictModal(false);
+
+    // Call create with forceCreate = true
+    await handleCreateSubmit(syntheticEvent, true);
+  };
+
+  // Select suggested time slot and reopen create modal
+  const handleSelectSuggestedSlot = (slot) => {
+    if (!mainConflictData?.formData) return;
+
+    const updatedFormData = {
+      ...mainConflictData.formData,
+      startDate: toLocalDateTime(new Date(slot.startDate)),
+      endDate: toLocalDateTime(new Date(slot.endDate)),
+    };
+
+    setFormData(updatedFormData);
+    setShowMainConflictModal(false);
+    setShowCreateModal(true);
+    setAvailableTimeSlots([]);
+  };
+
+  // ========== MAIN CONFLICT MODAL COMPONENT ==========
+  const renderMainConflictModal = () => {
+    if (!mainConflictData) return null;
+
+    const { conflictingEvents, newEvent } = mainConflictData;
+
+    return (
+      <Modal
+        show={showMainConflictModal}
+        onHide={handleConflictCancel}
+        centered
+        size='lg'
+        className='conflict-modal'
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className='fas fa-exclamation-triangle text-warning me-2'></i>
+            Phát hiện xung đột lịch trình
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className='alert alert-warning d-flex align-items-center'>
+            <i className='fas fa-clock me-2'></i>
+            <div>
+              <strong>
+                Sự kiện "{newEvent.title}" bị xung đột với các sự kiện khác
+              </strong>
+            </div>
+          </div>
+
+          {/* Sự kiện hiện tại muốn tạo */}
+          <div className='mb-4'>
+            <h6 className='fw-bold'>Sự kiện muốn tạo:</h6>
+            <div className='alert mb-2 rounded-2 p-3 border-1 border-info bg-info-subtle'>
+              <div className='d-flex justify-content-between align-items-start'>
+                <div>
+                  <strong>{newEvent.title}</strong>
+                  <div className='small text-muted'>
+                    <i className='fas fa-clock me-1'></i>
+                    {formatConflictEventTime(newEvent)}
+                  </div>
+                </div>
+                <div className='d-flex gap-1'>
+                  {newEvent.allDay && (
+                    <span className='badge bg-info'>
+                      <i className='fas fa-calendar-day me-1'></i>
+                      Cả ngày
+                    </span>
+                  )}
+                  <span className='badge bg-primary'>Mới</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Show conflicting events */}
+          <div className='mb-4'>
+            <h6 className='fw-bold'>
+              <i className='fas fa-exclamation-triangle text-warning me-2'></i>
+              Các sự kiện xung đột ({conflictingEvents.length}):
+            </h6>
+            {conflictingEvents.map((conflict, index) => (
+              <div
+                key={index}
+                className='alert alert-danger-subtle mb-2 rounded-2 p-3 border-1 bg-danger-subtle border-danger'
+              >
+                <div className='d-flex justify-content-between align-items-start'>
+                  <div className='flex-grow-1'>
+                    <strong>{conflict.title}</strong>
+                    <div className='small text-muted mt-1'>
+                      <i className='fas fa-clock me-1'></i>
+                      {formatConflictEventTime(conflict)}
+                    </div>
+                  </div>
+                  <div className='d-flex gap-1 ms-2'>
+                    {conflict.allDay && (
+                      <span className='badge bg-info'>
+                        <i className='fas fa-calendar-day me-1'></i>
+                        Cả ngày
+                      </span>
+                    )}
+                    {/* <span className='badge bg-danger'>Xung đột</span> */}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Show suggested time slots if available */}
+          {availableTimeSlots.length > 0 && (
+            <div className='mb-4'>
+              <h6 className='fw-bold mb-3'>Khung thời gian gợi ý:</h6>
+
+              {/* Morning slots */}
+              <div className='mb-3'>
+                <div className='d-flex align-items-center mb-2'>
+                  <i className='fas fa-sun text-warning me-2'></i>
+                  <h6 className='mb-0'>Buổi sáng</h6>
+                </div>
+                {availableTimeSlots
+                  .filter((slot) => slot.period === 'morning')
+                  .map((slot, index) => (
+                    <div
+                      key={index}
+                      className='alert alert-success-subtle mb-2 cursor-pointer'
+                      onClick={() => handleSelectSuggestedSlot(slot)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className='d-flex justify-content-between align-items-center'>
+                        <div>
+                          <i className='fas fa-clock me-2'></i>
+                          {formatEventDate(new Date(slot.startDate))} -{' '}
+                          {formatEventDate(new Date(slot.endDate))}
+                        </div>
+                        <Button size='sm' variant='success'>
+                          <i className='fas fa-check me-1'></i>
+                          Chọn
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {availableTimeSlots.filter((slot) => slot.period === 'morning')
+                  .length === 0 && (
+                  <div className='text-muted small fst-italic'>
+                    <i className='fas fa-info-circle me-1'></i>
+                    Không có khung giờ trống vào buổi sáng
+                  </div>
+                )}
+              </div>
+
+              {/* Afternoon slots */}
+              <div>
+                <div className='d-flex align-items-center mb-2'>
+                  <i className='fas fa-cloud-sun text-info me-2'></i>
+                  <h6 className='mb-0'>Buổi chiều</h6>
+                </div>
+                {availableTimeSlots
+                  .filter((slot) => slot.period === 'afternoon')
+                  .map((slot, index) => (
+                    <div
+                      key={index}
+                      className='alert alert-success-subtle mb-2 cursor-pointer'
+                      onClick={() => handleSelectSuggestedSlot(slot)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className='d-flex justify-content-between align-items-center'>
+                        <div>
+                          <i className='fas fa-clock me-2'></i>
+                          {formatEventDate(new Date(slot.startDate))} -{' '}
+                          {formatEventDate(new Date(slot.endDate))}
+                        </div>
+                        <Button size='sm' variant='success'>
+                          <i className='fas fa-check me-1'></i>
+                          Chọn
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {availableTimeSlots.filter(
+                  (slot) => slot.period === 'afternoon'
+                ).length === 0 && (
+                  <div className='text-muted small fst-italic'>
+                    <i className='fas fa-info-circle me-1'></i>
+                    Không có khung giờ trống vào buổi chiều
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Action explanation */}
+          <div className='alert alert-info'>
+            <h6 className='fw-bold mb-2'>Bạn có thể:</h6>
+            <ul className='mb-0'>
+              <li>
+                <strong>Hủy:</strong> Không tạo sự kiện
+              </li>
+              <li>
+                <strong>Tái thiết lập thủ công:</strong> Mở lại form để thay đổi
+                thời gian
+              </li>
+              {!newEvent.allDay && (
+                <li>
+                  <strong>Xem gợi ý:</strong> Hệ thống gợi ý thời gian trống phù
+                  hợp
+                </li>
+              )}
+              <li>
+                <strong>Vẫn tạo sự kiện:</strong> Tạo sự kiện dù có xung đột
+              </li>
+            </ul>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant='secondary' onClick={handleConflictCancel}>
+            <i className='fas fa-times me-1'></i>
+            Hủy
+          </Button>
+          <Button variant='primary' onClick={handleConflictEditManually}>
+            <i className='fas fa-edit me-1'></i>
+            Tái thiết lập thủ công
+          </Button>
+          {!newEvent.allDay && (
+            <Button
+              variant='info'
+              onClick={handleConflictShowSuggestions}
+              disabled={loadingSuggestions}
+            >
+              {loadingSuggestions ? (
+                <>
+                  <Spinner size='sm' animation='border' className='me-1' />
+                  Đang tìm...
+                </>
+              ) : (
+                <>
+                  <i className='fas fa-lightbulb me-1'></i>
+                  Xem gợi ý
+                </>
+              )}
+            </Button>
+          )}
+          <Button variant='warning' onClick={handleConflictCreateAnyway}>
+            <i className='fas fa-exclamation-circle me-1'></i>
+            Vẫn tạo
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    );
+  };
+
   // Add Cancel Participation Modal
   const renderCancelModal = () => {
     return (
@@ -1943,21 +2305,27 @@ const Calendar = () => {
                                     />
                                   </div>
                                 )}
-                              {event.extendedProps.type === 'online' &&
-                                event.extendedProps?.onlineUrl && (
-                                  <div className='event-meta-item'>
-                                    <span>🌐</span>
-                                    <span>
+                              {event.extendedProps.type === 'online' && (
+                                <div className='event-meta-item'>
+                                  <span>🌐</span>
+                                  <span>
+                                    {event.extendedProps?.onlineUrl ? (
                                       <a
                                         href={event.extendedProps?.onlineUrl}
                                         target='_blank'
                                         rel='noopener noreferrer'
+                                        className='text-success'
                                       >
                                         Link sự kiện
                                       </a>
-                                    </span>
-                                  </div>
-                                )}
+                                    ) : (
+                                      <span className='text-muted small'>
+                                        Link chưa có sẵn
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
                               {/* <div className='event-meta-item'>
                                 <FaUser />
                                 <span>
@@ -2082,11 +2450,11 @@ const Calendar = () => {
                             />
                           </div>
                         )}
-                      {selectedEvent.type === 'online' &&
-                        selectedEvent?.onlineUrl && (
-                          <p>
-                            <span className='me-2'>🌐</span>
-                            Link sự kiện:{' '}
+                      {selectedEvent.type === 'online' && (
+                        <p>
+                          <span className='me-2'>🌐</span>
+                          Link sự kiện:{' '}
+                          {selectedEvent?.onlineUrl ? (
                             <a
                               href={selectedEvent?.onlineUrl}
                               target='_blank'
@@ -2096,8 +2464,18 @@ const Calendar = () => {
                             >
                               Tham gia
                             </a>
-                          </p>
-                        )}
+                          ) : (
+                            <span className='text-muted'>
+                              Link chưa có sẵn
+                              {selectedEvent.extendedProps?.isOwn && (
+                                <small className='d-block text-info'>
+                                  Bạn có thể thêm link khi chỉnh sửa sự kiện
+                                </small>
+                              )}
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {selectedEvent.meetingCode && (
                         <p>
                           <span className='ms-1 me-2'>🔑</span>
@@ -2192,7 +2570,7 @@ const Calendar = () => {
                                   </div>
                                 </div>
                               ) : messages.length === 0 ? (
-                                <div className='text-center text-muted p-3'>
+                                <div className='text-center p-3'>
                                   <FaComments size={24} className='mb-2' />
                                   <div>
                                     Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò
@@ -2226,7 +2604,7 @@ const Calendar = () => {
                                           style={{ color: '#0d6efd' }}
                                         />
                                         <div
-                                          className='text-muted small mt-1'
+                                          className='small mt-1'
                                           style={{ color: '#0d6efd' }}
                                         >
                                           Đang tải thêm tin nhắn...
@@ -3063,6 +3441,9 @@ const Calendar = () => {
 
           {/* Cancel Participation Modal */}
           {renderCancelModal()}
+
+          {/* Main Conflict Modal */}
+          {renderMainConflictModal()}
 
           {/* Conflict Modal */}
           <Modal

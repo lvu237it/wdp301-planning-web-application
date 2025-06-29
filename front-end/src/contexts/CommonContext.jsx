@@ -15,7 +15,11 @@ import {
   getSocket,
   disconnectSocket,
 } from "../utils/socketClient";
-import { formatDateAMPMForVN } from "../utils/dateUtils";
+import {
+  formatDateAMPMForVN,
+  formatDateForNotification,
+  formatDateShortForVN,
+} from "../utils/dateUtils";
 
 // Configure axios defaults
 axios.defaults.withCredentials = true; // Include cookies in all requests
@@ -64,7 +68,8 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  const apiBaseUrl =
+    import.meta.env.VITE_API_BASE_URL_DEVELOPMENT || "http://localhost:5000";
   // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
@@ -712,8 +717,42 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200) {
+        console.log("✅ Event invitation response successful:", {
+          eventId,
+          status,
+          notificationId,
+        });
+
+        // Cập nhật local state ngay lập tức để UI phản hồi nhanh
+        setNotifications((prevNotifications) =>
+          prevNotifications.map((notif) => {
+            if (
+              notif.notificationId === notificationId &&
+              notif.type === "event_invitation"
+            ) {
+              console.log("🔄 Updating notification state locally:", {
+                notificationId,
+                oldStatus: notif.responseStatus,
+                newStatus: status,
+              });
+              return {
+                ...notif,
+                responseStatus: status,
+                responded: true,
+              };
+            }
+            return notif;
+          })
+        );
+
         // Mark notification as read
         await markNotificationAsRead(notificationId);
+
+        // Refresh notifications sau khi cập nhật local state để đảm bảo đồng bộ
+        setTimeout(() => {
+          console.log("🔄 Refreshing notifications after response");
+          fetchNotifications(true);
+        }, 1000);
 
         // Không hiển thị toast ở đây nữa, để Header.jsx handle
         return { success: true };
@@ -1758,6 +1797,35 @@ export const Common = ({ children }) => {
     }
   };
 
+  // ============= ENHANCED CONFLICT RESOLUTION =============
+
+  const findAvailableTimeSlots = async (data) => {
+    if (!accessToken) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/event/find-available-slots`,
+        data,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 200) {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      } else {
+        return { success: false, error: "API response not successful" };
+      }
+    } catch (error) {
+      console.error("Error finding available time slots:", error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1798,6 +1866,8 @@ export const Common = ({ children }) => {
         updateAllUserEventsStatusByTime,
         updateEventStatusByTime,
         formatDateAMPMForVN,
+        formatDateForNotification,
+        formatDateShortForVN,
         workspaces,
         createWorkspace,
         closeWorkspace,
@@ -1836,6 +1906,8 @@ export const Common = ({ children }) => {
         skillsList,
         loadingSkills,
         skillsError,
+        // Enhanced conflict resolution
+        findAvailableTimeSlots,
       }}
     >
       <Toaster
