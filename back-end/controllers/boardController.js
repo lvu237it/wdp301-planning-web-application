@@ -167,6 +167,92 @@ exports.createBoard = async (req, res) => {
 	}
 };
 
+// Lấy thông tin chi tiết của một board
+exports.getBoardById = async (req, res) => {
+  try {
+    const { boardId } = req.params;
+    const userId = req.user._id;
+
+    console.log('boardId to get detail', boardId);
+
+    if (!mongoose.Types.ObjectId.isValid(boardId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'boardId không hợp lệ',
+      });
+    }
+
+    // Tìm board
+    const board = await Board.findOne({ _id: boardId, isDeleted: false })
+      .populate('creator', 'username email')
+      .populate('workspaceId', 'name')
+      .lean();
+
+    console.log('boardfound', board);
+
+    if (!board) {
+      return res.status(404).json({
+        success: false,
+        message: 'Board không tồn tại',
+      });
+    }
+
+    // Kiểm tra quyền truy cập
+    const isCreator = board.creator._id.equals(userId);
+    const isMember = await BoardMembership.exists({
+      userId,
+      boardId,
+      applicationStatus: 'accepted',
+      isDeleted: false,
+    });
+
+    if (!isCreator && !isMember && board.visibility === 'private') {
+      return res.status(403).json({
+        success: false,
+        message: 'Không có quyền truy cập board này',
+      });
+    }
+
+    // Lấy thông tin members
+    const boardMemberships = await BoardMembership.find({
+      boardId,
+      isDeleted: false,
+    })
+      .populate('userId', 'username email avatar')
+      .lean();
+
+    console.log('boardMemberships', boardMemberships);
+
+    const members = boardMemberships.map((m) => ({
+      _id: m.userId._id,
+      username: m.userId.username,
+      email: m.userId.email,
+      avatar: m.userId.avatar || null,
+      role: m.role,
+      status: m.applicationStatus,
+    }));
+
+    const result = {
+      ...board,
+      members,
+    };
+
+    console.log('resules', result);
+
+    return res.status(200).json({
+      success: true,
+      board: result,
+    });
+  } catch (err) {
+    console.error('getBoardById error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error when fetching board',
+      error: err.message,
+    });
+  }
+};
+
 // cập nhật Board
 exports.updateBoard = async (req, res) => {
 	try {
@@ -264,35 +350,58 @@ exports.inviteBoardMembers = async (req, res) => {
 		const { emails, role = 'read-only' } = req.body;
 		const inviterId = req.user._id;
 
-		// 1) Tìm board
+		// 1) Lấy board đích
 		const board = await Board.findById(boardId);
-		if (!board) {
-			return res.status(404).json({ message: 'Board không tồn tại' });
-		}
+		if (!board) return res.status(404).json({ message: 'Board không tồn tại' });
+		const { workDuration: wdTarget } = board.criteria;
 
-		// 2) Lấy tất cả user theo emails
+		// 2) Lấy users theo emails
 		const users = await User.find({ email: { $in: emails } });
-		if (users.length === 0) {
+		if (!users.length)
 			return res
 				.status(400)
 				.json({ message: 'Không tìm thấy user nào với emails đã cho' });
-		}
-
-		// 3) Check xem đã có bất kỳ membership nào (pending hoặc accepted) trên board này
+		
+		// 3) Check xem có invite hoặc member rồi
 		const existing = await BoardMembership.findOne({
 			boardId,
 			userId: { $in: users.map((u) => u._id) },
 			isDeleted: false,
 		});
-		if (existing) {
+		if (existing)
 			return res
 				.status(400)
 				.json({
 					message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
 				});
+
+		// 4) Lấy tất cả các board khác mà user đã accepted
+		const acceptedMems = await BoardMembership.find({
+			userId: { $in: users.map((u) => u._id) },
+			invitationResponse: 'accepted',
+			isDeleted: false,
+			boardId: { $ne: boardId },
+		}).populate('boardId', 'criteria.workDuration name');
+
+		// 5) Kiểm tra overlap
+		const overlap = acceptedMems.find((m) => {
+			const wd = m.boardId.criteria.workDuration;
+			return wdTarget.startDate < wd.endDate && wd.startDate < wdTarget.endDate;
+		});
+		if (overlap) {
+			const {
+				name: otherName,
+				criteria: { workDuration: wd },
+			} = overlap.boardId;
+			return res.status(400).json({
+				message:
+					`User ${users[0].fullname} đang tham gia "${otherName}" trong giai đoạn ` +
+					`${wd.startDate.toISOString().slice(0, 10)} → ` +
+					`${wd.endDate.toISOString().slice(0, 10)} vui lòng mời người dùng khác`,
+			});
 		}
 
-		// 4) Nếu chưa có, thì invite tất cả
+		// 6) Nếu OK, tạo invite như cũ
 		const token = crypto.randomBytes(32).toString('hex');
 		const invites = users.map((u) => ({
 			boardId,
@@ -306,14 +415,14 @@ exports.inviteBoardMembers = async (req, res) => {
 		}));
 		await BoardMembership.insertMany(invites);
 
-		// 5) Gửi mail cho từng user
+		// 7) Gửi mail cho từng user
 		for (const user of users) {
 			const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
 			await sendEmail(
 				user.email,
 				`Bạn được mời vào Board "${board.name}"`,
 				`
-          <p>Xin chào ${user.username},</p>
+          <p>Xin chào ${user.fullname},</p>
           <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
           <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
           <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
