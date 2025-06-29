@@ -119,7 +119,10 @@ exports.getTasksByBoard = async (req, res) => {
         message: "boardId không hợp lệ",
       });
     }
-    const tasks = await Task.find({ boardId, isDeleted: false });
+    // const tasks = await Task.find({ boardId, isDeleted: false });
+    const tasks = await Task.find({ boardId, isDeleted: false })
+   .populate("assignedTo", "username email avatar")
+   .populate("assignedBy", "username email avatar");
     res.status(200).json({
       status: "success",
       results: tasks.length,
@@ -141,7 +144,10 @@ exports.getTaskId = async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({ _id: id, isDeleted: false });
+    // const task = await Task.findOne({ _id: id, isDeleted: false });
+    const task = await Task.findOne({ _id: id, isDeleted: false })
+   .populate("assignedTo", "username email avatar")
+   .populate("assignedBy", "username email avatar");
     if (!task) {
       return res.status(404).json({
         status: "fail",
@@ -219,13 +225,14 @@ exports.createTask = async (req, res) => {
       listId,
       eventId: eventId || null,
       assignedTo: assignedTo || null,
-      assignedBy: assignedBy || null,
+     // assignedBy: assignedBy || null,
+      assignedBy: req.user._id,
       startDate: startDate ? new Date(startDate) : now,
       endDate: endDate ? new Date(endDate) : now,
       allDay: typeof allDay === "boolean" ? allDay : false,
       recurrence: recurrence || null,
       reminderSettings: Array.isArray(reminderSettings) ? reminderSettings : [],
-      checklist: Array.isArray(checklist) ? checklist : [],
+      checklist: Array.isArray(checklist) ? checklist : [], 
       documents: Array.isArray(documents) ? documents : [],
       isDeleted: false,
       deletedAt: null,

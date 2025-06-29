@@ -4,6 +4,7 @@ import "../../styles/task.css";
 import { useCommon } from "../../contexts/CommonContext";
 import { Modal, Button, Form, Toast } from "react-bootstrap";
 import ChecklistModal from "./ChecklistModal";
+import SuggestMembersBySkills from "./SuggestMemberBySkills";
 const pad = (n) => n.toString().padStart(2, "0");
 const toDateTimeLocal = (date) => {
   if (!date) return "";
@@ -21,11 +22,11 @@ const toDateLocal = (date) => {
     D = pad(date.getDate());
   return `${Y}-${M}-${D}`;
 };
-const parseLocalToUTC = (s) => new Date(s + ':00Z');
+const parseLocalToUTC = (s) => new Date(s + ":00Z");
 
 const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const { accessToken, apiBaseUrl } = useCommon();
-
+  const fileInputRef = useRef(null);
   // States chung
   const [editedTitle, setEditedTitle] = useState("");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -38,23 +39,42 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const [dateInput, setDateInput] = useState("");
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const fileInputRef = useRef(null);
-
+  const [toastMessage, setToastMessage] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  // Khởi động khi task thay đổi
- useEffect(() => {
-  if (showDateInputs && task) {
-    const s = task.startDate ? new Date(task.startDate) : null;
-    const e = task.endDate   ? new Date(task.endDate)   : null;
-    setAllDay(!!task.allDay);
-    setStartInput(toDateTimeLocal(s));
-    setEndInput(toDateTimeLocal(e));
-    setDateInput(toDateLocal(s));
-  }
-}, [showDateInputs, task]);
+  useEffect(() => {
+    if (isOpen && task) {
+      setEditedTitle(task.title);
+      setEditedDesc(task.description || "");
+      if (task.startDate) {
+        const s = new Date(task.startDate);
+        setDateInput(toDateLocal(s));
+        setStartInput(toDateTimeLocal(s));
+      }
+      if (task.endDate) {
+        setEndInput(toDateTimeLocal(new Date(task.endDate)));
+      }
+      setAllDay(!!task.allDay);
+    }
+  }, [isOpen, task]);
 
+  useEffect(() => {
+    if (showDateInputs && task) {
+      const s = task.startDate ? new Date(task.startDate) : null;
+      const e = task.endDate ? new Date(task.endDate) : null;
+      setAllDay(!!task.allDay);
+      setStartInput(toDateTimeLocal(s));
+      setEndInput(toDateTimeLocal(e));
+      setDateInput(toDateLocal(s));
+    }
+  }, [showDateInputs, task]);
   if (!isOpen || !task) return null;
+
+  const mergeTask = (updatedFields) => ({
+    ...task,
+    ...updatedFields,
+    // assignedTo: task.assignedTo,
+    assignedBy: task.assignedBy,
+  });
 
   const isOverdue = task.endDate && new Date(task.endDate) < new Date();
   const formatBadge = (iso) => {
@@ -80,11 +100,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate({
-        ...task,
-        ...res.data.data,
-      });
-
+      onUpdate(mergeTask(res.data.data));
+      setToastMessage("Cập nhật tiêu đề thành công");
+      setShowToast(true);
       setIsEditingTitle(false);
     } catch (err) {
       console.error(err);
@@ -108,9 +126,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           "Content-Type": "multipart/form-data",
         },
       });
-
-      // API trả về task mới kèm documents
-      onUpdate(res.data.data);
+      onUpdate(mergeTask(res.data.data));
     } catch (err) {
       console.error("Upload file error:", err);
       alert(
@@ -131,8 +147,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate({ ...task, ...res.data.data });
+      onUpdate(mergeTask(res.data.data));
       setIsEditingDesc(false);
+      setToastMessage("Cập nhật mô tả thành công");
       setShowToast(true);
     } catch (err) {
       console.error(err);
@@ -144,36 +161,40 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   };
 
   // Hàm lưu ngày với thông báo thành công
- const handleSaveDates = async () => {
-  try {
-    const payload = {};
-    payload.allDay = allDay;
+  const handleSaveDates = async () => {
+    try {
+      const payload = {};
+      payload.allDay = allDay;
 
-    if (allDay && dateInput) {
-      const [Y, M, D] = dateInput.split('-').map(Number);
-      payload.startDate = new Date(Y, M - 1, D, 0, 0).toISOString();
-      payload.endDate   = new Date(Y, M - 1, D, 23, 59).toISOString();
-    } else {
-      if (startInput) payload.startDate = new Date(startInput).toISOString();
-      if (endInput)   payload.endDate   = new Date(endInput).toISOString();
-    }
-
-    const res = await axios.put(
-      `${apiBaseUrl}/task/updateTask/${task._id}`,
-      payload,
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${accessToken}` },
+      if (allDay && dateInput) {
+        const [Y, M, D] = dateInput.split("-").map(Number);
+        payload.startDate = new Date(Y, M - 1, D, 0, 0).toISOString();
+        payload.endDate = new Date(Y, M - 1, D, 23, 59).toISOString();
+      } else {
+        if (startInput) payload.startDate = new Date(startInput).toISOString();
+        if (endInput) payload.endDate = new Date(endInput).toISOString();
       }
-    );
-    onUpdate({ ...task, ...res.data.data });
-    setShowDateInputs(false);
-  } catch (err) {
-    console.error(err);
-    alert("Cập nhật ngày thất bại: " + (err.response?.data?.message || err.message));
-  }
-};
 
+      const res = await axios.put(
+        `${apiBaseUrl}/task/updateTask/${task._id}`,
+        payload,
+        {
+          withCredentials: true,
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      onUpdate(mergeTask(res.data.data));
+      setToastMessage("Cập nhật ngày thành công");
+      setShowToast(true);
+      setShowDateInputs(false);
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Cập nhật ngày thất bại: " +
+          (err.response?.data?.message || err.message)
+      );
+    }
+  };
 
   //CHECKLIST PROGRESS
   const totalItems = task.checklist?.length || 0;
@@ -192,7 +213,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
-    onUpdate({ ...task, ...res.data.data });
+    onUpdate(mergeTask(res.data.data));
   };
   const handleToggleChecklist = async (item) => {
     const updated = task.checklist.map((i) =>
@@ -217,60 +238,57 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       alert("Không thể xóa mục: " + (e.response?.data?.message || e.message));
     }
   };
-  // Hàm gọi API mời member
-  const handleInvite = async () => {
+
+  const handleAssign = async (user) => {
     try {
-      console.log("Gửi invite đến:", inviteEmail);
       const res = await axios.post(
-        `${apiBaseUrl}/task/${task._id}/invite`,
-        { email: inviteEmail.trim() },
-        {
-          withCredentials: true,
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        `${apiBaseUrl}/task/${task._id}/assign`,
+        { email: user.email },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      console.log("Invite API response:", res.data);
-      onUpdate(res.data.data);
-      setInviteEmail("");
-      setShowInviteModal(false);
+
+      const updatedFields = res.data.data;
+      onUpdate({
+        ...task,
+        ...updatedFields,
+        assignedTo: user,
+      });
+      setToastMessage(`Đã giao task cho ${user.username || user.email}`);
       setShowToast(true);
+      setShowInviteModal(false);
     } catch (err) {
-      console.error("Gửi invite thất bại:", err.response?.data || err);
+      console.error("Giao task thất bại:", err);
       alert(
-        "Gửi lời mời thất bại: " + (err.response?.data?.message || err.message)
+        "Giao task thất bại: " + (err.response?.data?.message || err.message)
       );
     }
   };
+
   return (
     <>
       <Modal
         show={showInviteModal}
         onHide={() => setShowInviteModal(false)}
         centered
+        size="lg"
       >
         <Modal.Header closeButton>
-          <Modal.Title>Mời thành viên vào Task</Modal.Title>
+          <Modal.Title>Gợi ý & Mời thành viên theo kỹ năng</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group>
-            <Form.Label>Nhập email của người nhận</Form.Label>
-            <Form.Control
-              type="email"
-              placeholder="ví dụ: user@example.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-          </Form.Group>
+          <SuggestMembersBySkills
+            workspaceId={task.workspaceId}
+            boardId={task.boardId}
+            onAssignSuccess={handleAssign}
+          />
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowInviteModal(false)}>
-            Hủy
-          </Button>
-          <Button variant="primary" onClick={handleInvite}>
-            Gửi lời mời
+            Đóng
           </Button>
         </Modal.Footer>
       </Modal>
+
       <Toast
         show={showToast}
         bg="success"
@@ -287,7 +305,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         }}
       >
         <Toast.Body className="text-white text-center">
-          Cập nhật thành công
+          {toastMessage}
         </Toast.Body>
       </Toast>
       <div className="task-modal-overlay" onClick={onClose}>
@@ -329,9 +347,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     size="sm"
                     onClick={() => {
                       setIsEditingTitle(false);
-                      setEditedTitle(task.title);
+                      setEditedTitle(task.title); // ← reset về giá trị gốc
                     }}
-                    style={{ marginLeft: 4 }}
                   >
                     Hủy
                   </Button>
@@ -345,6 +362,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     className="icon-btn-taskTitle"
                     onClick={(e) => {
                       e.stopPropagation();
+                      setEditedTitle(task.title); // ← khởi tạo giá trị
                       setIsEditingTitle(true);
                     }}
                   >
@@ -486,7 +504,10 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={() => setIsEditingDesc(false)}
+                      onClick={() => {
+                        setIsEditingDesc(false);
+                        setEditedDesc(task.description || "");
+                      }}
                       style={{ marginLeft: 8 }}
                     >
                       Hủy
@@ -501,14 +522,35 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   <Button
                     style={{ marginTop: "10px" }}
                     className="btn-edit-desc"
-                    onClick={() => setIsEditingDesc(true)}
+                    onClick={() => {
+                      setEditedDesc(task.description || ""); // ← khởi tạo giá trị
+                      setIsEditingDesc(true);
+                    }}
                   >
                     Chỉnh sửa
                   </Button>
                 </div>
               )}
             </div>
-
+            {task.assignedTo && (
+              <div className="assigned-info mb-3">
+                <strong>Người được giao:</strong>
+                <div className="d-flex align-items-center mt-1">
+                  {task.assignedTo.avatar && (
+                    <img
+                      src={task.assignedTo.avatar}
+                      alt="avatar"
+                      className="rounded-circle"
+                      width={32}
+                      height={32}
+                    />
+                  )}
+                  <span className="ms-2">
+                    {task.assignedTo.username || task.assignedTo.email}
+                  </span>
+                </div>
+              </div>
+            )}
             {/* ATTACHMENTS */}
             <div className="task-modal-section">
               <label className="section-label">Các tệp đính kèm</label>
