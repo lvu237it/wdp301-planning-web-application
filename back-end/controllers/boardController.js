@@ -11,7 +11,7 @@ const List = require('../models/listModel');
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
 	try {
-		const userId = req.user._id;
+		const userId = req.user._id || req.user.id;
 		const wsId = req.params.workspaceId;
 
 		// 0. Kiểm tra workspace tồn tại và chưa xóa
@@ -40,17 +40,18 @@ exports.getBoardsByWorkspace = async (req, res) => {
 		const userBoardDocs = await BoardMembership.find({
 			userId,
 			workspaceId: wsId,
-			applicationStatus: 'accepted',
+			invitationResponse: 'accepted', // dùng đúng trường
 			isDeleted: false,
 		}).select('boardId');
 		const boardIds = userBoardDocs.map((doc) => doc.boardId);
 
 		// 3. Query board trong workspace đó
-		const boards = await Board.find({
-			workspaceId: wsId,
-			isDeleted: false,
-			$or: [{ visibility: 'public' }, { _id: { $in: boardIds } }],
-		})
+		// Nếu là creator thì list tất cả (không cần $or)
+		const filter = { workspaceId: wsId, isDeleted: false };
+		if (!isCreator) {
+			filter.$or = [{ visibility: 'public' }, { _id: { $in: boardIds } }];
+		}
+		const boards = await Board.find(filter)
 			.populate('creator', 'username email')
 			.populate('workspaceId', 'name')
 			.lean();
@@ -169,88 +170,88 @@ exports.createBoard = async (req, res) => {
 
 // Lấy thông tin chi tiết của một board
 exports.getBoardById = async (req, res) => {
-  try {
-    const { boardId } = req.params;
-    const userId = req.user._id;
+	try {
+		const { boardId } = req.params;
+		const userId = req.user._id || req.user.id;
 
-    console.log('boardId to get detail', boardId);
+		console.log('boardId to get detail', boardId);
 
-    if (!mongoose.Types.ObjectId.isValid(boardId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'boardId không hợp lệ',
-      });
-    }
+		if (!mongoose.Types.ObjectId.isValid(boardId)) {
+			return res.status(400).json({
+				success: false,
+				message: 'boardId không hợp lệ',
+			});
+		}
 
-    // Tìm board
-    const board = await Board.findOne({ _id: boardId, isDeleted: false })
-      .populate('creator', 'username email')
-      .populate('workspaceId', 'name')
-      .lean();
+		// Tìm board
+		const board = await Board.findOne({ _id: boardId, isDeleted: false })
+			.populate('creator', 'username email')
+			.populate('workspaceId', 'name')
+			.lean();
 
-    console.log('boardfound', board);
+		console.log('boardfound', board);
 
-    if (!board) {
-      return res.status(404).json({
-        success: false,
-        message: 'Board không tồn tại',
-      });
-    }
+		if (!board) {
+			return res.status(404).json({
+				success: false,
+				message: 'Board không tồn tại',
+			});
+		}
 
-    // Kiểm tra quyền truy cập
-    const isCreator = board.creator._id.equals(userId);
-    const isMember = await BoardMembership.exists({
-      userId,
-      boardId,
-      applicationStatus: 'accepted',
-      isDeleted: false,
-    });
+		// Kiểm tra quyền truy cập
+		const isCreator = board.creator._id.equals(userId);
+		const isMember = await BoardMembership.exists({
+			userId,
+			boardId,
+			applicationStatus: 'accepted',
+			isDeleted: false,
+		});
 
-    if (!isCreator && !isMember && board.visibility === 'private') {
-      return res.status(403).json({
-        success: false,
-        message: 'Không có quyền truy cập board này',
-      });
-    }
+		if (!isCreator && !isMember && board.visibility === 'private') {
+			return res.status(403).json({
+				success: false,
+				message: 'Không có quyền truy cập board này',
+			});
+		}
 
-    // Lấy thông tin members
-    const boardMemberships = await BoardMembership.find({
-      boardId,
-      isDeleted: false,
-    })
-      .populate('userId', 'username email avatar')
-      .lean();
+		// Lấy thông tin members
+		const boardMemberships = await BoardMembership.find({
+			boardId,
+			isDeleted: false,
+		})
+			.populate('userId', 'username email avatar')
+			.lean();
 
-    console.log('boardMemberships', boardMemberships);
+		console.log('boardMemberships', boardMemberships);
 
-    const members = boardMemberships.map((m) => ({
-      _id: m.userId._id,
-      username: m.userId.username,
-      email: m.userId.email,
-      avatar: m.userId.avatar || null,
-      role: m.role,
-      status: m.applicationStatus,
-    }));
+		const members = boardMemberships.map((m) => ({
+			_id: m.userId._id,
+			username: m.userId.username,
+			email: m.userId.email,
+			avatar: m.userId.avatar || null,
+			role: m.role,
+			status: m.applicationStatus,
+		}));
 
-    const result = {
-      ...board,
-      members,
-    };
+		const result = {
+			...board,
+			members,
+		};
 
-    console.log('resules', result);
+		console.log('resules', result);
 
-    return res.status(200).json({
-      success: true,
-      board: result,
-    });
-  } catch (err) {
-    console.error('getBoardById error:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error when fetching board',
-      error: err.message,
-    });
-  }
+		return res.status(200).json({
+			success: true,
+			board: result,
+		});
+	} catch (err) {
+		console.error('getBoardById error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Server error when fetching board',
+			error: err.message,
+		});
+	}
 };
 
 // cập nhật Board
@@ -361,7 +362,7 @@ exports.inviteBoardMembers = async (req, res) => {
 			return res
 				.status(400)
 				.json({ message: 'Không tìm thấy user nào với emails đã cho' });
-		
+
 		// 3) Check xem có invite hoặc member rồi
 		const existing = await BoardMembership.findOne({
 			boardId,
@@ -369,11 +370,9 @@ exports.inviteBoardMembers = async (req, res) => {
 			isDeleted: false,
 		});
 		if (existing)
-			return res
-				.status(400)
-				.json({
-					message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
-				});
+			return res.status(400).json({
+				message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
+			});
 
 		// 4) Lấy tất cả các board khác mà user đã accepted
 		const acceptedMems = await BoardMembership.find({
@@ -397,7 +396,9 @@ exports.inviteBoardMembers = async (req, res) => {
 				message:
 					`User ${users[0].fullname} đang tham gia "${otherName}" trong giai đoạn ` +
 					`${wd.startDate.toISOString().slice(0, 10)} → ` +
-					`${wd.endDate.toISOString().slice(0, 10)} vui lòng mời người dùng khác`,
+					`${wd.endDate
+						.toISOString()
+						.slice(0, 10)} vui lòng mời người dùng khác`,
 			});
 		}
 
@@ -587,48 +588,48 @@ exports.getQualifiedUsers = async (req, res) => {
 	}
 };
 exports.suggestMembersBySkills = async (req, res) => {
-  // 1) Ngăn browser cache response (tránh 304 Not Modified)
-  res.set('Cache-Control', 'no-store');
+	// 1) Ngăn browser cache response (tránh 304 Not Modified)
+	res.set('Cache-Control', 'no-store');
 
-  try {
-    const { boardId } = req.params;
-    const skills = (req.query.skills || '')
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(Boolean);
+	try {
+		const { boardId } = req.params;
+		const skills = (req.query.skills || '')
+			.split(',')
+			.map((s) => s.trim().toLowerCase())
+			.filter(Boolean);
 
-    // 2) Lấy tất cả membership đã accept trên board
-    const memberships = await BoardMembership.find({
-      boardId,
-      applicationStatus: 'accepted',
-      isDeleted: false
-    })
-    .select('userId')
-    .lean();
+		// 2) Lấy tất cả membership đã accept trên board
+		const memberships = await BoardMembership.find({
+			boardId,
+			applicationStatus: 'accepted',
+			isDeleted: false,
+		})
+			.select('userId')
+			.lean();
 
-    const userIds = memberships.map(m => m.userId);
-    if (!userIds.length) {
-      // Nếu chưa có member nào, trả về mảng rỗng luôn
-      return res.status(200).json({ success: true, users: [] });
-    }
+		const userIds = memberships.map((m) => m.userId);
+		if (!userIds.length) {
+			// Nếu chưa có member nào, trả về mảng rỗng luôn
+			return res.status(200).json({ success: true, users: [] });
+		}
 
-    // 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
-   const regexes = skills.map(s => new RegExp(`^${s}$`, 'i'));
-const users = await User.find({
-  _id: { $in: userIds },
-  skills: { $in: regexes }
-})
-.select('_id username email skills')  
-.lean();
+		// 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
+		const regexes = skills.map((s) => new RegExp(`^${s}$`, 'i'));
+		const users = await User.find({
+			_id: { $in: userIds },
+			skills: { $in: regexes },
+		})
+			.select('_id username email skills')
+			.lean();
 
-    // 4) Trả về kết quả
-    return res.status(200).json({ success: true, users });
-  } catch (err) {
-    console.error('suggestMembersBySkills error:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi gợi ý thành viên',
-      error: err.message
-    });
-  }
+		// 4) Trả về kết quả
+		return res.status(200).json({ success: true, users });
+	} catch (err) {
+		console.error('suggestMembersBySkills error:', err);
+		return res.status(500).json({
+			success: false,
+			message: 'Lỗi server khi gợi ý thành viên',
+			error: err.message,
+		});
+	}
 };
