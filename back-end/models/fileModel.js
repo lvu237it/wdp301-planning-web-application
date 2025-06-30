@@ -4,6 +4,7 @@ const fileSchema = new mongoose.Schema(
   {
     name: { type: String, required: [true, 'Tên file là bắt buộc'] },
     url: { type: String, required: [true, 'URL file là bắt buộc'] },
+    googleDriveFileId: { type: String, required: true },
     type: {
       type: String,
       enum: ['image', 'pdf', 'doc', 'other'],
@@ -28,4 +29,6 @@ const fileSchema = new mongoose.Schema(
 fileSchema.index({ uploadedBy: 1 });
 fileSchema.index({ eventId: 1 });
 fileSchema.index({ taskId: 1 });
+fileSchema.index({ googleDriveFileId: 1 });
+
 module.exports = mongoose.model('File', fileSchema);

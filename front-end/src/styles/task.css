@@ -5,7 +5,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -13,13 +13,13 @@
   z-index: 1000;
 }
 
-/* Thân modal */  
+/* Thân modal */
 .task-modal {
   background: #fff;
   border-radius: 8px;
   width: 600px;
   max-width: 90%;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -63,14 +63,14 @@
 /* Các nút action */
 .task-modal-actions {
   display: flex;
-  gap: 8px;              /* Khoảng cách giữa các button */
+  gap: 8px; /* Khoảng cách giữa các button */
   align-items: center;
 }
 .task-modal-actions .btn-action,
 .task-modal-actions .icon-btn {
-  flex-shrink: 0;                /* Không bị co lại */
-  min-width: 120px;              /* Bạn có thể điều chỉnh 120px cho vừa mắt */
-  padding: 0.375rem 0.75rem;     /* Giữ padding chuẩn bootstrap */
+  flex-shrink: 0; /* Không bị co lại */
+  min-width: 120px; /* Bạn có thể điều chỉnh 120px cho vừa mắt */
+  padding: 0.375rem 0.75rem; /* Giữ padding chuẩn bootstrap */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -104,26 +104,26 @@
 }
 .section-textarea {
   width: 100%;
-  min-height: 100px;                   
-  padding: 10px;                        
-  border: 1px solid #000;              
+  min-height: 100px;
+  padding: 10px;
+  border: 1px solid #000;
   border-radius: 4px;
   resize: vertical;
   font-size: 0.95rem;
-  outline: none;                    
+  outline: none;
   transition: box-shadow 0.2s;
 }
 
 .section-textarea:focus {
-  border-color: #000;                   
+  border-color: #000;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
 }
 .desc-view {
-  border: 1px solid #000;      
+  border: 1px solid #000;
   border-radius: 4px;
-  padding: 8px;                
-  min-height: 80px;           
-  background: #fff;           
+  padding: 8px;
+  min-height: 80px;
+  background: #fff;
   position: relative;
 }
 /* badge ngày */
@@ -131,17 +131,17 @@
   display: inline-flex;
   align-items: center;
   padding: 4px 8px;
-  background: #E2F0FE;
-  color: #0052CC;
+  background: #e2f0fe;
+  color: #0052cc;
   border-radius: 3px;
   cursor: pointer;
   font-size: 0.9rem;
   white-space: nowrap;
-  flex-shrink: 0; 
+  flex-shrink: 0;
 }
 .due-badge.overdue {
-  background: #FCEBEA;
-  color: #B71D18;
+  background: #fcebea;
+  color: #b71d18;
 }
 
 /* popover chọn ngày */
@@ -152,7 +152,7 @@
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 12px;
   z-index: 1100;
   display: flex;
@@ -193,19 +193,407 @@
   width: 6px;
 }
 .checklist-list::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0.2);
+  background-color: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
-.mt-1-text-muted{
+.mt-1-text-muted {
   color: red;
   font-weight: bold;
   margin-left: 10px;
 }
-.text-muted-progressTask{
+.text-muted-progressTask {
   color: red;
   font-weight: bold;
 }
-.text-muted-nguoidcgiao{
-    color: red;
+.text-muted-nguoidcgiao {
+  color: red;
   font-weight: bold;
+}
+
+/* File Manager Styles */
+.file-manager-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.file-manager-modal {
+  background: white;
+  border-radius: 12px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.file-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+.file-manager-header h3 {
+  margin: 0;
+  color: #495057;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.file-manager-body {
+  padding: 20px;
+  max-height: calc(80vh - 80px);
+  overflow-y: auto;
+}
+
+.upload-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  text-align: center;
+  background: #f8f9fa;
+}
+
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #007bff;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.upload-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+.upload-progress {
+  margin-top: 10px;
+  color: #007bff;
+  font-weight: 500;
+}
+
+.google-auth-required {
+  text-align: center;
+}
+
+.google-auth-required p {
+  margin-bottom: 15px;
+  color: #6c757d;
+}
+
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.auth-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+.files-list {
+  min-height: 200px;
+}
+
+.loading,
+.no-files {
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.file-item {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 15px;
+  background: white;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.file-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.file-icon {
+  font-size: 2rem;
+  min-width: 40px;
+  text-align: center;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 500;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #495057;
+}
+
+.file-rename input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.rename-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.save-btn,
+.cancel-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.save-btn {
+  background: #28a745;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+}
+
+.file-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.file-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.download-btn {
+  background: #28a745;
+  color: white;
+}
+
+.download-btn:hover {
+  background: #218838;
+}
+
+.view-btn {
+  background: #17a2b8;
+  color: white;
+}
+
+.view-btn:hover {
+  background: #138496;
+}
+
+.share-btn {
+  background: #ffc107;
+  color: #212529;
+}
+
+.share-btn:hover {
+  background: #e0a800;
+}
+
+.rename-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.rename-btn:hover {
+  background: #5a6268;
+}
+
+.delete-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #c82333;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .file-manager-overlay {
+    padding: 10px;
+  }
+
+  .file-manager-modal {
+    max-width: 100%;
+    max-height: 90vh;
+  }
+
+  .files-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .file-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .file-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* Attachment items in Task Modal */
+.attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f8f9fa;
+}
+
+.attachment-item:hover {
+  border-color: #007bff;
+  background: #e7f3ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+}
+
+.attachment-icon {
+  font-size: 1.5rem;
+  margin-right: 10px;
+  min-width: 30px;
+  text-align: center;
+}
+
+.attachment-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.attachment-meta {
+  font-size: 0.8rem;
+}
+
+.attachment-actions {
+  margin-left: 8px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.attachment-item:hover .attachment-actions {
+  opacity: 1;
+}
+
+/* Responsive for attachments */
+@media (max-width: 768px) {
+  .attachments-grid {
+    grid-template-columns: 1fr;
+  }
 }
