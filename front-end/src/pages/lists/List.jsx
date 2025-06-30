@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
-import "../../styles/board.css";
-import { useCommon } from "../../contexts/CommonContext";
-import TaskModal from "../tasks/Task";
-import { useParams } from "react-router-dom";
+import React, { useState, useEffect, useRef } from 'react';
+import '../../styles/board.css';
+import { useCommon } from '../../contexts/CommonContext';
+import TaskModal from '../tasks/Task';
+import { useParams } from 'react-router-dom';
 
 const List = ({ boardId }) => {
   const {
@@ -15,11 +15,11 @@ const List = ({ boardId }) => {
   const [lists, setLists] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
+  const [editTitle, setEditTitle] = useState('');
   const [addingListAt, setAddingListAt] = useState(null);
-  const [newListTitle, setNewListTitle] = useState("");
+  const [newListTitle, setNewListTitle] = useState('');
   const [addingTaskTo, setAddingTaskTo] = useState(null);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const menuRefs = useRef({});
 
@@ -31,19 +31,19 @@ const List = ({ boardId }) => {
     (async () => {
       try {
         const r1 = await fetch(`${apiBaseUrl}/list?boardId=${boardId}`, {
-          credentials: "include",
+          credentials: 'include',
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         const j1 = await r1.json();
-        if (!r1.ok) throw new Error(j1.message || "Không lấy được lists");
+        if (!r1.ok) throw new Error(j1.message || 'Không lấy được lists');
         const rawLists = j1.data || [];
 
         const r2 = await fetch(`${apiBaseUrl}/task/get-by-board/${boardId}`, {
-          credentials: "include",
+          credentials: 'include',
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         const j2 = await r2.json();
-        if (!r2.ok) throw new Error(j2.message || "Không lấy được tasks");
+        if (!r2.ok) throw new Error(j2.message || 'Không lấy được tasks');
         const rawTasks = j2.data || [];
 
         const tasksByList = rawTasks.reduce((acc, t) => {
@@ -65,16 +65,21 @@ const List = ({ boardId }) => {
     })();
   }, [boardId, apiBaseUrl, accessToken]);
 
+  useEffect(() => {
+    console.log('current', currentUser);
+    console.log('currentuserId', currentUser._id);
+  }, []);
+
   // Create a new list
   const createList = async (position) => {
     const title = newListTitle.trim();
     if (!title) return;
     try {
       const res = await fetch(`${apiBaseUrl}/list/createList`, {
-        method: "POST",
-        credentials: "include",
+        method: 'POST',
+        credentials: 'include',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ title, boardId, position }),
@@ -85,7 +90,7 @@ const List = ({ boardId }) => {
       arr.splice(position, 0, { ...js.data, tasks: [] });
       setLists(arr);
       setAddingListAt(null);
-      setNewListTitle("");
+      setNewListTitle('');
     } catch (err) {
       alert(err.message);
     }
@@ -97,10 +102,10 @@ const List = ({ boardId }) => {
     if (!title) return;
     try {
       const res = await fetch(`${apiBaseUrl}/list/updateList/${id}`, {
-        method: "PUT",
-        credentials: "include",
+        method: 'PUT',
+        credentials: 'include',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ title }),
@@ -124,11 +129,11 @@ const List = ({ boardId }) => {
 
   // Delete a list
   const deleteList = async (id) => {
-    if (!window.confirm("Bạn có chắc muốn xóa list này?")) return;
+    if (!window.confirm('Bạn có chắc muốn xóa list này?')) return;
     try {
       const res = await fetch(`${apiBaseUrl}/list/deleteList/${id}`, {
-        method: "DELETE",
-        credentials: "include",
+        method: 'DELETE',
+        credentials: 'include',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const js = await res.json();
@@ -145,7 +150,7 @@ const List = ({ boardId }) => {
     if (!title) return;
     const payload = {
       title,
-      description: "",
+      description: '',
       calendarId: calendarUser?._id,
       workspaceId: workspaceId || null,
       boardId,
@@ -163,10 +168,10 @@ const List = ({ boardId }) => {
     };
     try {
       const res = await fetch(`${apiBaseUrl}/task/createTask`, {
-        method: "POST",
-        credentials: "include",
+        method: 'POST',
+        credentials: 'include',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
@@ -179,7 +184,7 @@ const List = ({ boardId }) => {
         )
       );
       setAddingTaskTo(null);
-      setNewTaskTitle("");
+      setNewTaskTitle('');
       setMenuOpenId(null);
     } catch (err) {
       alert(err.message);
@@ -205,11 +210,11 @@ const List = ({ boardId }) => {
 
   // Delete a task
   const deleteTask = async (taskId, listId) => {
-    if (!window.confirm("Bạn có chắc muốn xóa task này không?")) return;
+    if (!window.confirm('Bạn có chắc muốn xóa task này không?')) return;
     try {
       const res = await fetch(`${apiBaseUrl}/task/deleteTask/${taskId}`, {
-        method: "DELETE",
-        credentials: "include",
+        method: 'DELETE',
+        credentials: 'include',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const js = await res.json();
@@ -230,34 +235,34 @@ const List = ({ boardId }) => {
   };
 
   return (
-    <div className="list-container">
+    <div className='list-container'>
       {lists.map((list, idx) => (
-        <div key={list._id} className="list-card">
-          <div className="list-card-header">
+        <div key={list._id} className='list-card'>
+          <div className='list-card-header'>
             {editingId === list._id ? (
               <input
-                className="add-list-input"
+                className='add-list-input'
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && saveListTitle(list._id)}
+                onKeyDown={(e) => e.key === 'Enter' && saveListTitle(list._id)}
                 autoFocus
               />
             ) : (
               <>
-                <span className="list-title">{list.title}</span>
-                <span className="task-count">{(list.tasks || []).length}</span>
+                <span className='list-title'>{list.title}</span>
+                <span className='task-count'>{(list.tasks || []).length}</span>
                 <div
-                  className="list-menu-container"
+                  className='list-menu-container'
                   ref={(el) => (menuRefs.current[list._id] = el)}
                 >
                   <i
-                    className="fas fa-ellipsis-h list-menu-btn"
+                    className='fas fa-ellipsis-h list-menu-btn'
                     onClick={() =>
                       setMenuOpenId((o) => (o === list._id ? null : list._id))
                     }
                   />
                   {menuOpenId === list._id && (
-                    <ul className="list-menu-dropdown">
+                    <ul className='list-menu-dropdown'>
                       <li
                         onClick={() => {
                           setEditingId(list._id);
@@ -268,7 +273,7 @@ const List = ({ boardId }) => {
                         Sửa List
                       </li>
                       <li
-                        className="delete"
+                        className='delete'
                         onClick={() => deleteList(list._id)}
                       >
                         Xóa List
@@ -276,7 +281,7 @@ const List = ({ boardId }) => {
                       <li
                         onClick={() => {
                           setAddingTaskTo(list._id);
-                          setNewTaskTitle("");
+                          setNewTaskTitle('');
                           setMenuOpenId(null);
                         }}
                       >
@@ -289,7 +294,7 @@ const List = ({ boardId }) => {
             )}
           </div>
 
-          <div className="list-tasks">
+          <div className='list-tasks'>
             {list.tasks.map((task) => {
               const total = task.checklist?.length || 0;
               const done =
@@ -297,9 +302,9 @@ const List = ({ boardId }) => {
               const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
               return (
-                <div key={task._id} className="task-row">
+                <div key={task._id} className='task-row'>
                   <div
-                    className="task-card"
+                    className='task-card'
                     onClick={() =>
                       setSelectedTask({
                         ...task,
@@ -307,71 +312,75 @@ const List = ({ boardId }) => {
                       })
                     }
                   >
-                    <span className="task-title">{task.title}</span>
-                    <div className="task-progress mt-1">
+                    <span className='task-title'>{task.title}</span>
+                    <div className='task-progress mt-1'>
                       {/* progress bar */}
-                      <div className="progress">
+                      <div className='progress'>
                         <div
-                          className="progress-bar"
-                          role="progressbar"
+                          className='progress-bar'
+                          role='progressbar'
                           style={{ width: `${percent}%` }}
                         />
                       </div>
-                      <small className="ms-2">{percent}%</small>
+                      <small className='ms-2'>{percent}%</small>
 
                       {/* CHỈ SHOW NẾU assignedTo KHÔNG NULL */}
                       <div>
                         <strong>Người được giao :</strong>
                         {task.assignedTo ? (
-                          <div className="assigned-info mt-2 d-flex align-items-center">
+                          <div className='assigned-info mt-2 d-flex align-items-center'>
                             {task.assignedTo.avatar && (
                               <img
                                 src={task.assignedTo.avatar}
-                                alt="avatar"
-                                className="rounded-circle"
+                                alt='avatar'
+                                className='rounded-circle'
                                 width={24}
                                 height={24}
                               />
                             )}
-                            <span className="ms-2">
+                            <span className='ms-2'>
                               {task.assignedTo.username ||
                                 task.assignedTo.email}
                             </span>
                           </div>
                         ) : (
-                          <span className="ms-2-text-muted">Chưa có</span>
+                          <span className='ms-2-text-muted'>Chưa có</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <i
-                    className="fas fa-times delete-task-btn"
-                    onClick={() => deleteTask(task._id, list._id)}
-                  />
+                  {/* Chỉ hiện thị nút xoá nếu task đó là task được tạo bởi người
+                  currentUser tức cũng là assignedBy */}
+                  {task.assignedBy._id === currentUser._id && (
+                    <i
+                      className='fas fa-times delete-task-btn'
+                      onClick={() => deleteTask(task._id, list._id)}
+                    />
+                  )}
                 </div>
               );
             })}
 
             {/* form thêm task */}
             {addingTaskTo === list._id && (
-              <div className="add-card-form">
+              <div className='add-card-form'>
                 <input
-                  className="add-card-input"
+                  className='add-card-input'
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && createTask(list._id)}
-                  placeholder="Nhập tên task..."
+                  onKeyDown={(e) => e.key === 'Enter' && createTask(list._id)}
+                  placeholder='Nhập tên task...'
                   autoFocus
                 />
-                <div className="add-card-actions">
+                <div className='add-card-actions'>
                   <button
-                    className="btn-add"
+                    className='btn-add'
                     onClick={() => createTask(list._id)}
                   >
                     Thêm
                   </button>
                   <button
-                    className="btn-cancel"
+                    className='btn-cancel'
                     onClick={() => setAddingTaskTo(null)}
                   >
                     ✕
@@ -384,26 +393,26 @@ const List = ({ boardId }) => {
       ))}
 
       {/* Thêm list mới */}
-      <div className="list-card add-new-list">
+      <div className='list-card add-new-list'>
         {addingListAt !== null ? (
-          <div className="add-list-form">
+          <div className='add-list-form'>
             <input
-              className="add-list-input"
+              className='add-list-input'
               value={newListTitle}
               onChange={(e) => setNewListTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createList(addingListAt)}
-              placeholder="Nhập tên danh sách..."
+              onKeyDown={(e) => e.key === 'Enter' && createList(addingListAt)}
+              placeholder='Nhập tên danh sách...'
               autoFocus
             />
-            <div className="add-list-actions">
+            <div className='add-list-actions'>
               <button
-                className="btn-add"
+                className='btn-add'
                 onClick={() => createList(addingListAt)}
               >
                 Thêm danh sách
               </button>
               <button
-                className="btn-cancel"
+                className='btn-cancel'
                 onClick={() => setAddingListAt(null)}
               >
                 ✕
@@ -412,13 +421,13 @@ const List = ({ boardId }) => {
           </div>
         ) : (
           <div
-            className="add-card-button"
+            className='add-card-button'
             onClick={() => {
               setAddingListAt(lists.length);
-              setNewListTitle("");
+              setNewListTitle('');
             }}
           >
-            <i className="fas fa-plus"></i> Thêm danh sách khác
+            <i className='fas fa-plus'></i> Thêm danh sách khác
           </div>
         )}
       </div>

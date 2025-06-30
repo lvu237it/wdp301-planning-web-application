@@ -45,12 +45,12 @@ const BoardDetail = () => {
       <div className='board-detail-header'>
         <div className='container d-flex justify-content-between'>
           <h2 className='board-title'>List of boards</h2>
-          <div
+          {/* <div
             className='btn-create-workspace btn btn-success'
             onClick={() => navigate(`/board-calendar/${boardId}`)}
           >
             View board's events
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -59,20 +59,6 @@ const BoardDetail = () => {
           <List boardId={boardId} />
         </div>
       </div>
-
-      {/* Toast Container */}
-      {/* <ToastContainer
-        position='top-right'
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme='light'
-      /> */}
     </div>
   );
 };
