@@ -32,8 +32,16 @@ require('./configs/passport-config'); //Import passport configuration
 // các middleware
 app.use(morgan('dev'));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+
+// Cấu hình Express để hỗ trợ UTF-8
+app.use(express.urlencoded({ extended: true, charset: 'utf-8' }));
+app.use(express.json({ charset: 'utf-8' }));
+
+// Set default charset
+app.use((req, res, next) => {
+  res.charset = 'utf-8';
+  next();
+});
 
 // CORS configuration
 app.use(
@@ -107,8 +115,8 @@ app.use('/calendar', calendarRouter);
 app.use('/event', eventRouter);
 app.use('/list', listRoutes);
 app.use('/task', taskRoutes);
-app.use('/workspace', workspaceRouter);//cha
-app.use('/workspace/:workspaceId/board', boardRouter);//con
+app.use('/workspace', workspaceRouter); //cha
+app.use('/workspace/:workspaceId/board', boardRouter); //con
 app.use('/files', fileRouter);
 app.use('/skills', skillRouter);
 app.use('/notification', notificationRouter);
