@@ -52,4 +52,10 @@ router.get(
 //7. lấy ra user đủ điều kiện trên board
 router.get('/:boardId/qualified-users', protect, boardController.getQualifiedUsers);
 
+// Route để lấy board details mà không cần workspaceId
+router.get(
+  '/:boardId',
+  protect,
+  require('../controllers/boardController').getBoardById
+);
 module.exports = router;

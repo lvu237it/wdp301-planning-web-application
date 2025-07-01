@@ -171,7 +171,9 @@ exports.createBoard = async (req, res) => {
 exports.getBoardById = async (req, res) => {
   try {
     const { boardId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
+console.log("board", boardId);
+console.log("ba", userId);
 
     console.log('boardId to get detail', boardId);
 

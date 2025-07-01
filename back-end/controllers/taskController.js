@@ -370,3 +370,21 @@ exports.deleteTask = async (req, res) => {
     });
   }
 };
+
+// POST body: [{ _id, listId, position }, …]
+exports.reorderTasks = async (req, res, next) => {
+  const updates = req.body;
+  try {
+    await Task.bulkWrite(
+      updates.map(t => ({
+        updateOne: {
+          filter: { _id: t._id },
+          update: { listId: t.listId, position: t.position }
+        }
+      }))
+    );
+    res.status(200).json({ success: true, data: updates });
+  } catch (err) {
+    next(err);
+  }
+};
