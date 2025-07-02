@@ -24,41 +24,45 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const [toastMessage, setToastMessage] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isBoardAdmin, setIsBoardAdmin] = useState(false);
+  const [boardWorkStart, setBoardWorkStart] = useState("");
+  const [boardWorkEnd, setBoardWorkEnd] = useState("");
+
   const { workspaceId } = useParams();
-  // Determine boardAdmin by fetching board details
+  // 1) Check admin & fetch board criteria.workDuration
   useEffect(() => {
     if (!task) return;
     (async () => {
       try {
-        const res = await fetch(
+        const res = await axios.get(
           `${apiBaseUrl}/workspace/${workspaceId}/board/${task.boardId}`,
-          {
-            credentials: "include",
-            headers: { Authorization: `Bearer ${accessToken}` },
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const board = res.data.board || {};
+
+        // admin check
+        const me = currentUser?._id?.toString();
+        if (board.creator?._id?.toString() === me) {
+          setIsBoardAdmin(true);
+        } else {
+          const member = (board.members || []).find(
+            (m) => (m._id || m.id)?.toString() === me
+          );
+          if (member && ["admin", "creator"].includes(member.role)) {
+            setIsBoardAdmin(true);
           }
-        );
-        const js = await res.json();
-        if (!res.ok) throw new Error(js.message || "Cannot fetch board");
-        const board = js.board || {};
-        const members = board.members || [];
-        const currentUserId = currentUser?._id?.toString();
-        // creator
-        if (board.creator?._id?.toString() === currentUserId) {
-          setIsBoardAdmin(true);
-          return;
         }
-        // member role
-        const membership = members.find(
-          (m) => (m._id || m.id)?.toString() === currentUserId
-        );
-        if (membership && ["admin", "creator"].includes(membership.role)) {
-          setIsBoardAdmin(true);
+
+        // pull workDuration
+        const wd = board.criteria?.workDuration;
+        if (wd?.startDate && wd?.endDate) {
+          setBoardWorkStart(wd.startDate);
+          setBoardWorkEnd(wd.endDate);
         }
       } catch (err) {
-        console.error("Board admin check failed:", err);
+        console.error("Load board info failed:", err);
       }
     })();
-  }, [task, apiBaseUrl, accessToken, currentUser]);
+  }, [task, apiBaseUrl, accessToken, workspaceId, currentUser]);
 
   useEffect(() => {
     if (isOpen && task) {
@@ -208,13 +212,13 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
       const updatedFields = res.data.data;
       onUpdate(mergeTask({ ...updatedFields, assignedTo: user }));
-      setToastMessage(`Đã giao task cho ${user.username || user.email}`);
+      setToastMessage(`Đã giao nhiệm vụ cho ${user.username || user.email}`);
       setShowToast(true);
       setShowInviteModal(false);
     } catch (err) {
-      console.error("Giao task thất bại:", err);
+      console.error("Giao nhiệm vụ thất bại:", err);
       alert(
-        "Giao task thất bại: " + (err.response?.data?.message || err.message)
+        "Giao nhiệm vụ thất bại: " + (err.response?.data?.message || err.message)
       );
     }
   };
@@ -247,12 +251,14 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         size="lg"
       >
         <Modal.Header closeButton>
-          <Modal.Title>Gợi ý & Mời thành viên theo kỹ năng</Modal.Title>
+          <Modal.Title >Gợi ý & Mời thành viên</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <SuggestMembersBySkills
             workspaceId={task.workspaceId}
             boardId={task.boardId}
+            startDate={task.startDate.substr(0, 10)}
+            endDate={task.endDate.substr(0, 10)}
             onAssignSuccess={handleAssign}
           />
         </Modal.Body>
@@ -412,6 +418,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   task={task}
                   onUpdate={onUpdate}
                   mergeTask={mergeTask}
+                  minDate={boardWorkStart}
+                  maxDate={boardWorkEnd}
                 />
               )}
 

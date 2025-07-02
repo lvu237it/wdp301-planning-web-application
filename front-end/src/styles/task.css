@@ -68,23 +68,30 @@
 }
 .task-modal-actions .btn-action,
 .task-modal-actions .icon-btn {
-  flex-shrink: 0;                /* Không bị co lại */
-  min-width: 120px;              /* Bạn có thể điều chỉnh 120px cho vừa mắt */
-  padding: 0.375rem 0.75rem;     /* Giữ padding chuẩn bootstrap */
+  flex-shrink: 0;
+  min-width: 120px;
+  padding: 0.375rem 0.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.btn-action {
-  display: flex;
+
+/* style riêng cho due-badge để giống btn-action */
+.task-modal-actions .due-badge {
+  flex-shrink: 0;
+  min-width: 120px;
+  padding: 0.375rem 0.75rem;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: #f1f3f5;
-  border: none;
-  border-radius: 4px;
+  justify-content: center;
+  background: #f1f3f5;     
+  border-radius: 4px;     
   cursor: pointer;
   font-size: 0.9rem;
+}
+
+.task-modal-actions .due-badge:hover {
+  background: #e2e6ea;
 }
 .btn-action i {
   font-size: 1rem;

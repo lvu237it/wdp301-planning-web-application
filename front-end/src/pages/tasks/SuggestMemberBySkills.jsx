@@ -3,90 +3,151 @@ import Select from "react-select";
 import axios from "axios";
 import { useCommon } from "../../contexts/CommonContext";
 
-const SuggestMembersBySkills = ({
+export default function SuggestMemberBySkills({
   workspaceId,
   boardId,
-  onAssignSuccess
-}) => {
-  const { accessToken, apiBaseUrl } = useCommon();
+  startDate,
+  endDate,
+  onAssignSuccess,
+}) {
+  const { apiBaseUrl, accessToken } = useCommon();
+
   const [allSkills, setAllSkills] = useState([]);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // 1) Load toàn bộ skills
+  // 1) Load toàn bộ kỹ năng
   useEffect(() => {
     axios
       .get(`${apiBaseUrl}/skills`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
       })
-      .then(res => {
+      .then((res) => {
         setAllSkills(
-          res.data.skills.map(s => ({ value: s.value, label: s.label }))
+          (res.data.skills || []).map((s) => ({
+            value: s.value,
+            label: s.label,
+          }))
         );
       })
-      .catch(err => console.error("Error loading skills:", err));
+      .catch((err) => console.error("Không thể lấy skills:", err));
   }, [apiBaseUrl, accessToken]);
 
-  // 2) Gợi ý members theo skills
-  const fetchSuggestions = () => {
-    const skillsParam = selectedSkills.map(s => s.value).join(",");
-    setHasFetched(false);
+  // format ngày VN
+  const formatDateVN = (iso) => {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("vi-VN");
+  };
 
-    axios
-      .get(
+  // 2) Gợi ý khi nhấn nút
+  const fetchSuggestions = async () => {
+    setError("");
+    // validate ngày
+    if (!startDate || !endDate) {
+      setError("Task chưa có ngày bắt đầu hoặc kết thúc.");
+      return;
+    }
+    if (new Date(startDate) > new Date(endDate)) {
+      setError("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.");
+      return;
+    }
+    if (selectedSkills.length === 0) {
+      setError("Vui lòng chọn ít nhất 1 kỹ năng.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const skillsParam = selectedSkills.map((s) => s.value).join(",");
+
+      const res = await axios.get(
         `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}/suggest-members`,
         {
-          params: { skills: skillsParam },
-          headers: { Authorization: `Bearer ${accessToken}` }
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: { skills: skillsParam, startDate, endDate },
         }
-      )
-      .then(res => {
-        setSuggestions(res.data.users || []);
-        setHasFetched(true);
-      })
-      .catch(err => {
-        console.error("Error fetching suggestions:", err);
-        setHasFetched(true);
-      });
+      );
+
+      const users = res.data.users || [];
+      if (users.length === 0) {
+        setError("Không tìm thấy thành viên phù hợp.");
+      }
+      setSuggestions(users);
+    } catch (err) {
+      console.error("Gợi ý thất bại:", err);
+      setError("Có lỗi xảy ra, vui lòng thử lại.");
+      setSuggestions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div>
-      <Select
-        isMulti
-        options={allSkills}
-        value={selectedSkills}
-        onChange={setSelectedSkills}
-        placeholder="Chọn kỹ năng..."
-      />
-      <button
-        className="btn btn-primary mt-2"
-        onClick={fetchSuggestions}
-        disabled={!selectedSkills.length}
-      >
-        Gợi ý thành viên
-      </button>
+      {/* Hiển thị ngày của Task */}
+      <div className="mb-3">
+        <strong>Thời gian của nhiệm vụ này:</strong>{" "}
+        <p>Ngày bắt đầu : {formatDateVN(startDate)}</p>
+         <p>Ngày kết thúc :{formatDateVN(endDate)} </p>
+      </div>
 
-      {hasFetched && suggestions.length === 0 && (
-        <p className="mt-2 text-muted">Không tìm thấy thành viên phù hợp.</p>
-      )}
+      {/* Chọn kỹ năng */}
+      <div className="mb-3">
+        <label className="form-label">Chọn kỹ năng</label>
+        <Select
+          isMulti
+          options={allSkills}
+          value={selectedSkills}
+          onChange={setSelectedSkills}
+          placeholder="Chọn kỹ năng..."
+        />
+      </div>
 
+      {/* Nút Gợi ý */}
+      <div className="mb-3">
+        <button
+          className="btn btn-primary"
+          onClick={fetchSuggestions}
+          disabled={loading}
+        >
+          {loading ? "Đang gợi ý…" : "Gợi ý thành viên"}
+        </button>
+      </div>
+
+      {/* Thông báo lỗi */}
+      {error && <div className="text-danger mb-3">{error}</div>}
+
+      {/* Danh sách gợi ý */}
       {suggestions.length > 0 && (
-        <ul className="list-group mt-3">
-          {suggestions.map(u => (
+        <ul className="list-group">
+          {suggestions.map((u) => (
             <li
               key={u._id}
               className="list-group-item d-flex justify-content-between align-items-center"
             >
-              <span>
-                <strong>{u.username}</strong> ({u.email})
-              </span>
+              <div className="d-flex align-items-center">
+                {u.avatar && (
+                  <img
+                    src={u.avatar}
+                    alt=""
+                    className="rounded-circle me-2"
+                    width={30}
+                    height={30}
+                  />
+                )}
+                <div>
+                  <strong>{u.username}</strong>
+                  <br />
+                  <small className="text-muted">{u.email}</small>
+                </div>
+              </div>
               <button
                 className="btn btn-sm btn-success"
                 onClick={() => onAssignSuccess(u)}
               >
-                Giao task
+                Giao nhiệm vụ
               </button>
             </li>
           ))}
@@ -94,8 +155,4 @@ const SuggestMembersBySkills = ({
       )}
     </div>
   );
-};
-
-export default SuggestMembersBySkills;
-
-
+}
