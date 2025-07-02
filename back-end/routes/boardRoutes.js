@@ -10,13 +10,16 @@ const {
 
 router.get('/', protect, boardController.getBoardsByWorkspace);
 
-// 1. Tạo Board (chỉ cần verifyToken, không cần check role)
+// 1. Lấy chi tiết Board theo ID
+router.get('/:boardId', protect, boardController.getBoardById);
+
+// 2. Tạo Board (chỉ cần verifyToken, không cần check role)
 router.post('/create', protect, isAdminWorkspace, boardController.createBoard);
 
-// 2. Cập nhật Board (chỉ creator hoặc admin mới được phép)
+// 3. Cập nhật Board (chỉ creator hoặc admin mới được phép)
 router.put('/:boardId', protect, isAdminBoard, boardController.updateBoard);
 
-// 3. Đóng (soft‐delete) Board (chỉ creator hoặc admin)
+// 4. Đóng (soft‐delete) Board (chỉ creator hoặc admin)
 router.patch(
   '/:boardId/close',
   protect,
@@ -24,7 +27,7 @@ router.patch(
   boardController.closeBoard
 );
 
-// 4. Xóa vĩnh viễn Board (chỉ creator)
+// 5. Xóa vĩnh viễn Board (chỉ creator)
 router.delete(
   '/:boardId',
   protect,
@@ -32,7 +35,7 @@ router.delete(
   boardController.deleteBoard
 );
 
-// 5. Mời thành viên vào Board (chỉ creator hoặc admin)
+// 6. Mời thành viên vào Board (chỉ creator hoặc admin)
 router.post(
   '/:boardId/invite',
   protect,
@@ -40,16 +43,21 @@ router.post(
   boardController.inviteBoardMembers
 );
 
-// 6. Phản hồi lời mời (không cần verifyToken, vì user có thể bấm link từ email)
+// 7. Phản hồi lời mời (không cần verifyToken, vì user có thể bấm link từ email)
 router.post('/invite-response', boardController.respondToBoardInvite);
 
-// routes/boardRoutes.js
+// 8. Gợi ý thành viên theo skills
 router.get(
   '/:boardId/suggest-members',
   protect,
   boardController.suggestMembersBySkills
 );
-//7. lấy ra user đủ điều kiện trên board
-router.get('/:boardId/qualified-users', protect, boardController.getQualifiedUsers);
+
+// 9. Lấy ra user đủ điều kiện trên board
+router.get(
+  '/:boardId/qualified-users',
+  protect,
+  boardController.getQualifiedUsers
+);
 
 module.exports = router;

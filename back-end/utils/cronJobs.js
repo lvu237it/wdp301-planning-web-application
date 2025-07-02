@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const Event = require('../models/eventModel');
 const EventHistory = require('../models/eventHistoryModel');
+const ActivityLog = require('../models/activityLogModel');
 
 // Helper function để xác định trạng thái sự kiện dựa trên thời gian
 const determineEventStatus = (startDate, endDate, currentStatus) => {
@@ -250,6 +251,12 @@ const initializeCronJobs = () => {
     );
   }
 };
+
+// Xóa log cũ sau 30 ngày
+cron.schedule('0 0 * * *', async () => {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  await ActivityLog.deleteMany({ createdAt: { $lt: thirtyDaysAgo } });
+});
 
 // Export các functions để có thể test hoặc gọi manual
 module.exports = {

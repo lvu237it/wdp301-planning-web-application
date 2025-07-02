@@ -24,6 +24,7 @@ const fileRouter = require('./routes/fileRoutes');
 const skillRouter = require('./routes/skillRoutes');
 const notificationRouter = require('./routes/notificationRoutes');
 const messageRouter = require('./routes/messageRoutes');
+const activityLogRouter = require('./routes/activityLogRoutes');
 
 const fileController = require('./controllers/fileController');
 
@@ -121,6 +122,8 @@ app.use('/files', fileRouter);
 app.use('/skills', skillRouter);
 app.use('/notification', notificationRouter);
 app.use('/message', messageRouter);
+app.use('/message', messageRouter);
+app.use('/activity', activityLogRouter);
 app.get('/auth/google/callback', fileController.handleGoogleAuthCallback);
 
 // Initialize all cron jobs
