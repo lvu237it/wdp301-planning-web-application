@@ -219,8 +219,8 @@ function BoardActivityLog() {
 
   // Get action icon
   const getActionIcon = (action) => {
-    if (action.includes('task')) return '📋';
     if (action.includes('list')) return '📝';
+    if (action.includes('task')) return '📋';
     if (action.includes('message')) return '💬';
     return '📊';
   };
@@ -368,17 +368,18 @@ function BoardActivityLog() {
             All Activities
           </button>
           <button
-            className={`filter-btn ${filter === 'task' ? 'active' : ''}`}
-            onClick={() => setFilter('task')}
-          >
-            📋 Tasks
-          </button>
-          <button
             className={`filter-btn ${filter === 'list' ? 'active' : ''}`}
             onClick={() => setFilter('list')}
           >
             📝 Lists
           </button>
+          <button
+            className={`filter-btn ${filter === 'task' ? 'active' : ''}`}
+            onClick={() => setFilter('task')}
+          >
+            📋 Tasks
+          </button>
+
           {/* <button
             className={`filter-btn ${filter === 'message' ? 'active' : ''}`}
             onClick={() => setFilter('message')}

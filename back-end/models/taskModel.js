@@ -1,10 +1,10 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 // Quản lý công việc
 const taskSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: [true, 'Tiêu đề nhiệm vụ là bắt buộc'],
+      required: [true, "Tiêu đề nhiệm vụ là bắt buộc"],
     },
     description: {
       type: String,
@@ -16,17 +16,17 @@ const taskSchema = new mongoose.Schema(
     // },
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: false,
     },
     boardId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Board',
+      ref: "Board",
       required: true,
     },
     listId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'List',
+      ref: "List",
       required: true,
     },
     // eventId: {
@@ -36,12 +36,12 @@ const taskSchema = new mongoose.Schema(
     // },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       // required: [, 'Người được giao nhiệm vụ là bắt buộc'],
     },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       // required: [true, 'Người giao nhiệm vụ là bắt buộc'],
     },
     startDate: {
@@ -59,7 +59,7 @@ const taskSchema = new mongoose.Schema(
     recurrence: {
       type: {
         type: String,
-        enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
+        enum: ["daily", "weekly", "monthly", "yearly", "custom"],
         default: null,
       },
       interval: {
@@ -71,8 +71,8 @@ const taskSchema = new mongoose.Schema(
       {
         method: {
           type: String,
-          enum: ['email', 'popup'],
-          default: 'email',
+          enum: ["email", "popup"],
+          default: "email",
         },
         daysBefore: {
           type: Number,
@@ -80,16 +80,20 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
+    position: {
+      type: Number,
+      default: 0,
+    },
     progress: {
       type: Number,
       default: 0,
-      min: [0, 'Tiến độ không thể nhỏ hơn 0'],
-      max: [100, 'Tiến độ không thể lớn hơn 100'],
+      min: [0, "Tiến độ không thể nhỏ hơn 0"],
+      max: [100, "Tiến độ không thể lớn hơn 100"],
     },
     documents: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'File',
+        ref: "File",
       },
     ],
     checklist: [
@@ -103,7 +107,7 @@ const taskSchema = new mongoose.Schema(
         },
         createdBy: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: "User",
         },
         completedAt: {
           type: Date,
@@ -123,7 +127,7 @@ const taskSchema = new mongoose.Schema(
   }
 );
 
-taskSchema.pre('save', function (next) {
+taskSchema.pre("save", function (next) {
   if (this.checklist && this.checklist.length > 0) {
     const completedCount = this.checklist.filter(
       (item) => item.completed
@@ -138,4 +142,5 @@ taskSchema.index({ boardId: 1 });
 taskSchema.index({ listId: 1 });
 taskSchema.index({ calendarId: 1 });
 taskSchema.index({ assignedBy: 1 });
-module.exports = mongoose.model('Task', taskSchema);
+taskSchema.index({ listId: 1, position: 1 });
+module.exports = mongoose.model("Task", taskSchema);
