@@ -51,6 +51,17 @@ const BoardDetail = () => {
           >
             View board's events
           </div> */}
+
+          <div
+            className='btn-create-workspace btn btn-success'
+            onClick={() =>
+              navigate(
+                `/workspace/${workspaceId}/boards/${boardId}/activity-log`
+              )
+            }
+          >
+            📊 View Activity Log
+          </div>
         </div>
       </div>
 
