@@ -10,5 +10,6 @@ router.put('/updateTask/:id', protect, taskController.updateTask);
 router.delete('/deleteTask/:id',protect, taskController.deleteTask);
 router.post('/:id/assign', protect, taskController.assignTask);
 router.delete('/:id/assign', protect, taskController.unassignTask);
+router.put('/reorder', protect, taskController.reorderTasks);
 
 module.exports = router;

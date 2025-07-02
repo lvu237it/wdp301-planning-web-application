@@ -3,11 +3,11 @@ const router = express.Router();
 const listController = require('../controllers/listController');
 
 const { protect } = require('../utils/auth');
-router.get('/', listController.getAllList);
+router.get('/', protect, listController.getAllList);
 router.get('/board/:boardId', protect, listController.getListsByBoard);
-router.get('/:id', listController.getListById);
-router.post('/createList', listController.createList);
-router.put('/updateList/:id', listController.updateList);
-router.delete('/deleteList/:id', listController.deleteList);
+router.get('/:id', protect, listController.getListById);
+router.post('/createList', protect, listController.createList);
+router.put('/updateList/:id', protect, listController.updateList);
+router.delete('/deleteList/:id', protect, listController.deleteList);
 
 module.exports = router;

@@ -5,7 +5,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import List from '../lists/List';
 import { useCommon } from '../../contexts/CommonContext';
-import { Image } from 'react-bootstrap';
+import { Col, Image } from 'react-bootstrap';
 const BoardDetail = () => {
 	const { workspaceId, boardId } = useParams();
 	const {
@@ -55,41 +55,55 @@ const BoardDetail = () => {
 		<div className='board-detail-page'>
 			<div className='board-detail-header'>
 				<div className='container d-flex justify-content-between'>
-					<h2 className='board-title'>List of boards</h2>
+					<Col className='board-title'>
+						<h2 >List of boards</h2>
+					</Col>
 
-					{/* Hiển thị tối đa 5 thành viên với chữ cái đầu */}
-					{boardMembers.length > 0 && (
-						<div className='board-members d-flex align-items-center'>
-							{boardMembers.slice(0, 5).map((m) => {
-								const initial = m.username?.[0]?.toUpperCase() || '';
-								return (
+					<Col className='d-flex align-items-center justify-content-end'>
+						{/* Hiển thị tối đa 5 thành viên với chữ cái đầu */}
+						{boardMembers.length > 0 && (
+							<div className='board-members d-flex align-items-center' style={{marginRight: '30px'}}>
+								{boardMembers.slice(0, 5).map((m) => {
+									const initial = m.username?.[0]?.toUpperCase() || '';
+									return (
+										<div
+											key={m._id}
+											className='board-member-avatar-placeholder'
+											style={{
+												width: 32,
+												height: 32,
+												borderRadius: '50%',
+												fontSize: '0.9rem',
+											}}>
+											{initial}
+										</div>
+									);
+								})}
+								{boardMembers.length > 5 && (
 									<div
-										key={m._id}
-										className='board-member-avatar-placeholder'
+										className='d-flex justify-content-center align-items-center bg-secondary text-white'
 										style={{
 											width: 32,
 											height: 32,
 											borderRadius: '50%',
 											fontSize: '0.9rem',
 										}}>
-										{initial}
+										+{members.length - 5}
 									</div>
-								);
-							})}
-							{boardMembers.length > 5 && (
-								<div
-									className='d-flex justify-content-center align-items-center bg-secondary text-white'
-									style={{
-										width: 32,
-										height: 32,
-										borderRadius: '50%',
-										fontSize: '0.9rem',
-									}}>
-									+{members.length - 5}
-								</div>
-							)}
+								)}
+							</div>
+						)}
+
+						<div 
+							className='btn-create-workspace btn btn-success'
+							onClick={() =>
+								navigate(
+									`/workspace/${workspaceId}/boards/${boardId}/activity-log`
+								)
+							}>
+							📊 View Activity Log
 						</div>
-					)}
+					</Col>
 
 					{/* <div
             className='btn-create-workspace btn btn-success'
