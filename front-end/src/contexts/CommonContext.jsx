@@ -62,8 +62,7 @@ export const Common = ({ children }) => {
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
   const apiBaseUrl =
-   import.meta.env.VITE_API_BASE_URL_DEVELOPMENT ||
-   'http://localhost:5000';
+    import.meta.env.VITE_API_BASE_URL_DEVELOPMENT || 'http://localhost:5000';
   // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
@@ -140,11 +139,6 @@ export const Common = ({ children }) => {
   const checkGoogleAuth = async (force = false) => {
     if (!accessToken || (isCheckingGoogleAuth && !force)) return;
 
-    // Kiểm tra nếu userDataLocal chưa được set và không phải force call
-    if (!force && !userDataLocal) {
-      return;
-    }
-
     setIsCheckingGoogleAuth(true);
     try {
       const response = await axios.get(
@@ -157,83 +151,72 @@ export const Common = ({ children }) => {
 
       console.log('🔍 Google auth check response:', response.data);
 
+      // Log token expiry details from response
+      if (response.data.tokens) {
+        response.data.tokens.forEach((token) => {
+          const now = new Date();
+          const expiryDate = token.expiryDate
+            ? new Date(token.expiryDate)
+            : null;
+          const timeUntilExpiry = expiryDate ? expiryDate - now : null;
+          const hoursUntilExpiry = timeUntilExpiry
+            ? Math.round(timeUntilExpiry / (1000 * 60 * 60))
+            : null;
+
+          console.log(`
+📅 Frontend - Google Token Status:
+   Service: ${token.service}
+   Status: ${token.status}
+   Expiry: ${expiryDate ? expiryDate.toLocaleString() : 'No expiry'}
+   Time until expiry: ${hoursUntilExpiry ? `${hoursUntilExpiry} hours` : 'N/A'}
+   Valid: ${token.isValid ? 'Yes' : 'No'}
+          `);
+
+          // Show toast notification if token is expiring soon (within 24 hours)
+          // if (
+          //   hoursUntilExpiry !== null &&
+          //   hoursUntilExpiry < 24 &&
+          //   hoursUntilExpiry > 0
+          // ) {
+          //   toast.warning(
+          //     `Google ${token.service} token will expire in ${hoursUntilExpiry} hours`
+          //   );
+          // }
+        });
+      }
+
       if (response.data.status === 'success') {
         if (response.data.hasValidTokens) {
-          // User có tất cả token Google hợp lệ
+          // User has all valid Google tokens
           console.log('✅ User has all valid Google tokens');
           setIsGoogleAuthenticated(true);
           setShowGoogleAuthModal(false);
-        } else if (
-          response.data.needsRefresh &&
-          response.data.existingTokens > 0
-        ) {
-          // User có token Google nhưng cần refresh hoặc thêm scopes
-          // Đánh dấu là authenticated và không hiện modal vì user đã từng auth Google
-          console.log(
-            '🔄 User has Google tokens but needs refresh/additional scopes'
-          );
-          setIsGoogleAuthenticated(true);
-          setShowGoogleAuthModal(false);
         } else {
-          // Trường hợp có response success nhưng không có valid tokens
-          console.log('⚠️ Success response but no valid tokens');
+          // User needs to authenticate or refresh tokens
+          console.log('❌ User needs Google authentication');
           setIsGoogleAuthenticated(false);
 
-          // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
-          const hasExistingTokens = response.data.existingTokens > 0;
-          if (!userDataLocal?.googleId && !hasExistingTokens) {
-            console.log(
-              '🔑 Showing Google auth modal - no tokens and not Google user'
-            );
+          // Only show modal if there are expired tokens or missing scopes
+          if (
+            response.data.needsRefresh ||
+            response.data.missingScopes?.length > 0
+          ) {
             setShowGoogleAuthModal(true);
-          } else {
-            console.log('🤝 Not showing auth modal - user has Google history');
-            setShowGoogleAuthModal(false);
           }
         }
       } else {
-        // Response status không phải success
-        console.log('❌ Google auth check failed:', response.data.message);
+        // Error response
+        console.log('❌ Error checking Google auth');
         setIsGoogleAuthenticated(false);
-
-        // Chỉ hiển thị modal nếu user không đăng nhập bằng Google và không có token nào
-        const hasExistingTokens = response.data.existingTokens > 0;
-        if (!userDataLocal?.googleId && !hasExistingTokens) {
-          console.log(
-            '🔑 Showing Google auth modal - check failed and no Google history'
-          );
-          setShowGoogleAuthModal(true);
-        } else {
-          console.log(
-            '🤝 Not showing auth modal - user has Google account or tokens'
-          );
-          setShowGoogleAuthModal(false);
-        }
+        setShowGoogleAuthModal(true);
       }
     } catch (error) {
-      console.error('❌ Error checking Google auth:', error);
+      console.error('Error checking Google auth:', error);
       setIsGoogleAuthenticated(false);
 
-      // Xử lý các trường hợp lỗi
+      // Only show modal for authentication-related errors
       if (error.response?.status === 401) {
-        // 401 có thể có nghĩa là user chưa có token hoặc token hết hạn
-        console.log('🔐 401 error - checking for existing tokens');
-        const errorData = error.response?.data;
-        const hasExistingTokens = errorData?.existingTokens > 0;
-
-        if (!userDataLocal?.googleId && !hasExistingTokens) {
-          console.log(
-            '🔑 Showing Google auth modal - 401 and no Google history'
-          );
-          setShowGoogleAuthModal(true);
-        } else {
-          console.log('🤝 Not showing auth modal - user has Google account');
-          setShowGoogleAuthModal(false);
-        }
-      } else {
-        // Lỗi khác (network, server error)
-        console.log('🚫 Other error, not showing auth modal');
-        setShowGoogleAuthModal(false);
+        setShowGoogleAuthModal(true);
       }
     } finally {
       setIsCheckingGoogleAuth(false);
@@ -1049,16 +1032,41 @@ export const Common = ({ children }) => {
   // Xử lý xác thực Google
   const handleGoogleAuth = async () => {
     try {
+      console.log('Starting Google auth process...');
       const response = await axios.get(`${apiBaseUrl}/files/get-auth-url`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         timeout: 10000,
       });
 
-      if (response.data.status === 'success') {
-        window.location.href = response.data.data.authUrl; // Redirect đến Google
+      console.log('Auth URL response:', response.data);
+
+      if (response.data.status === 'success' && response.data.data?.authUrl) {
+        // Store current URL to return after auth
+        sessionStorage.setItem('returnToUrl', window.location.pathname);
+
+        // Redirect to Google auth
+        window.location.href = response.data.data.authUrl;
+      } else if (
+        response.data.status === 'success' &&
+        !response.data.data?.authUrl
+      ) {
+        // If no authUrl is provided, it means all scopes are already authorized
+        console.log('All required scopes are already authorized');
+        setIsGoogleAuthenticated(true);
+        setShowGoogleAuthModal(false);
+        toast.success('Google authentication is already complete');
+      } else {
+        throw new Error('Invalid response format');
       }
     } catch (error) {
-      toast.error('Lỗi khi khởi tạo xác thực Google');
+      console.error('Google auth error:', error);
+      toast.error(
+        error.response?.data?.message ||
+          'Error initiating Google authentication. Please try again.'
+      );
+
+      // Force recheck auth status
+      await checkGoogleAuth(true);
     }
   };
 
@@ -1792,6 +1800,228 @@ export const Common = ({ children }) => {
     }
   };
 
+  // ============= FILE MANAGEMENT FUNCTIONS =============
+
+  // Upload file to task
+  const uploadFileToTask = async (taskId, file) => {
+    if (!accessToken || !taskId || !file) return { success: false };
+
+    try {
+      // Đảm bảo tên file được normalize UTF-8
+      const normalizedFile = new File([file], file.name.normalize('NFC'), {
+        type: file.type,
+        lastModified: file.lastModified,
+      });
+
+      const formData = new FormData();
+      formData.append('file', normalizedFile);
+      formData.append('taskId', taskId);
+
+      const response = await axios.post(
+        `${apiBaseUrl}/files/upload-to-task`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 30000, // Tăng timeout cho upload
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Upload file thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error uploading file to task:', error);
+
+      // Kiểm tra nếu là lỗi token hết hạn
+      if (
+        error.response?.status === 401 &&
+        error.response?.data?.message?.includes('Token đã hết hạn')
+      ) {
+        // Lấy URL xác thực từ thông báo lỗi
+        const authUrl = error.response.data.message.split(': ')[1];
+        if (authUrl) {
+          toast.warning(
+            'Token Google Drive đã hết hạn, đang chuyển hướng đến trang xác thực...'
+          );
+          // Chuyển hướng đến trang xác thực Google
+          window.location.href = authUrl;
+          return { success: false, needReauth: true };
+        }
+      }
+
+      toast.error(error.response?.data?.message || 'Lỗi khi upload file');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Get files of a task
+  const getTaskFiles = async (taskId) => {
+    if (!accessToken || !taskId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/files/list-file/${taskId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data || [],
+        };
+      }
+    } catch (error) {
+      console.error('Error getting task files:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Get file info
+  const getFileInfo = async (fileDocId) => {
+    if (!accessToken || !fileDocId) return { success: false };
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/files/${fileDocId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting file info:', error);
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Download file
+  const downloadFile = async (fileDocId, fileName) => {
+    if (!accessToken || !fileDocId) return { success: false };
+
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/files/download/${fileDocId}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          responseType: 'blob',
+          timeout: 30000,
+        }
+      );
+
+      // Create blob link to download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName || 'download');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Tải file thành công');
+      return { success: true };
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi tải file');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Delete file
+  const deleteFile = async (fileDocId) => {
+    if (!accessToken || !fileDocId) return { success: false };
+
+    try {
+      const response = await axios.delete(`${apiBaseUrl}/files/${fileDocId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        data: { fileDocId }, // Send fileDocId in request body as expected by backend
+        timeout: 10000,
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Xóa file thành công');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa file');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Update file name
+  const updateFileName = async (fileDocId, newName) => {
+    if (!accessToken || !fileDocId || !newName?.trim())
+      return { success: false };
+
+    try {
+      const response = await axios.patch(
+        `${apiBaseUrl}/files/update/${fileDocId}`,
+        { fileDocId, newName: newName.trim() },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Cập nhật tên file thành công');
+        return {
+          success: true,
+          data: response.data.data,
+        };
+      }
+    } catch (error) {
+      console.error('Error updating file name:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật tên file');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Share file with task users
+  const shareFileWithTaskUsers = async (fileDocId, taskId) => {
+    if (!accessToken || !fileDocId || !taskId) return { success: false };
+
+    try {
+      const response = await axios.post(
+        `${apiBaseUrl}/files/share/${fileDocId}`,
+        { fileDocId, taskId },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.status === 'success') {
+        toast.success('Chia sẻ file thành công');
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      toast.error(error.response?.data?.message || 'Lỗi khi chia sẻ file');
+      return { success: false, error: error.response?.data?.message };
+    }
+  };
+
+  // Check if user can upload files (Google auth required)
+  const canUploadFiles = () => {
+    return isGoogleAuthenticated && !isCheckingGoogleAuth;
+  };
+
   return (
     <CommonContext.Provider
       value={{
@@ -1870,6 +2100,15 @@ export const Common = ({ children }) => {
         getBoardDetails,
         // Enhanced conflict resolution
         findAvailableTimeSlots,
+        // File management functions
+        uploadFileToTask,
+        getTaskFiles,
+        getFileInfo,
+        downloadFile,
+        deleteFile,
+        updateFileName,
+        shareFileWithTaskUsers,
+        canUploadFiles,
       }}
     >
       <Toaster

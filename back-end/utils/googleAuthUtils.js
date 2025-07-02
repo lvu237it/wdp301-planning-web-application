@@ -13,6 +13,12 @@ const SERVICE_SCOPES = {
 
 const ALL_SCOPES = Object.values(SERVICE_SCOPES).flat();
 
+const TOKEN_EXPIRY = {
+  ACCESS_TOKEN: 3600 * 1000, // 1 hour in milliseconds
+  REFRESH_TOKEN: 180 * 24 * 3600 * 1000, // 180 days in milliseconds
+  REFRESH_BEFORE: 5 * 60 * 1000, // Refresh 5 minutes before expiry
+};
+
 async function loadSavedCredentialsIfExist(userId, service, requiredScopes) {
   const tokenDoc = await GoogleToken.findOne({
     userId,
@@ -46,7 +52,26 @@ async function loadSavedCredentialsIfExist(userId, service, requiredScopes) {
         );
         client.setCredentials(credentials);
       } catch (error) {
-        throw new AppError('Không thể làm mới token: ' + error.message, 401);
+        // Nếu refresh token thất bại, đánh dấu token là invalid và yêu cầu xác thực lại
+        await GoogleToken.updateOne(
+          { userId, service },
+          {
+            status: 'invalid',
+            updatedAt: Date.now(),
+          }
+        );
+
+        // Tạo URL xác thực mới
+        const authUrl = client.generateAuthUrl({
+          access_type: 'offline',
+          scope: tokenDoc.scopes,
+          prompt: 'consent',
+        });
+
+        throw new AppError(
+          'Token đã hết hạn, vui lòng xác thực lại: ' + authUrl,
+          401
+        );
       }
     }
     return client;
@@ -56,96 +81,154 @@ async function loadSavedCredentialsIfExist(userId, service, requiredScopes) {
 
 async function saveCredentials(client, userId, service, scopes) {
   const existingToken = await GoogleToken.findOne({ userId, service });
+  const now = Date.now();
+  const tokenData = {
+    accessToken: client.credentials.access_token,
+    refreshToken: client.credentials.refresh_token,
+    expiryDate: now + TOKEN_EXPIRY.ACCESS_TOKEN, // Force 1 hour expiry
+    scopes: Array.from(new Set([...(existingToken?.scopes || []), ...scopes])),
+    updatedAt: now,
+    status: 'active',
+    lastRefreshed: now,
+    refreshTokenExpiryDate: now + TOKEN_EXPIRY.REFRESH_TOKEN,
+  };
+
   if (existingToken) {
-    const updatedScopes = Array.from(
-      new Set([...existingToken.scopes, ...scopes])
-    );
-    await GoogleToken.updateOne(
-      { userId, service },
-      {
-        $set: {
-          accessToken: client.credentials.access_token,
-          refreshToken: client.credentials.refresh_token,
-          expiryDate: client.credentials.expiry_date,
-          scopes: updatedScopes,
-          updatedAt: Date.now(),
-          status: 'active',
-        },
-      }
-    );
+    // Keep existing refresh token if new one isn't provided
+    if (!tokenData.refreshToken && existingToken.refreshToken) {
+      tokenData.refreshToken = existingToken.refreshToken;
+      tokenData.refreshTokenExpiryDate = existingToken.refreshTokenExpiryDate;
+    }
+
+    await GoogleToken.updateOne({ userId, service }, { $set: tokenData });
   } else {
     await GoogleToken.create({
       userId,
       service,
-      scopes,
-      accessToken: client.credentials.access_token,
-      refreshToken: client.credentials.refresh_token,
-      expiryDate: client.credentials.expiry_date,
-      status: 'active',
+      ...tokenData,
     });
   }
 }
 
 async function authorize(userId, service, scopes) {
-  // Đầu tiên kiểm tra xem có credentials đã lưu không
-  let authClient = await loadSavedCredentialsIfExist(userId, service, scopes);
-  if (authClient) {
-    console.log('Found existing credentials for service:', service);
-    return authClient;
-  }
-
-  // Nếu không tìm thấy token hoặc token không hợp lệ, kiểm tra token với scopes ít hơn
-  const existingToken = await GoogleToken.findOne({
-    userId,
-    service,
-    status: 'active',
-  });
-
-  if (existingToken) {
-    console.log('Found existing token, checking scopes...');
+  try {
     const client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.GOOGLE_REDIRECT_URI
     );
 
-    client.setCredentials({
-      access_token: existingToken.accessToken,
-      refresh_token: existingToken.refreshToken,
-      expiry_date: existingToken.expiryDate,
+    const tokenDoc = await GoogleToken.findOne({
+      userId,
+      service,
+      status: 'active',
     });
 
-    // Kiểm tra nếu token hết hạn và refresh
-    if (existingToken.expiryDate && existingToken.expiryDate < Date.now()) {
-      try {
-        console.log('Token expired, refreshing...');
-        const { credentials } = await client.refreshAccessToken();
+    if (!tokenDoc) {
+      const authUrl = client.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent', // Force consent screen to ensure we get refresh token
+      });
+      throw new AppError(
+        'Token không tồn tại hoặc đã bị thu hồi. Vui lòng xác thực lại: ' +
+          authUrl,
+        401
+      );
+    }
+
+    // Check refresh token expiry
+    const now = Date.now();
+    const refreshTokenExpired =
+      tokenDoc.refreshTokenExpiryDate && tokenDoc.refreshTokenExpiryDate < now;
+
+    if (refreshTokenExpired) {
+      const authUrl = client.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent',
+      });
+      await GoogleToken.updateOne({ _id: tokenDoc._id }, { status: 'expired' });
+      throw new AppError(
+        'Refresh token đã hết hạn. Vui lòng xác thực lại: ' + authUrl,
+        401
+      );
+    }
+
+    client.setCredentials({
+      access_token: tokenDoc.accessToken,
+      refresh_token: tokenDoc.refreshToken,
+      expiry_date: tokenDoc.expiryDate,
+    });
+
+    // Check if token will expire soon (within 5 minutes)
+    const willExpireSoon =
+      tokenDoc.expiryDate - now < TOKEN_EXPIRY.REFRESH_BEFORE;
+
+    if (willExpireSoon) {
+      if (!tokenDoc.refreshToken) {
+        const authUrl = client.generateAuthUrl({
+          access_type: 'offline',
+          scope: scopes,
+          prompt: 'consent',
+        });
         await GoogleToken.updateOne(
-          { userId, service },
+          { _id: tokenDoc._id },
+          { status: 'expired' }
+        );
+        throw new AppError(
+          'Token sắp hết hạn và không có refresh token. Vui lòng xác thực lại: ' +
+            authUrl,
+          401
+        );
+      }
+
+      try {
+        console.log('Token will expire soon, refreshing...');
+        const { credentials } = await client.refreshAccessToken();
+
+        await GoogleToken.updateOne(
+          { _id: tokenDoc._id },
           {
             accessToken: credentials.access_token,
-            expiryDate: credentials.expiry_date,
-            updatedAt: Date.now(),
+            expiryDate: now + TOKEN_EXPIRY.ACCESS_TOKEN,
+            status: 'active',
+            lastRefreshed: now,
+            updatedAt: now,
           }
         );
-        client.setCredentials(credentials);
+
+        client.setCredentials({
+          ...credentials,
+          expiry_date: now + TOKEN_EXPIRY.ACCESS_TOKEN,
+        });
         console.log('Token refreshed successfully');
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        throw new AppError('Không thể làm mới token: ' + error.message, 401);
+      } catch (refreshError) {
+        console.error('Failed to refresh token:', refreshError);
+        await GoogleToken.updateOne(
+          { _id: tokenDoc._id },
+          { status: 'expired' }
+        );
+        const authUrl = client.generateAuthUrl({
+          access_type: 'offline',
+          scope: scopes,
+          prompt: 'consent',
+        });
+        throw new AppError(
+          'Token refresh thất bại. Vui lòng xác thực lại: ' + authUrl,
+          401
+        );
       }
     }
 
-    // Kiểm tra xem có tất cả scopes cần thiết không
+    // Check for required scopes
     const missingScopes = scopes.filter(
-      (scope) => !existingToken.scopes.includes(scope)
+      (scope) => !tokenDoc.scopes.includes(scope)
     );
+
     if (missingScopes.length > 0) {
       console.log('Missing scopes:', missingScopes);
-      // Nếu thiếu scopes, thì cần re-authorize
-      const allScopes = Array.from(
-        new Set([...existingToken.scopes, ...scopes])
-      );
+      const allScopes = Array.from(new Set([...tokenDoc.scopes, ...scopes]));
       const authUrl = client.generateAuthUrl({
         access_type: 'offline',
         scope: allScopes,
@@ -158,25 +241,13 @@ async function authorize(userId, service, scopes) {
     }
 
     return client;
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    console.error('Error in authorize:', error);
+    throw new AppError('Xác thực Google thất bại: ' + error.message, 500);
   }
-
-  // Nếu không có token nào, yêu cầu xác thực mới
-  const newClient = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-
-  const authUrl = newClient.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    prompt: 'consent',
-  });
-
-  throw new AppError(
-    'Cần xác thực Google API. Vui lòng truy cập: ' + authUrl,
-    401
-  );
 }
 
 async function getCombinedAuthUrl(
