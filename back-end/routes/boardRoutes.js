@@ -46,14 +46,21 @@ router.post(
 // 7. Phản hồi lời mời (không cần verifyToken, vì user có thể bấm link từ email)
 router.post('/invite-response', boardController.respondToBoardInvite);
 
-// 8. Gợi ý thành viên theo skills
-router.get(
-  '/:boardId/suggest-members',
-  protect,
-  boardController.suggestMembersBySkills
-);
+// // 8. Gợi ý thành viên theo skills
+// router.get(
+//   '/:boardId/suggest-members',
+//   protect,
+//   boardController.suggestMembersBySkills
+// );
 
-// 9. Lấy ra user đủ điều kiện trên board
+// // 9. Lấy ra user đủ điều kiện trên board
+// router.get(
+//   '/:boardId/qualified-users',
+//   protect,
+//   boardController.getQualifiedUsers
+// );
+
+//7. lấy ra user đủ điều kiện trên board
 router.get(
   '/:boardId/qualified-users',
   protect,
@@ -66,4 +73,12 @@ router.get(
   protect,
   require('../controllers/boardController').getBoardById
 );
+
+// lọc member theo skill và date
+router.get(
+  '/:boardId/suggest-members',
+  protect,
+  boardController.suggestMembers
+);
+
 module.exports = router;

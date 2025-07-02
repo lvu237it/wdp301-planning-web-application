@@ -45,8 +45,6 @@ const List = ({ boardId }) => {
 
         const board = js.board || {};
         const members = board.members || [];
-        console.log('member', members);
-
         const currentUserId = currentUser?._id?.toString();
 
         // 1) Check if current user is creator
