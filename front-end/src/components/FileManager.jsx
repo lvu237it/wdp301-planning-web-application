@@ -145,7 +145,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
     try {
       const result = await shareFileWithTaskUsers(fileId, taskId);
       if (result.success) {
-        toast.success('Đã chia sẻ file với các thành viên trong task');
+        // toast.success('Đã chia sẻ file với các thành viên trong task');
       }
     } catch (error) {
       console.error('Error sharing file:', error);
