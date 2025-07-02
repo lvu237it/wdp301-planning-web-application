@@ -46,6 +46,7 @@ const Boards = () => {
 
 	// Tìm workspace hiện tại để hiển thị breadcrumb + check quyền
 	const currentWs = workspaces.find((w) => String(w._id) === workspaceId);
+	const wsMembers = currentWs?.members || []; //lấy ra các user nằm trong workspace
 	const creatorId = currentWs?.creator?._id || currentWs?.creator;
 	const currentUserId =
 		JSON.parse(localStorage.getItem('userData'))?.id ||
@@ -103,7 +104,57 @@ const Boards = () => {
 
 						{/* Title & Create Button */}
 						<div className='boards-title-section'>
+							<Col>
 							<h1 className='boards-title'>Project Boards</h1>
+							</Col>
+							
+							<Col style={{ display:"flex", justifyContent:"flex-end" }}>
+							{/* NEW: Hiển thị avatar của tất cả thành viên workspace */}
+							{wsMembers.length > 0 && (
+								<div className='board-members' style={{marginRight:"30px"}}>
+									{wsMembers.slice(0, 5).map((m) => {
+										const user = m.userId;
+										const avatar = user.avatar;
+										const initial = user.username?.[0]?.toUpperCase() || '';
+										return avatar ? (
+											<Image
+												key={user._id}
+												src={avatar}
+												roundedCircle
+												width={32}
+												height={32}
+												className='me-1'
+											/>
+										) : (
+											<div
+												key={user._id}
+												className='board-member-avatar-placeholder'
+												style={{
+													width: 32,
+													height: 32,	
+													borderRadius: '50%',
+													fontSize: '0.9rem',
+												}}>
+												{initial}
+											</div>
+										);
+									})}
+
+									{wsMembers.length > 5 && (
+										<div
+											className='board-member-avatar-placeholder'
+											style={{
+												width: 32,
+												height: 32,
+												borderRadius: '50%',
+												fontSize: '0.9rem',
+											}}>
+											+{wsMembers.length - 5}
+										</div>
+									)}
+								</div>
+							)}
+
 							{isCreator && (
 								<Button
 									variant='success'
@@ -112,6 +163,8 @@ const Boards = () => {
 									+ New Board
 								</Button>
 							)}
+							</Col>
+							
 						</div>
 					</div>
 				</div>
