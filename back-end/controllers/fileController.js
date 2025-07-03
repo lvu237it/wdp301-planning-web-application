@@ -592,7 +592,8 @@ exports.shareFileWithTaskUsers = async (req, res, next) => {
     // Chia sẻ file trên Google Drive với assignedTo và assignedBy
     const auth = await authorize(userId, 'drive', DRIVE_SCOPES);
     const drive = google.drive({ version: 'v3', auth });
-    const users = [task.assignedTo, task.assignedBy].filter(Boolean);
+    // const users = [task.assignedTo, task.assignedBy].filter(Boolean);
+    const users = [task.assignedTo].filter(Boolean); //Chia sẻ quyền reader với người được giao nhiệm vụ
     for (const user of users) {
       if (user.email) {
         await drive.permissions.create({
