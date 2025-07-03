@@ -305,13 +305,13 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                         <i className='fas fa-external-link-alt'></i>
                       </button>
 
-                      {/* <button
+                      <button
                         className='action-btn share-btn'
                         onClick={() => handleShare(file._id)}
                         title='Chia sẻ với thành viên task'
                       >
                         <i className='fas fa-share'></i>
-                      </button> */}
+                      </button>
 
                       <button
                         className='action-btn rename-btn'
