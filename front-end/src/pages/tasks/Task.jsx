@@ -575,7 +575,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                 <div className='text-center py-4 text-muted'>
                   <i className='fas fa-file-plus fa-2x mb-2 d-block'></i>
                   <p className='mb-2'>Chưa có tệp đính kèm.</p>
-                  {task.assignedBy._id === currentUser._id && (
+                  {task?.assignedBy?._id === currentUser._id && (
                     <Button
                       variant='outline-primary'
                       size='sm'

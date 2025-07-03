@@ -40,10 +40,7 @@ exports.getBoardsByWorkspace = async (req, res) => {
     const userBoardDocs = await BoardMembership.find({
       userId,
       workspaceId: wsId,
-
-      //old--------------------------------------
-      /*
-invitationResponse: 'accepted', // dùng đúng trường
+      invitationResponse: 'accepted', // dùng đúng trường
       isDeleted: false,
     }).select('boardId');
     const boardIds = userBoardDocs.map((doc) => doc.boardId);
@@ -57,24 +54,6 @@ invitationResponse: 'accepted', // dùng đúng trường
     const boards = await Board.find(filter)
       .populate('creator', 'username email')
       .populate('workspaceId', 'name')
-      */
-      //old-------------------------------------
-
-      //new--------------------------------------
-      applicationStatus: 'accepted',
-      isDeleted: false,
-    }).select('boardId');
-    const boardIds = userBoardDocs.map((doc) => doc.boardId);
-
-    // 3. Query board trong workspace đó
-    const boards = await Board.find({
-      workspaceId: wsId,
-      isDeleted: false,
-      $or: [{ visibility: 'public' }, { _id: { $in: boardIds } }],
-    })
-      .populate('creator', 'username email')
-      .populate('workspaceId', 'name')
-      // new--------------------------------------
       .lean();
 
     // 4. Lấy tất cả membership của các board này để nối vào members[]
