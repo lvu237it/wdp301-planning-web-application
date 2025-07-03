@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
+  Container,
+  Row,
+  Col,
+  Card,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import { Folder, CheckCircle, Clock, AlertCircle, User } from "lucide-react";
+  Button,
+  Form,
+  Badge,
+  ProgressBar,
+} from "react-bootstrap";
 
 // Mock data
 const mockData = {
@@ -26,20 +24,35 @@ const mockData = {
         {
           id: 1,
           name: "Alice Johnson",
+          email: "alice@company.com",
+          phone: "+1 (555) 123-4567",
+          role: "Lead Designer",
+          joinDate: "2023-01-15",
           avatar: "/placeholder.svg?height=32&width=32",
           initials: "AJ",
+          status: "active",
         },
         {
           id: 2,
           name: "Bob Smith",
+          email: "bob@company.com",
+          phone: "+1 (555) 234-5678",
+          role: "UI Designer",
+          joinDate: "2023-03-20",
           avatar: "/placeholder.svg?height=32&width=32",
           initials: "BS",
+          status: "active",
         },
         {
           id: 3,
           name: "Carol Davis",
+          email: "carol@company.com",
+          phone: "+1 (555) 345-6789",
+          role: "UX Researcher",
+          joinDate: "2023-02-10",
           avatar: "/placeholder.svg?height=32&width=32",
           initials: "CD",
+          status: "inactive",
         },
       ],
       boards: [
@@ -60,12 +73,7 @@ const mockData = {
               status: "ongoing",
               assignee: "Bob Smith",
             },
-            {
-              id: 3,
-              name: "User testing",
-              status: "pending",
-              assignee: null,
-            },
+            { id: 3, name: "User testing", status: "pending", assignee: null },
             {
               id: 4,
               name: "Mobile responsive",
@@ -134,14 +142,24 @@ const mockData = {
         {
           id: 4,
           name: "David Wilson",
+          email: "david@company.com",
+          phone: "+1 (555) 456-7890",
+          role: "Marketing Manager",
+          joinDate: "2023-01-05",
           avatar: "/placeholder.svg?height=32&width=32",
           initials: "DW",
+          status: "active",
         },
         {
           id: 5,
           name: "Emma Brown",
+          email: "emma@company.com",
+          phone: "+1 (555) 567-8901",
+          role: "Content Specialist",
+          joinDate: "2023-04-12",
           avatar: "/placeholder.svg?height=32&width=32",
           initials: "EB",
+          status: "active",
         },
       ],
       boards: [
@@ -162,12 +180,7 @@ const mockData = {
               status: "ongoing",
               assignee: "Emma Brown",
             },
-            {
-              id: 13,
-              name: "Ad creatives",
-              status: "pending",
-              assignee: null,
-            },
+            { id: 13, name: "Ad creatives", status: "pending", assignee: null },
           ],
         },
         {
@@ -201,6 +214,24 @@ export default function UserDashboard() {
   const [selectedBoard, setSelectedBoard] = useState(
     mockData.workspaces[0].boards[0]
   );
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserRole, setNewUserRole] = useState("");
+
+  // Expand/collapse state
+  const [expandedSections, setExpandedSections] = useState({
+    workspaces: true,
+    boards: true,
+    tasks: true,
+    users: false,
+  });
+
+  const toggleSection = (section) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   const getTaskStats = (tasks) => {
     const completed = tasks.filter(
@@ -215,263 +246,528 @@ export default function UserDashboard() {
 
   const taskStats = getTaskStats(selectedBoard.tasks);
 
-  const getStatusColor = (status) => {
+  const getStatusVariant = (status) => {
     switch (status) {
       case "completed":
-        return "bg-green-500";
+        return "success";
       case "ongoing":
-        return "bg-blue-500";
+        return "primary";
       case "pending":
-        return "bg-yellow-500";
+        return "warning";
       default:
-        return "bg-gray-500";
+        return "secondary";
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-4 w-4" />;
+        return "✓";
       case "ongoing":
-        return <Clock className="h-4 w-4" />;
+        return "⏳";
       case "pending":
-        return <AlertCircle className="h-4 w-4" />;
+        return "⚠";
       default:
-        return null;
+        return "○";
     }
   };
 
+  const getUserStatusVariant = (status) => {
+    return status === "active" ? "success" : "secondary";
+  };
+
+  const handleAddUser = () => {
+    if (newUserName && newUserEmail && newUserRole) {
+      console.log("Adding user:", {
+        name: newUserName,
+        email: newUserEmail,
+        role: newUserRole,
+      });
+      setNewUserName("");
+      setNewUserEmail("");
+      setNewUserRole("");
+    }
+  };
+
+  const avatarStyle = {
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    backgroundColor: "#6c757d",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    fontWeight: "bold",
+  };
+
+  const smallAvatarStyle = {
+    ...avatarStyle,
+    width: "32px",
+    height: "32px",
+    fontSize: "12px",
+  };
+
+  const sectionHeaderStyle = {
+    backgroundColor: "#f8f9fa",
+    border: "1px solid #dee2e6",
+    borderRadius: "0.375rem",
+    padding: "1rem",
+    cursor: "pointer",
+    marginBottom: "0.5rem",
+    transition: "all 0.2s ease",
+  };
+
+  const sectionContentStyle = {
+    padding: "1rem",
+    border: "1px solid #dee2e6",
+    borderTop: "none",
+    borderRadius: "0 0 0.375rem 0.375rem",
+    marginBottom: "1.5rem",
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div
+      style={{
+        backgroundColor: "#f8f9fa",
+        minHeight: "100vh",
+        padding: "2rem 0",
+      }}
+    >
+      <Container fluid>
         {/* Header */}
+        <Row className="mb-4">
+          <Col>
+            <h1 className="display-4 fw-bold text-dark">Dashboard</h1>
+            <p className="text-muted">
+              Manage your workspaces, boards, and tasks
+            </p>
+          </Col>
+        </Row>
+
+        {/* Workspaces Section */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">
-            Manage your workspaces, boards, and tasks
-          </p>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => toggleSection("workspaces")}
+            className="d-flex justify-content-between align-items-center"
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span>📁</span>
+              <span className="fs-5 fw-semibold">Your Workspaces</span>
+              <Badge bg="secondary">{mockData.workspaces.length}</Badge>
+            </div>
+            <span>{expandedSections.workspaces ? "▼" : "▶"}</span>
+          </div>
+
+          {expandedSections.workspaces && (
+            <div style={sectionContentStyle}>
+              <Row>
+                {mockData.workspaces.map((workspace) => (
+                  <Col key={workspace.id} md={6} lg={4} className="mb-3">
+                    <Card
+                      className={`h-100 ${
+                        selectedWorkspace.id === workspace.id
+                          ? "border-primary bg-light"
+                          : ""
+                      }`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        setSelectedWorkspace(workspace);
+                        setSelectedBoard(workspace.boards[0]);
+                      }}
+                    >
+                      <Card.Body className="text-center">
+                        <Card.Title>{workspace.name}</Card.Title>
+                        <div className="d-flex align-items-center justify-content-center gap-2 mb-3">
+                          <span>📁</span>
+                          <span>{workspace.boardCount} Boards</span>
+                        </div>
+                        <div className="d-flex justify-content-center">
+                          <div className="d-flex" style={{ gap: "-8px" }}>
+                            {workspace.users.slice(0, 3).map((user, index) => (
+                              <div
+                                key={user.id}
+                                style={{
+                                  ...smallAvatarStyle,
+                                  marginLeft: index > 0 ? "-8px" : "0",
+                                  border: "2px solid white",
+                                }}
+                                title={user.name}
+                              >
+                                {user.initials}
+                              </div>
+                            ))}
+                            {workspace.users.length > 3 && (
+                              <div
+                                style={{
+                                  ...smallAvatarStyle,
+                                  marginLeft: "-8px",
+                                  backgroundColor: "#e9ecef",
+                                  color: "#6c757d",
+                                  border: "2px solid white",
+                                }}
+                              >
+                                +{workspace.users.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          )}
         </div>
 
-        {/* Your Workspaces */}
+        {/* Boards Section */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-            Your workspaces
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockData.workspaces.map((workspace) => (
-              <Card
-                key={workspace.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedWorkspace.id === workspace.id
-                    ? "ring-2 ring-blue-500 bg-blue-50"
-                    : ""
-                }`}
-                onClick={() => {
-                  setSelectedWorkspace(workspace);
-                  setSelectedBoard(workspace.boards[0]);
-                }}
-              >
-                <CardContent className="p-6">
-                  <div className="text-center space-y-4">
-                    <h3 className="font-semibold text-lg">{workspace.name}</h3>
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                      <Folder className="h-4 w-4" />
-                      <span>{workspace.boardCount} Boards</span>
-                    </div>
-                    <div className="flex justify-center">
-                      <div className="flex -space-x-2">
-                        {workspace.users.slice(0, 3).map((user) => (
-                          <Avatar
-                            key={user.id}
-                            className="h-8 w-8 border-2 border-white"
-                          >
-                            <AvatarImage
-                              src={user.avatar || "/placeholder.svg"}
-                              alt={user.name}
-                            />
-                            <AvatarFallback className="text-xs">
-                              {user.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                        {workspace.users.length > 3 && (
-                          <div className="h-8 w-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center">
-                            <span className="text-xs text-gray-600">
-                              +{workspace.users.length - 3}
-                            </span>
-                          </div>
-                        )}
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => toggleSection("boards")}
+            className="d-flex justify-content-between align-items-center"
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span>✅</span>
+              <span className="fs-5 fw-semibold">
+                {selectedWorkspace.name} - Boards
+              </span>
+              <Badge bg="secondary">{selectedWorkspace.boards.length}</Badge>
+            </div>
+            <span>{expandedSections.boards ? "▼" : "▶"}</span>
+          </div>
+
+          {expandedSections.boards && (
+            <div style={sectionContentStyle}>
+              <Row>
+                {selectedWorkspace.boards.map((board) => (
+                  <Col key={board.id} md={6} lg={4} className="mb-3">
+                    <Card
+                      className={`h-100 ${
+                        selectedBoard.id === board.id
+                          ? "border-primary bg-light"
+                          : ""
+                      }`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setSelectedBoard(board)}
+                    >
+                      <Card.Body className="text-center">
+                        <Card.Title>{board.name}</Card.Title>
+                        <div className="d-flex align-items-center justify-content-center gap-2">
+                          <span>✅</span>
+                          <span>{board.taskCount} Tasks</span>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          )}
+        </div>
+
+        {/* Tasks Section */}
+        <div>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => toggleSection("tasks")}
+            className="d-flex justify-content-between align-items-center"
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span>⏰</span>
+              <span className="fs-5 fw-semibold">
+                {selectedBoard.name} - Tasks & Statistics
+              </span>
+              <Badge bg="secondary">{selectedBoard.tasks.length}</Badge>
+            </div>
+            <span>{expandedSections.tasks ? "▼" : "▶"}</span>
+          </div>
+
+          {expandedSections.tasks && (
+            <div style={sectionContentStyle}>
+              {/* Statistics Cards */}
+              <Row className="mb-4">
+                <Col md={6} lg={3} className="mb-3">
+                  <Card className="h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <Card.Title className="mb-0 fs-6">
+                          Total Tasks
+                        </Card.Title>
+                        <span>📊</span>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
+                      <div className="fs-2 fw-bold">{taskStats.total}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col md={6} lg={3} className="mb-3">
+                  <Card className="h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <Card.Title className="mb-0 fs-6">Completed</Card.Title>
+                        <span className="text-success">✅</span>
+                      </div>
+                      <div className="fs-2 fw-bold text-success">
+                        {taskStats.completed}
+                      </div>
+                      <ProgressBar
+                        variant="success"
+                        now={(taskStats.completed / taskStats.total) * 100}
+                        className="mt-2"
+                      />
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col md={6} lg={3} className="mb-3">
+                  <Card className="h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <Card.Title className="mb-0 fs-6">
+                          In Progress
+                        </Card.Title>
+                        <span className="text-primary">⏳</span>
+                      </div>
+                      <div className="fs-2 fw-bold text-primary">
+                        {taskStats.ongoing}
+                      </div>
+                      <ProgressBar
+                        variant="primary"
+                        now={(taskStats.ongoing / taskStats.total) * 100}
+                        className="mt-2"
+                      />
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col md={6} lg={3} className="mb-3">
+                  <Card className="h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <Card.Title className="mb-0 fs-6">
+                          Unassigned
+                        </Card.Title>
+                        <span className="text-warning">👤</span>
+                      </div>
+                      <div className="fs-2 fw-bold text-warning">
+                        {taskStats.unassigned}
+                      </div>
+                      <ProgressBar
+                        variant="warning"
+                        now={(taskStats.unassigned / taskStats.total) * 100}
+                        className="mt-2"
+                      />
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              {/* Tasks Table */}
+              <Card>
+                <Card.Header>
+                  <Card.Title className="mb-0">Tasks</Card.Title>
+                </Card.Header>
+                <Card.Body>
+                  <Table responsive striped hover>
+                    <thead>
+                      <tr>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Assigned To</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedBoard.tasks.map((task) => (
+                        <tr key={task.id}>
+                          <td className="fw-medium">{task.name}</td>
+                          <td>
+                            <Badge bg={getStatusVariant(task.status)}>
+                              {getStatusIcon(task.status)}{" "}
+                              {task.status.charAt(0).toUpperCase() +
+                                task.status.slice(1)}
+                            </Badge>
+                          </td>
+                          <td>
+                            {task.assignee ? (
+                              <div className="d-flex align-items-center gap-2">
+                                <div
+                                  style={{
+                                    ...smallAvatarStyle,
+                                    width: "24px",
+                                    height: "24px",
+                                    fontSize: "10px",
+                                  }}
+                                >
+                                  {task.assignee
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </div>
+                                {task.assignee}
+                              </div>
+                            ) : (
+                              <span className="text-muted fst-italic">
+                                Unassigned
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Card.Body>
               </Card>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Selected Workspace Boards */}
+        {/* User Management Section */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-            {selectedWorkspace.name}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {selectedWorkspace.boards.map((board) => (
-              <Card
-                key={board.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedBoard.id === board.id
-                    ? "ring-2 ring-blue-500 bg-blue-50"
-                    : ""
-                }`}
-                onClick={() => setSelectedBoard(board)}
-              >
-                <CardContent className="p-6">
-                  <div className="text-center space-y-4">
-                    <h3 className="font-semibold text-lg">{board.name}</h3>
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>{board.taskCount} Tasks</span>
-                    </div>
-                  </div>
-                </CardContent>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => toggleSection("users")}
+            className="d-flex justify-content-between align-items-center"
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span>👥</span>
+              <span className="fs-5 fw-semibold">
+                User Management - {selectedWorkspace.name}
+              </span>
+              <Badge bg="secondary">{selectedWorkspace.users.length}</Badge>
+            </div>
+            <span>{expandedSections.users ? "▼" : "▶"}</span>
+          </div>
+
+          {expandedSections.users && (
+            <div style={sectionContentStyle}>
+              {/* Add New User Form */}
+              <Card className="mb-4">
+                <Card.Header>
+                  <Card.Title className="mb-0 d-flex align-items-center gap-2">
+                    <span>➕</span>
+                    Add New User
+                  </Card.Title>
+                </Card.Header>
+                <Card.Body>
+                  <Row>
+                    <Col md={3} className="mb-2">
+                      <Form.Control
+                        type="text"
+                        placeholder="Full Name"
+                        value={newUserName}
+                        onChange={(e) => setNewUserName(e.target.value)}
+                      />
+                    </Col>
+                    <Col md={3} className="mb-2">
+                      <Form.Control
+                        type="email"
+                        placeholder="Email Address"
+                        value={newUserEmail}
+                        onChange={(e) => setNewUserEmail(e.target.value)}
+                      />
+                    </Col>
+                    <Col md={3} className="mb-2">
+                      <Form.Control
+                        type="text"
+                        placeholder="Role"
+                        value={newUserRole}
+                        onChange={(e) => setNewUserRole(e.target.value)}
+                      />
+                    </Col>
+                    <Col md={3} className="mb-2">
+                      <Button
+                        variant="primary"
+                        onClick={handleAddUser}
+                        className="w-100"
+                      >
+                        ➕ Add User
+                      </Button>
+                    </Col>
+                  </Row>
+                </Card.Body>
               </Card>
-            ))}
-          </div>
+
+              {/* Users Table */}
+              <Card>
+                <Card.Header>
+                  <Card.Title className="mb-0">Team Members</Card.Title>
+                </Card.Header>
+                <Card.Body>
+                  <Table responsive striped hover>
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Contact</th>
+                        <th>Role</th>
+                        <th>Join Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedWorkspace.users.map((user) => (
+                        <tr key={user.id}>
+                          <td>
+                            <div className="d-flex align-items-center gap-3">
+                              <div style={avatarStyle}>{user.initials}</div>
+                              <div>
+                                <div className="fw-medium">{user.name}</div>
+                                <div className="text-muted small">
+                                  {user.initials}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              <div className="d-flex align-items-center gap-2 small">
+                                <span>✉️</span>
+                                {user.email}
+                              </div>
+                              <div className="d-flex align-items-center gap-2 small text-muted">
+                                <span>📞</span>
+                                {user.phone}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <Badge bg="info">{user.role}</Badge>
+                          </td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2 small">
+                              <span>📅</span>
+                              {new Date(user.joinDate).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td>
+                            <Badge bg={getUserStatusVariant(user.status)}>
+                              {user.status}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <Button variant="outline-primary" size="sm">
+                                ✏️
+                              </Button>
+                              <Button variant="outline-danger" size="sm">
+                                ����️
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Card.Body>
+              </Card>
+            </div>
+          )}
         </div>
-
-        {/* Selected Board Details */}
-        <div>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">
-            {selectedBoard.name}
-          </h2>
-
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Tasks
-                </CardTitle>
-                <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{taskStats.total}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {taskStats.completed}
-                </div>
-                <Progress
-                  value={(taskStats.completed / taskStats.total) * 100}
-                  className="mt-2"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  In Progress
-                </CardTitle>
-                <Clock className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
-                  {taskStats.ongoing}
-                </div>
-                <Progress
-                  value={(taskStats.ongoing / taskStats.total) * 100}
-                  className="mt-2"
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Unassigned
-                </CardTitle>
-                <User className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {taskStats.unassigned}
-                </div>
-                <Progress
-                  value={(taskStats.unassigned / taskStats.total) * 100}
-                  className="mt-2"
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tasks Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tasks</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Assigned To</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedBoard.tasks.map((task) => (
-                    <TableRow key={task.id}>
-                      <TableCell className="font-medium">{task.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={`${getStatusColor(
-                            task.status
-                          )} text-white`}
-                        >
-                          <div className="flex items-center gap-1">
-                            {getStatusIcon(task.status)}
-                            {task.status.charAt(0).toUpperCase() +
-                              task.status.slice(1)}
-                          </div>
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {task.assignee ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarFallback className="text-xs">
-                                {task.assignee
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            {task.assignee}
-                          </div>
-                        ) : (
-                          <span className="text-gray-500 italic">
-                            Unassigned
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      </Container>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useCommon } from "../../contexts/CommonContext";
 import { Modal, Button, Form, Toast } from "react-bootstrap";
 
 const pad = (n) => n.toString().padStart(2, "0");
+
 const toDateTimeLocal = (date) => {
   if (!date) return "";
   const Y = date.getFullYear(),
@@ -13,6 +14,7 @@ const toDateTimeLocal = (date) => {
     m = pad(date.getMinutes());
   return `${Y}-${M}-${D}T${h}:${m}`;
 };
+
 const toDateLocal = (date) => {
   if (!date) return "";
   const Y = date.getFullYear(),
@@ -21,7 +23,15 @@ const toDateLocal = (date) => {
   return `${Y}-${M}-${D}`;
 };
 
-const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
+const Deadline = ({
+  show,
+  onClose,
+  task,
+  mergeTask,
+  onUpdate,
+  minDate,
+  maxDate,
+}) => {
   const { accessToken, apiBaseUrl } = useCommon();
   const [allDay, setAllDay] = useState(false);
   const [dateInput, setDateInput] = useState("");
@@ -30,25 +40,38 @@ const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
 
-  // Khởi tạo khi modal bật
   useEffect(() => {
     if (!show || !task) return;
     setAllDay(!!task.allDay);
     if (task.startDate) setStartInput(toDateTimeLocal(new Date(task.startDate)));
     if (task.endDate) setEndInput(toDateTimeLocal(new Date(task.endDate)));
-    if (task.allDay && task.startDate) setDateInput(toDateLocal(new Date(task.startDate)));
+    if (task.allDay && task.startDate)
+      setDateInput(toDateLocal(new Date(task.startDate)));
   }, [show, task]);
 
   const handleSaveDates = async () => {
     const payload = { allDay };
+    let startDate, endDate;
+
     if (allDay && dateInput) {
       const [Y, M, D] = dateInput.split("-").map(Number);
-      payload.startDate = new Date(Y, M - 1, D, 0, 0).toISOString();
-      payload.endDate = new Date(Y, M - 1, D, 23, 59).toISOString();
+      startDate = new Date(Y, M - 1, D, 0, 0);
+      endDate = new Date(Y, M - 1, D, 23, 59);
+      payload.startDate = startDate.toISOString();
+      payload.endDate = endDate.toISOString();
     } else {
-      if (startInput) payload.startDate = new Date(startInput).toISOString();
-      if (endInput) payload.endDate = new Date(endInput).toISOString();
+      if (startInput) startDate = new Date(startInput);
+      if (endInput) endDate = new Date(endInput);
+      if (startDate) payload.startDate = startDate.toISOString();
+      if (endDate) payload.endDate = endDate.toISOString();
     }
+
+    if (startDate && endDate && startDate > endDate) {
+      setToastMsg("Ngày bắt đầu không được sau ngày kết thúc");
+      setShowToast(true);
+      return;
+    }
+
     try {
       const res = await axios.put(
         `${apiBaseUrl}/task/updateTask/${task._id}`,
@@ -62,9 +85,7 @@ const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
       onClose();
     } catch (err) {
       console.error(err);
-      setToastMsg(
-        "Cập nhật ngày thất bại: " + (err.response?.data?.message || err.message)
-      );
+      setToastMsg("Cập nhật ngày thất bại");
       setShowToast(true);
     }
   };
@@ -72,24 +93,25 @@ const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
   return (
     <>
       <Toast
-              show={showToast}
-              bg="success"
-              autohide
-              delay={3000}
-              onClose={() => setShowToast(false)}
-              style={{
-                position: "fixed",
-                top: "20px",
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 2000,
-                minWidth: "200px",
-              }}
-            >
-              <Toast.Body className="text-white text-center">
-                Cập nhật thời gian thành công
-              </Toast.Body>
-            </Toast>
+        show={showToast}
+        bg="success"
+        autohide
+        delay={3000}
+        onClose={() => setShowToast(false)}
+        style={{
+          position: "fixed",
+          top: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 2000,
+          minWidth: "240px"
+        }}
+      >
+        <Toast.Body className="text-white text-center">
+          {toastMsg}
+        </Toast.Body>
+      </Toast>
+
       <Modal show={show} centered onHide={onClose}>
         <Modal.Header closeButton>
           <Modal.Title>Chọn ngày</Modal.Title>
@@ -102,6 +124,8 @@ const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
                 <Form.Control
                   type="datetime-local"
                   value={startInput}
+                  min={toDateTimeLocal(new Date(minDate))}
+                  max={toDateTimeLocal(new Date(maxDate))}
                   onChange={(e) => setStartInput(e.target.value)}
                 />
               </Form.Group>
@@ -110,16 +134,20 @@ const Deadline = ({ show, onClose, task, mergeTask, onUpdate }) => {
                 <Form.Control
                   type="datetime-local"
                   value={endInput}
+                  min={toDateTimeLocal(new Date(minDate))}
+                  max={toDateTimeLocal(new Date(maxDate))}
                   onChange={(e) => setEndInput(e.target.value)}
                 />
               </Form.Group>
             </>
           ) : (
             <Form.Group className="mb-3">
-              <Form.Label>Chọn ngày</Form.Label>
+              <Form.Label>Chọn ngày (Cả ngày)</Form.Label>
               <Form.Control
                 type="date"
                 value={dateInput}
+                min={minDate.substr(0, 10)}
+                max={maxDate.substr(0, 10)}
                 onChange={(e) => setDateInput(e.target.value)}
               />
             </Form.Group>

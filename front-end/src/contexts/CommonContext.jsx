@@ -831,6 +831,8 @@ export const Common = ({ children }) => {
       socket.off("new_event_message");
       socket.off("edit_event_message");
       socket.off("delete_event_message");
+      socket.off("new_activity");
+      socket.off("admin_activity");
 
       // Xử lý thông báo mới
       const handleNewNotification = (notification) => {
@@ -946,6 +948,48 @@ export const Common = ({ children }) => {
         // Emit custom event for Calendar component to handle
         window.dispatchEvent(
           new CustomEvent("delete_event_message", {
+            detail: data,
+          })
+        );
+      });
+
+      // Activity log listeners
+      socket.on("new_activity", (data) => {
+        console.log("📊 New activity log received:", data);
+        // Emit custom event for BoardActivityLog component to handle
+        window.dispatchEvent(
+          new CustomEvent("new_activity_log", {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on("admin_activity", (data) => {
+        console.log("👑 Admin activity log received:", data);
+        // Emit custom event for BoardActivityLog component to handle
+        window.dispatchEvent(
+          new CustomEvent("admin_activity_log", {
+            detail: data,
+          })
+        );
+      });
+
+      // Activity log listeners
+      socket.on("new_activity", (data) => {
+        console.log("📊 New activity log received:", data);
+        // Emit custom event for BoardActivityLog component to handle
+        window.dispatchEvent(
+          new CustomEvent("new_activity_log", {
+            detail: data,
+          })
+        );
+      });
+
+      socket.on("admin_activity", (data) => {
+        console.log("👑 Admin activity log received:", data);
+        // Emit custom event for BoardActivityLog component to handle
+        window.dispatchEvent(
+          new CustomEvent("admin_activity_log", {
             detail: data,
           })
         );
@@ -2054,7 +2098,53 @@ export const Common = ({ children }) => {
 
   // Check if user can upload files (Google auth required)
   const canUploadFiles = () => {
-    return isGoogleAuthenticated && !isCheckingGoogleAuth;
+    return (
+      userDataLocal && userDataLocal.role && userDataLocal.role !== "read-only"
+    );
+  };
+
+  // Activity Log functions
+  const fetchActivityLogs = async (
+    boardId,
+    isAdmin = false,
+    skip = 0,
+    limit = 50
+  ) => {
+    try {
+      const endpoint = isAdmin
+        ? `/activity/board/${boardId}/admin`
+        : `/activity/board/${boardId}`;
+
+      const response = await fetch(
+        `${apiBaseUrl}${endpoint}?skip=${skip}&limit=${limit}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        logs: data.data || [],
+        results: data.results || 0,
+      };
+    } catch (error) {
+      console.error("Error fetching activity logs:", error);
+      return {
+        success: false,
+        error: error.message,
+        logs: [],
+        results: 0,
+      };
+    }
   };
 
   return (
@@ -2148,6 +2238,8 @@ export const Common = ({ children }) => {
         updateFileName,
         shareFileWithTaskUsers,
         canUploadFiles,
+        // Activity Log functions
+        fetchActivityLogs,
       }}
     >
       <Toaster

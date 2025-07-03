@@ -3,10 +3,16 @@ import axios from "axios";
 import { useCommon } from "../../contexts/CommonContext";
 import { Button } from "react-bootstrap";
 
-const ProgressTask = ({ task, mergeTask, onUpdate, isAssignee }) => {
+const ProgressTask = ({
+  task,
+  mergeTask,
+  onUpdate,
+  isAssignee,
+  isAssigner,
+}) => {
   const { accessToken, apiBaseUrl } = useCommon();
   const [checklist, setChecklist] = useState(task.checklist || []);
-
+  const isViewer = !isAssignee && !isAssigner;
   // đồng bộ checklist khi task thay đổi
   useEffect(() => {
     setChecklist(task.checklist || []);
@@ -14,7 +20,9 @@ const ProgressTask = ({ task, mergeTask, onUpdate, isAssignee }) => {
 
   const totalItems = checklist.length;
   const doneCount = checklist.filter((i) => i.completed).length;
-  const percentDone = totalItems ? Math.round((doneCount / totalItems) * 100) : 0;
+  const percentDone = totalItems
+    ? Math.round((doneCount / totalItems) * 100)
+    : 0;
 
   // gọi API cập nhật checklist
   const updateChecklist = async (newList) => {
@@ -66,16 +74,15 @@ const ProgressTask = ({ task, mergeTask, onUpdate, isAssignee }) => {
           <div style={{ maxHeight: "200px", overflowY: "auto" }}>
             <ul className="checklist-list">
               {checklist.map((item) => (
-                <li
-                  key={item._id}
-                  className="d-flex align-items-center mb-1"
-                >
-                  <input
-                    type="checkbox"
-                    className="form-check-input me-2"
-                    checked={item.completed}
-                    onChange={() => handleToggle(item)}
-                  />
+                <li key={item._id} className="d-flex align-items-center mb-1">
+                  {!isViewer && (
+                    <input
+                      type="checkbox"
+                      className="form-check-input me-2"
+                      checked={item.completed}
+                      onChange={() => handleToggle(item)}
+                    />
+                  )}
                   <span
                     style={{
                       flexGrow: 1,
@@ -84,7 +91,7 @@ const ProgressTask = ({ task, mergeTask, onUpdate, isAssignee }) => {
                   >
                     {item.title}
                   </span>
-                  {!isAssignee && (
+                  {(isAssignee || isAssigner) && (
                     <Button
                       variant="link"
                       size="sm"
@@ -100,9 +107,7 @@ const ProgressTask = ({ task, mergeTask, onUpdate, isAssignee }) => {
           </div>
         </>
       ) : (
-        <p className="text-muted-progressTask">
-          Chưa có công việc nào.
-        </p>
+        <p className="text-muted-progressTask">Chưa có công việc nào.</p>
       )}
     </div>
   );

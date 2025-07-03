@@ -1,41 +1,39 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const workspaceController = require('../controllers/workspaceController');
-const { protect, isAdminWorkspace, isCreator } = require('../utils/auth');
+const workspaceController = require("../controllers/workspaceController");
+const { protect, isAdminWorkspace, isCreator } = require("../utils/auth");
 
-router.get('/', protect, workspaceController.getAllWorkspace);
-router.post('/create', protect, workspaceController.createWorkspace);
+router.get("/", protect, workspaceController.getAllWorkspace);
+router.post("/create", protect, workspaceController.createWorkspace);
 router.put(
-  '/:workspaceId',
+  "/:workspaceId",
   protect,
   isAdminWorkspace,
   workspaceController.updateWorkspace
 );
 router.patch(
-  '/:workspaceId/close',
+  "/:workspaceId/close",
   protect,
   isAdminWorkspace,
   workspaceController.closeWorkspace
 );
 router.delete(
-  '/:workspaceId',
+  "/:workspaceId",
   protect,
   isCreator,
   workspaceController.deleteWorkspace
 );
 router.post(
-  '/:workspaceId/invite',
+  "/:workspaceId/invite",
   protect,
   isAdminWorkspace,
   workspaceController.inviteMember
 );
-router.post('/invite-response', workspaceController.respondToInvite);
-
-// Route để lấy board details mà không cần workspaceId
+router.post("/invite-response", workspaceController.respondToInvite);
 router.get(
-  '/board/:boardId',
+  "/:workspaceId/users",
   protect,
-  require('../controllers/boardController').getBoardById
+  workspaceController.getWorkspaceUsers
 );
 
 module.exports = router;

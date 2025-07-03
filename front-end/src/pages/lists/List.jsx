@@ -3,7 +3,8 @@ import '../../styles/board.css';
 import { useCommon } from '../../contexts/CommonContext';
 import TaskModal from '../tasks/Task';
 import { useParams } from 'react-router-dom';
-
+import ReactDOM from 'react-dom';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 const List = ({ boardId }) => {
   const {
     accessToken,
@@ -12,6 +13,7 @@ const List = ({ boardId }) => {
     calendarUser,
   } = useCommon();
 
+  const [isBoardAdmin, setIsBoardAdmin] = useState(false);
   const [lists, setLists] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -25,26 +27,69 @@ const List = ({ boardId }) => {
 
   const { workspaceId } = useParams();
 
+  // Fetch board members to determine permissions
+  useEffect(() => {
+    if (!boardId) return;
+    setIsBoardAdmin(false); // reset on board change
+    (async () => {
+      try {
+        const res = await fetch(
+          `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}`,
+          {
+            credentials: 'include',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const js = await res.json();
+        if (!res.ok) throw new Error(js.message || 'Không lấy thông tin board');
+
+        const board = js.board || {};
+        const members = board.members || [];
+        const currentUserId = currentUser?._id?.toString();
+
+        // 1) Check if current user is creator
+        const creatorId = board.creator?._id?.toString();
+        if (currentUserId && creatorId && currentUserId === creatorId) {
+          setIsBoardAdmin(true);
+          return;
+        }
+
+        // 2) Check membership role
+        const membership = members.find(
+          (m) => (m._id || m.id)?.toString() === currentUserId
+        );
+        if (membership && ['admin', 'creator'].includes(membership.role)) {
+          setIsBoardAdmin(true);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [boardId, apiBaseUrl, accessToken, currentUser]);
+
   // Fetch lists + tasks
   useEffect(() => {
     if (!boardId) return;
     (async () => {
       try {
-        const r1 = await fetch(`${apiBaseUrl}/list?boardId=${boardId}`, {
+        const resLists = await fetch(`${apiBaseUrl}/list?boardId=${boardId}`, {
           credentials: 'include',
           headers: { Authorization: `Bearer ${accessToken}` },
         });
-        const j1 = await r1.json();
-        if (!r1.ok) throw new Error(j1.message || 'Không lấy được lists');
-        const rawLists = j1.data || [];
+        const jsLists = await resLists.json();
+        if (!resLists.ok) throw new Error(jsLists.message);
+        const rawLists = jsLists.data || [];
 
-        const r2 = await fetch(`${apiBaseUrl}/task/get-by-board/${boardId}`, {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const j2 = await r2.json();
-        if (!r2.ok) throw new Error(j2.message || 'Không lấy được tasks');
-        const rawTasks = j2.data || [];
+        const resTasks = await fetch(
+          `${apiBaseUrl}/task/get-by-board/${boardId}`,
+          {
+            credentials: 'include',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const jsTasks = await resTasks.json();
+        if (!resTasks.ok) throw new Error(jsTasks.message);
+        const rawTasks = jsTasks.data || [];
 
         const tasksByList = rawTasks.reduce((acc, t) => {
           const lid = t.listId.toString();
@@ -178,11 +223,20 @@ const List = ({ boardId }) => {
       });
       const js = await res.json();
       if (!res.ok) throw new Error(js.message);
-      setLists(
-        lists.map((l) =>
-          l._id === listId ? { ...l, tasks: [...(l.tasks || []), js.data] } : l
+
+      const newTask = {
+        ...js.data,
+        assignedBy: currentUser,
+        assignedTo: null,
+      };
+
+      // Cập nhật ngay UI để không cần F5
+      setLists((prevLists) =>
+        prevLists.map((l) =>
+          l._id === listId ? { ...l, tasks: [newTask, ...(l.tasks || [])] } : l
         )
       );
+      // Reset form
       setAddingTaskTo(null);
       setNewTaskTitle('');
       setMenuOpenId(null);
@@ -234,212 +288,343 @@ const List = ({ boardId }) => {
     }
   };
 
+  // 3) Drag & Drop
+  const handleDragEnd = async (res) => {
+    const { source, destination } = res;
+    if (!destination) return;
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    )
+      return;
+
+    // 3.a) Update UI immediately
+    const nl = [...lists];
+    const srcList = nl.find((l) => l._id === source.droppableId);
+    const dstList = nl.find((l) => l._id === destination.droppableId);
+
+    const [moved] = srcList.tasks.splice(source.index, 1);
+    dstList.tasks.splice(destination.index, 0, moved);
+
+    // 3.b) Reassign positions
+    [srcList, dstList].forEach((l) =>
+      l.tasks.forEach((t, i) => (t.position = i))
+    );
+    setLists(nl);
+
+    // 3.c) Batch update
+    const updates = [];
+    [srcList, dstList].forEach((l) =>
+      l.tasks.forEach((t) =>
+        updates.push({
+          _id: t._id,
+          listId: l._id,
+          position: t.position,
+        })
+      )
+    );
+    try {
+      const r = await fetch(`${apiBaseUrl}/task/reorder`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(updates),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message);
+    } catch (e) {
+      console.error('Reorder failed', e);
+    }
+  };
+
   return (
-    <div className='list-container'>
-      {lists.map((list, idx) => (
-        <div key={list._id} className='list-card'>
-          <div className='list-card-header'>
-            {editingId === list._id ? (
-              <input
-                className='add-list-input'
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && saveListTitle(list._id)}
-                autoFocus
-              />
-            ) : (
-              <>
-                <span className='list-title'>{list.title}</span>
-                <span className='task-count'>{(list.tasks || []).length}</span>
-                <div
-                  className='list-menu-container'
-                  ref={(el) => (menuRefs.current[list._id] = el)}
-                >
-                  <i
-                    className='fas fa-ellipsis-h list-menu-btn'
-                    onClick={() =>
-                      setMenuOpenId((o) => (o === list._id ? null : list._id))
-                    }
-                  />
-                  {menuOpenId === list._id && (
-                    <ul className='list-menu-dropdown'>
-                      <li
-                        onClick={() => {
-                          setEditingId(list._id);
-                          setEditTitle(list.title);
-                          setMenuOpenId(null);
-                        }}
-                      >
-                        Sửa List
-                      </li>
-                      <li
-                        className='delete'
-                        onClick={() => deleteList(list._id)}
-                      >
-                        Xóa List
-                      </li>
-                      <li
-                        onClick={() => {
-                          setAddingTaskTo(list._id);
-                          setNewTaskTitle('');
-                          setMenuOpenId(null);
-                        }}
-                      >
-                        Tạo Task
-                      </li>
-                    </ul>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className='list-tasks'>
-            {list.tasks.map((task) => {
-              const total = task.checklist?.length || 0;
-              const done =
-                task.checklist?.filter((i) => i.completed).length || 0;
-              const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-
-              return (
-                <div key={task._id} className='task-row'>
-                  <div
-                    className='task-card'
-                    onClick={() =>
-                      setSelectedTask({
-                        ...task,
-                        listTitle: list.title,
-                      })
-                    }
-                  >
-                    <span className='task-title'>{task.title}</span>
-                    <div className='task-progress mt-1'>
-                      {/* progress bar */}
-                      <div className='progress'>
-                        <div
-                          className='progress-bar'
-                          role='progressbar'
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                      <small className='ms-2'>{percent}%</small>
-
-                      {/* CHỈ SHOW NẾU assignedTo KHÔNG NULL */}
-                      <div>
-                        <strong>Người được giao :</strong>
-                        {task.assignedTo ? (
-                          <div className='assigned-info mt-2 d-flex align-items-center'>
-                            {task.assignedTo.avatar && (
-                              <img
-                                src={task.assignedTo.avatar}
-                                alt='avatar'
-                                className='rounded-circle'
-                                width={24}
-                                height={24}
-                              />
-                            )}
-                            <span className='ms-2'>
-                              {task.assignedTo.username ||
-                                task.assignedTo.email}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className='ms-2-text-muted'>Chưa có</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Chỉ hiện thị nút xoá nếu task đó là task được tạo bởi người
-                  currentUser tức cũng là assignedBy */}
-                  {task.assignedBy._id === currentUser._id && (
-                    <i
-                      className='fas fa-times delete-task-btn'
-                      onClick={() => deleteTask(task._id, list._id)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-
-            {/* form thêm task */}
-            {addingTaskTo === list._id && (
-              <div className='add-card-form'>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className='list-container'>
+        {lists.map((list) => (
+          <div key={list._id} className='list-card'>
+            <div className='list-card-header'>
+              {editingId === list._id ? (
                 <input
-                  className='add-card-input'
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createTask(list._id)}
-                  placeholder='Nhập tên task...'
+                  className='add-list-input'
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && saveListTitle(list._id)
+                  }
                   autoFocus
                 />
-                <div className='add-card-actions'>
+              ) : (
+                <>
+                  <span className='list-title'>{list.title}</span>
+                  <span className='task-count'>
+                    {(list.tasks || []).length}
+                  </span>
+                  <div
+                    className='list-menu-container'
+                    ref={(el) => (menuRefs.current[list._id] = el)}
+                  >
+                    {isBoardAdmin && (
+                      <i
+                        className='fas fa-ellipsis-h list-menu-btn'
+                        onClick={() =>
+                          setMenuOpenId((prev) =>
+                            prev === list._id ? null : list._id
+                          )
+                        }
+                      />
+                    )}
+                    {menuOpenId === list._id && isBoardAdmin && (
+                      <ul className='list-menu-dropdown'>
+                        <li
+                          onClick={() => {
+                            setEditingId(list._id);
+                            setEditTitle(list.title);
+                            setMenuOpenId(null);
+                          }}
+                        >
+                          Sửa List
+                        </li>
+                        <li
+                          className='delete'
+                          onClick={() => deleteList(list._id)}
+                        >
+                          Xóa List
+                        </li>
+                        <li
+                          onClick={() => {
+                            setAddingTaskTo(list._id);
+                            setNewTaskTitle('');
+                            setMenuOpenId(null);
+                          }}
+                        >
+                          Tạo Task
+                        </li>
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <Droppable droppableId={list._id}>
+              {(dropProvided) => (
+                <div
+                  className='list-tasks'
+                  ref={dropProvided.innerRef}
+                  {...dropProvided.droppableProps}
+                >
+                  {list.tasks
+                    .sort((a, b) => (a.position || 0) - (b.position || 0))
+                    .map((task, index) => {
+                      // Tính ID để kiểm tra quyền drag
+                      const assigneeId =
+                        task.assignedTo?._id || task.assignedTo?.id;
+                      const assignerId =
+                        task.assignedBy?._id || task.assignedBy?.id;
+                      const currentId = currentUser?._id || currentUser?.id;
+                      const canDrag =
+                        currentId === assigneeId || currentId === assignerId;
+
+                      // Tính % checklist
+                      const total = task.checklist?.length || 0;
+                      const done = (task.checklist || []).filter(
+                        (c) => c.completed
+                      ).length;
+                      const percent =
+                        total > 0 ? Math.round((done / total) * 100) : 0;
+
+                      return (
+                        <Draggable
+                          key={task._id}
+                          draggableId={task._id.toString()}
+                          index={index}
+                          isDragDisabled={!canDrag}
+                        >
+                          {(provided, snapshot) => {
+                            const node = (
+                              <div
+                                className='task-row'
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                style={{
+                                  ...provided.draggableProps.style,
+                                  // Vẫn giữ fixed ghost khi dragging
+                                  position: snapshot.isDragging
+                                    ? 'fixed'
+                                    : provided.draggableProps.style.position,
+                                  top: snapshot.isDragging
+                                    ? provided.draggableProps.style.top
+                                    : undefined,
+                                  left: snapshot.isDragging
+                                    ? provided.draggableProps.style.left
+                                    : undefined,
+                                  marginBottom: 8,
+                                  zIndex: snapshot.isDragging ? 999 : undefined,
+                                  cursor: canDrag ? 'grab' : 'not-allowed', // con trỏ
+                                }}
+                              >
+                                <div
+                                  className='task-card'
+                                  onClick={() =>
+                                    setSelectedTask({
+                                      ...task,
+                                      listTitle: list.title,
+                                    })
+                                  }
+                                  style={{ opacity: 1 }}
+                                >
+                                  <span className='task-title'>
+                                    {task.title}
+                                  </span>
+                                  <div className='task-progress mt-1'>
+                                    <div className='progress'>
+                                      <div
+                                        className='progress-bar'
+                                        role='progressbar'
+                                        style={{ width: `${percent}%` }}
+                                      />
+                                    </div>
+                                    <small className='ms-2'>{percent}%</small>
+                                  </div>
+                                  <div className='mt-2'>
+                                    <strong>Người được giao :</strong>{' '}
+                                    {task.assignedTo ? (
+                                      <div className='assigned-info d-flex align-items-center'>
+                                        {task.assignedTo.avatar && (
+                                          <img
+                                            src={task.assignedTo.avatar}
+                                            alt='avatar'
+                                            className='rounded-circle'
+                                            width={24}
+                                            height={24}
+                                          />
+                                        )}
+                                        <span className='ms-2'>
+                                          {task.assignedTo.username ||
+                                            task.assignedTo.email}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className='text-danger'>
+                                        Chưa có
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {isBoardAdmin && (
+                                  <i
+                                    className='fas fa-times delete-task-btn'
+                                    onClick={() =>
+                                      deleteTask(task._id, list._id)
+                                    }
+                                  />
+                                )}
+                              </div>
+                            );
+
+                            // Portal ghost item khi drag
+                            if (snapshot.isDragging) {
+                              return ReactDOM.createPortal(node, document.body);
+                            }
+                            return node;
+                          }}
+                        </Draggable>
+                      );
+                    })}
+                  {dropProvided.placeholder}
+
+                  {/* Form thêm task */}
+                  {addingTaskTo === list._id && (
+                    <div className='add-card-form'>
+                      <input
+                        className='add-card-input'
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === 'Enter' && createTask(list._id)
+                        }
+                        placeholder='Nhập tên task...'
+                        autoFocus
+                      />
+                      <div className='add-card-actions'>
+                        <button
+                          className='btn-add'
+                          onClick={() => createTask(list._id)}
+                        >
+                          Thêm
+                        </button>
+                        <button
+                          className='btn-cancel'
+                          onClick={() => setAddingTaskTo(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Droppable>
+          </div>
+        ))}
+
+        {/* Thêm list mới chỉ admin */}
+        {isBoardAdmin && (
+          <div className='list-card add-new-list'>
+            {addingListAt !== null ? (
+              <div className='add-list-form'>
+                <input
+                  className='add-list-input'
+                  value={newListTitle}
+                  onChange={(e) => setNewListTitle(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && createList(addingListAt)
+                  }
+                  placeholder='Nhập tên danh sách...'
+                  autoFocus
+                />
+                <div className='add-list-actions'>
                   <button
                     className='btn-add'
-                    onClick={() => createTask(list._id)}
+                    onClick={() => createList(addingListAt)}
                   >
-                    Thêm
+                    Thêm danh sách
                   </button>
                   <button
                     className='btn-cancel'
-                    onClick={() => setAddingTaskTo(null)}
+                    onClick={() => setAddingListAt(null)}
                   >
                     ✕
                   </button>
                 </div>
               </div>
+            ) : (
+              <div
+                className='add-card-button'
+                onClick={() => {
+                  setAddingListAt(lists.length);
+                  setNewListTitle('');
+                }}
+              >
+                <i className='fas fa-plus' /> Thêm danh sách khác
+              </div>
             )}
           </div>
-        </div>
-      ))}
-
-      {/* Thêm list mới */}
-      <div className='list-card add-new-list'>
-        {addingListAt !== null ? (
-          <div className='add-list-form'>
-            <input
-              className='add-list-input'
-              value={newListTitle}
-              onChange={(e) => setNewListTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && createList(addingListAt)}
-              placeholder='Nhập tên danh sách...'
-              autoFocus
-            />
-            <div className='add-list-actions'>
-              <button
-                className='btn-add'
-                onClick={() => createList(addingListAt)}
-              >
-                Thêm danh sách
-              </button>
-              <button
-                className='btn-cancel'
-                onClick={() => setAddingListAt(null)}
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div
-            className='add-card-button'
-            onClick={() => {
-              setAddingListAt(lists.length);
-              setNewListTitle('');
-            }}
-          >
-            <i className='fas fa-plus'></i> Thêm danh sách khác
-          </div>
         )}
+        {/* Task modal */}
+        <TaskModal
+          isOpen={!!selectedTask}
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={handleTaskUpdated}
+        />
       </div>
-
-      {/* Task modal */}
-      <TaskModal
-        isOpen={!!selectedTask}
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onUpdate={handleTaskUpdated}
-      />
-    </div>
+    </DragDropContext>
   );
 };
 

@@ -8,6 +8,7 @@ import ChecklistModal from './ChecklistModal';
 import ProgressTask from './ProgressTask';
 import SuggestMembersBySkills from './SuggestMemberBySkills';
 import FileManager from '../../components/FileManager';
+import { useParams } from 'react-router-dom';
 
 const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const { accessToken, apiBaseUrl, userDataLocal } = useCommon();
@@ -23,6 +24,46 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   const [toastMessage, setToastMessage] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
+  const [isBoardAdmin, setIsBoardAdmin] = useState(false);
+  const [boardWorkStart, setBoardWorkStart] = useState('');
+  const [boardWorkEnd, setBoardWorkEnd] = useState('');
+
+  const { workspaceId } = useParams();
+  // 1) Check admin & fetch board criteria.workDuration
+  useEffect(() => {
+    if (!task) return;
+    (async () => {
+      try {
+        const res = await axios.get(
+          `${apiBaseUrl}/workspace/${workspaceId}/board/${task.boardId}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const board = res.data.board || {};
+
+        // admin check
+        const me = currentUser?._id?.toString();
+        if (board.creator?._id?.toString() === me) {
+          setIsBoardAdmin(true);
+        } else {
+          const member = (board.members || []).find(
+            (m) => (m._id || m.id)?.toString() === me
+          );
+          if (member && ['admin', 'creator'].includes(member.role)) {
+            setIsBoardAdmin(true);
+          }
+        }
+
+        // pull workDuration
+        const wd = board.criteria?.workDuration;
+        if (wd?.startDate && wd?.endDate) {
+          setBoardWorkStart(wd.startDate);
+          setBoardWorkEnd(wd.endDate);
+        }
+      } catch (err) {
+        console.error('Load board info failed:', err);
+      }
+    })();
+  }, [task, apiBaseUrl, accessToken, workspaceId, currentUser]);
 
   useEffect(() => {
     if (isOpen && task) {
@@ -33,12 +74,25 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
   if (!isOpen || !task) return null;
 
-  const isAssigner =
+  const currentUserId =
+    currentUser?._id?.toString() || currentUser?.id?.toString();
+  const assignedById = task.assignedBy
+    ? task.assignedBy._id?.toString() || task.assignedBy.id?.toString()
+    : null;
+  const assignedToId = task.assignedTo
+    ? task.assignedTo._id?.toString() || task.assignedTo.id?.toString()
+    : null;
+
+  // Assigner: nếu có assignedBy, so sánh; nếu chưa được gán cả, cho phép creator/unassigned
+  const isAssigner = Boolean(
     currentUser &&
-    ((task.assignedBy && task.assignedBy._id === currentUser._id) ||
-      (!task.assignedBy && !task.assignedTo));
-  const isAssignee =
-    task.assignedTo && currentUser && task.assignedTo._id === currentUser._id;
+      (assignedById
+        ? assignedById === currentUserId
+        : !task.assignedBy && !task.assignedTo)
+  );
+  // Assignee: so sánh assignedToId
+  const isAssignee = Boolean(currentUser && assignedToId === currentUserId);
+  const canEdit = isAssigner || isBoardAdmin;
 
   const mergeTask = (updatedFields) => {
     let assignedTo;
@@ -136,13 +190,14 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
       const updatedFields = res.data.data;
       onUpdate(mergeTask({ ...updatedFields, assignedTo: user }));
-      setToastMessage(`Đã giao task cho ${user.username || user.email}`);
+      setToastMessage(`Đã giao nhiệm vụ cho ${user.username || user.email}`);
       setShowToast(true);
       setShowInviteModal(false);
     } catch (err) {
-      console.error('Giao task thất bại:', err);
+      console.error('Giao nhiệm vụ thất bại:', err);
       alert(
-        'Giao task thất bại: ' + (err.response?.data?.message || err.message)
+        'Giao nhiệm vụ thất bại: ' +
+          (err.response?.data?.message || err.message)
       );
     }
   };
@@ -155,7 +210,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       });
       const updatedFields = res.data.data;
       onUpdate(mergeTask(updatedFields));
-      setToastMessage('Đã xóa người được giao');
+      setToastMessage('Xóa thành công !');
       setShowToast(true);
     } catch (err) {
       console.error('Unassign thất bại:', err);
@@ -189,12 +244,14 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         size='lg'
       >
         <Modal.Header closeButton>
-          <Modal.Title>Gợi ý & Mời thành viên theo kỹ năng</Modal.Title>
+          <Modal.Title>Gợi ý & Mời thành viên</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <SuggestMembersBySkills
             workspaceId={task.workspaceId}
             boardId={task.boardId}
+            startDate={task.startDate.substr(0, 10)}
+            endDate={task.endDate.substr(0, 10)}
             onAssignSuccess={handleAssign}
           />
         </Modal.Body>
@@ -292,27 +349,32 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
             </div>
 
             {/* ACTION BUTTONS */}
-            {isAssigner && (
-              <div className='task-modal-actions'>
-                {!task.assignedTo && (
+            <div style={{ display: 'flex' }}>
+              {canEdit && (
+                <div className='task-modal-actions'>
+                  {!task.assignedTo && (
+                    <Button
+                      variant='warning'
+                      className='btn-action'
+                      onClick={() => setShowInviteModal(true)}
+                    >
+                      <i className='fas fa-person' /> Thêm Member
+                    </Button>
+                  )}
                   <Button
-                    variant='warning'
+                    variant='secondary'
                     className='btn-action'
-                    onClick={() => setShowInviteModal(true)}
+                    onClick={() => setShowFileManager(true)}
                   >
-                    <i className='fas fa-person' /> Thêm Member
+                    <i className='fas fa-file' /> Tệp đính kèm
                   </Button>
-                )}
-                <Button
-                  variant='secondary'
-                  className='btn-action'
-                  onClick={() => setShowFileManager(true)}
-                >
-                  <i className='fas fa-file' /> Tệp đính kèm
-                </Button>
+                </div>
+              )}
 
-                {task.endDate ? (
+              {canEdit ? (
+                task.endDate ? (
                   <div
+                    style={{ marginLeft: '10px' }}
                     className={`due-badge ${isOverdue ? 'overdue' : ''}`}
                     onClick={() => setShowDeadlineModal(true)}
                   >
@@ -329,37 +391,49 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   >
                     <i className='fas fa-clock' /> Ngày
                   </Button>
-                )}
+                )
+              ) : task.endDate ? (
+                <div className={`due-badge ${isOverdue ? 'overdue' : ''}`}>
+                  {formatBadge(task.endDate)}
+                </div>
+              ) : null}
+              {canEdit && (
                 <Deadline
                   show={showDeadlineModal}
                   onClose={() => setShowDeadlineModal(false)}
                   task={task}
                   onUpdate={onUpdate}
                   mergeTask={mergeTask}
+                  minDate={boardWorkStart}
+                  maxDate={boardWorkEnd}
                 />
-                <Button
-                  variant='success'
-                  className='icon-btn'
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowChecklistModal(true);
-                  }}
-                >
-                  <i className='fas fa-list' /> Việc cần làm
-                </Button>
-                {/* Modal Thêm checklist */}
-                <ChecklistModal
-                  isOpen={showChecklistModal}
-                  onClose={() => setShowChecklistModal(false)}
-                  task={task}
-                  onAdd={(updatedField) => {
-                    onUpdate(mergeTask(updatedField));
-                    setShowChecklistModal(false);
-                  }}
-                />
-              </div>
-            )}
+              )}
 
+              {(canEdit || isAssignee) && (
+                <>
+                  <Button
+                    style={{ marginLeft: '10px' }}
+                    variant='success'
+                    className='icon-btn'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowChecklistModal(true);
+                    }}
+                  >
+                    <i className='fas fa-list' /> Nhiệm vụ
+                  </Button>
+                  <ChecklistModal
+                    isOpen={showChecklistModal}
+                    onClose={() => setShowChecklistModal(false)}
+                    task={task}
+                    onAdd={(updatedField) => {
+                      onUpdate(mergeTask(updatedField));
+                      setShowChecklistModal(false);
+                    }}
+                  />
+                </>
+              )}
+            </div>
             {/* DESCRIPTION */}
             <div className='task-modal-section'>
               <label className='section-label'>Mô tả</label>
@@ -395,7 +469,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   <div className='desc-view'>
                     <p>{task.description || 'Chưa có mô tả.'}</p>
                   </div>
-                  {isAssigner && (
+                  {canEdit && (
                     <Button
                       style={{ marginTop: '10px' }}
                       className='btn-edit-desc'
@@ -432,7 +506,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   <span className='ms-2'>
                     {task.assignedTo.username || task.assignedTo.email}
                   </span>
-                  {isAssigner && (
+                  {canEdit && (
                     <Button
                       variant='outline-danger'
                       size='sm'
@@ -521,6 +595,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
               mergeTask={mergeTask}
               onUpdate={onUpdate}
               isAssignee={isAssignee}
+              isAssigner={isAssigner}
             />
           </div>
         </div>
