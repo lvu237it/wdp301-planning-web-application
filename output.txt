@@ -1,4 +1,6 @@
-project
+Folder PATH listing for volume Windows-SSD
+Volume serial number is 0457-7547
+C:.
 ¦   .gitignore
 ¦   output.txt
 ¦   README.md
@@ -65,6 +67,7 @@ project
 ¦   ¦       workspaceModel.js
 ¦   ¦       
 ¦   +---routes
+¦   ¦       activityLogRoutes.js
 ¦   ¦       adminRoutes.js
 ¦   ¦       authenticationRoutes.js
 ¦   ¦       boardRoutes.js
@@ -148,6 +151,7 @@ project
         ¦   ¦       Register.jsx
         ¦   ¦       
         ¦   +---boards
+        ¦   ¦       BoardActivityLog.jsx
         ¦   ¦       BoardDetail.jsx
         ¦   ¦       BoardInviteResponse.jsx
         ¦   ¦       Boards.jsx
@@ -188,6 +192,7 @@ project
         ¦           
         +---styles
         ¦       board.css
+        ¦       boardactivitylog.css
         ¦       boardcalendar.css
         ¦       calendar.css
         ¦       task.css
