@@ -7,6 +7,7 @@ const Board = require('../models/boardModel');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const NotificationService = require('../services/NotificationService');
 
 // Lấy workspace mà user đã tạo hoặc đã tham gia, kèm countBoard
 exports.getAllWorkspace = async (req, res) => {
@@ -339,6 +340,15 @@ exports.inviteMember = async (req, res) => {
 			`Bạn được mời vào workspace "${workspace.name}"`,
 			emailHtml
 		);
+		// 7.1 gửi thông báo real-time sau khi gửi lời mời
+		await NotificationService.createPersonalNotification({
+			title: `Lời mời tham gia workspace`,
+			content: `Bạn được mời tham gia workspace "${workspace.name}"`,
+			type: 'workspace_invite',
+			targetUserId: user._id,
+			targetWorkspaceId: workspace._id,
+			createdBy: inviterId,
+		});
 
 		// 8. Phản hồi
 		res.status(200).json({
