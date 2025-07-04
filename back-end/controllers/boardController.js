@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
-const crypto = require('crypto');
-const Board = require('../models/boardModel');
-const BoardMembership = require('../models/boardMembershipModel');
-const User = require('../models/userModel');
-const sendEmail = require('../utils/sendMail');
-const WorkspaceMembership = require('../models/memberShipModel');
-const Workspace = require('../models/workspaceModel');
-const List = require('../models/listModel');
+const mongoose = require("mongoose");
+const crypto = require("crypto");
+const Board = require("../models/boardModel");
+const BoardMembership = require("../models/boardMembershipModel");
+const User = require("../models/userModel");
+const sendEmail = require("../utils/sendMail");
+const WorkspaceMembership = require("../models/memberShipModel");
+const Workspace = require("../models/workspaceModel");
+const Task = require("../models/taskModel");
 
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
@@ -19,7 +19,7 @@ exports.getBoardsByWorkspace = async (req, res) => {
     if (!workspace) {
       return res
         .status(404)
-        .json({ success: false, message: 'Workspace not found' });
+        .json({ success: false, message: "Workspace not found" });
     }
 
     // 1. Kiểm tra user có phải creator hoặc đã join workspace này không
@@ -27,13 +27,13 @@ exports.getBoardsByWorkspace = async (req, res) => {
     const isMember = await WorkspaceMembership.exists({
       userId,
       workspaceId: wsId,
-      invitationStatus: 'accepted',
+      invitationStatus: "accepted",
       isDeleted: false,
     });
     if (!isCreator && !isMember) {
       return res
         .status(403)
-        .json({ success: false, message: 'Access denied to this workspace' });
+        .json({ success: false, message: "Access denied to this workspace" });
     }
 
     // 2. Lấy list boardId mà user đã join trong workspace này
@@ -61,19 +61,19 @@ invitationResponse: 'accepted', // dùng đúng trường
       //old-------------------------------------
 
       //new--------------------------------------
-      applicationStatus: 'accepted',
+      applicationStatus: "accepted",
       isDeleted: false,
-    }).select('boardId');
+    }).select("boardId");
     const boardIds = userBoardDocs.map((doc) => doc.boardId);
 
     // 3. Query board trong workspace đó
     const boards = await Board.find({
       workspaceId: wsId,
       isDeleted: false,
-      $or: [{ visibility: 'public' }, { _id: { $in: boardIds } }],
+      $or: [{ visibility: "public" }, { _id: { $in: boardIds } }],
     })
-      .populate('creator', 'username email')
-      .populate('workspaceId', 'name')
+      .populate("creator", "username email")
+      .populate("workspaceId", "name")
       // new--------------------------------------
       .lean();
 
@@ -82,7 +82,7 @@ invitationResponse: 'accepted', // dùng đúng trường
       boardId: { $in: boards.map((b) => b._id) },
       isDeleted: false,
     })
-      .populate('userId', 'username email avatar')
+      .populate("userId", "username email avatar")
       .lean();
 
     const membersByBoard = boardMemberships.reduce((acc, m) => {
@@ -107,10 +107,10 @@ invitationResponse: 'accepted', // dùng đúng trường
 
     return res.status(200).json({ success: true, boards: result });
   } catch (err) {
-    console.error('getBoardsByWorkspace error:', err);
+    console.error("getBoardsByWorkspace error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Server error when fetching boards',
+      message: "Server error when fetching boards",
       error: err.message,
     });
   }
@@ -134,7 +134,7 @@ exports.createBoard = async (req, res) => {
     // 1. Kiểm tra trường bắt buộc
     if (!name || !workspaceId || !visibility || !criteria) {
       throw new Error(
-        'Thiếu thông tin bắt buộc: name, workspaceId, visibility hoặc criteria'
+        "Thiếu thông tin bắt buộc: name, workspaceId, visibility hoặc criteria"
       );
     }
 
@@ -161,8 +161,8 @@ exports.createBoard = async (req, res) => {
         {
           boardId: newBoard._id,
           userId: creatorId,
-          role: 'admin',
-          applicationStatus: 'accepted',
+          role: "admin",
+          applicationStatus: "accepted",
           invitationResponse: null,
           invitedBy: null,
         },
@@ -174,16 +174,16 @@ exports.createBoard = async (req, res) => {
     session.endSession();
 
     res.status(201).json({
-      message: 'Tạo board thành công',
+      message: "Tạo board thành công",
       board: newBoard,
       membershipId: membership._id,
     });
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    console.error('Lỗi tạo Board:', err);
+    console.error("Lỗi tạo Board:", err);
     res.status(500).json({
-      message: 'Tạo Board thất bại, đã rollback',
+      message: "Tạo Board thất bại, đã rollback",
       error: err.message,
     });
   }
@@ -198,22 +198,22 @@ exports.getBoardById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
         success: false,
-        message: 'boardId không hợp lệ',
+        message: "boardId không hợp lệ",
       });
     }
 
     // Tìm board
     const board = await Board.findOne({ _id: boardId, isDeleted: false })
-      .populate('creator', 'username email')
-      .populate('workspaceId', 'name')
+      .populate("creator", "username email")
+      .populate("workspaceId", "name")
       .lean();
 
-    console.log('boardfound', board);
+    console.log("boardfound", board);
 
     if (!board) {
       return res.status(404).json({
         success: false,
-        message: 'Board không tồn tại',
+        message: "Board không tồn tại",
       });
     }
 
@@ -222,14 +222,14 @@ exports.getBoardById = async (req, res) => {
     const isMember = await BoardMembership.exists({
       userId,
       boardId,
-      applicationStatus: 'accepted',
+      applicationStatus: "accepted",
       isDeleted: false,
     });
 
-    if (!isCreator && !isMember && board.visibility === 'private') {
+    if (!isCreator && !isMember && board.visibility === "private") {
       return res.status(403).json({
         success: false,
-        message: 'Không có quyền truy cập board này',
+        message: "Không có quyền truy cập board này",
       });
     }
 
@@ -238,10 +238,10 @@ exports.getBoardById = async (req, res) => {
       boardId,
       isDeleted: false,
     })
-      .populate('userId', 'username email avatar')
+      .populate("userId", "username email avatar")
       .lean();
 
-    console.log('boardMemberships', boardMemberships);
+    console.log("boardMemberships", boardMemberships);
 
     const members = boardMemberships.map((m) => ({
       _id: m.userId._id,
@@ -257,17 +257,17 @@ exports.getBoardById = async (req, res) => {
       members,
     };
 
-    console.log('resules', result);
+    console.log("resules", result);
 
     return res.status(200).json({
       success: true,
       board: result,
     });
   } catch (err) {
-    console.error('getBoardById error:', err);
+    console.error("getBoardById error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Server error when fetching board',
+      message: "Server error when fetching board",
       error: err.message,
     });
   }
@@ -284,17 +284,17 @@ exports.updateBoard = async (req, res) => {
     });
 
     if (!board) {
-      return res.status(404).json({ message: 'Board không tồn tại' });
+      return res.status(404).json({ message: "Board không tồn tại" });
     }
 
     return res.status(200).json({
-      message: 'Cập nhật Board thành công',
+      message: "Cập nhật Board thành công",
       board,
     });
   } catch (err) {
-    console.error('Lỗi server khi cập nhật Board:', err);
+    console.error("Lỗi server khi cập nhật Board:", err);
     return res.status(500).json({
-      message: 'Lỗi server khi cập nhật Board',
+      message: "Lỗi server khi cập nhật Board",
       error: err.message,
     });
   }
@@ -307,11 +307,11 @@ exports.closeBoard = async (req, res) => {
 
     const board = await Board.findById(boardId);
     if (!board) {
-      return res.status(404).json({ message: 'Board không tồn tại' });
+      return res.status(404).json({ message: "Board không tồn tại" });
     }
 
     if (board.isDeleted) {
-      return res.status(400).json({ message: 'Board đã bị đóng trước đó' });
+      return res.status(400).json({ message: "Board đã bị đóng trước đó" });
     }
 
     board.isDeleted = true;
@@ -319,13 +319,13 @@ exports.closeBoard = async (req, res) => {
     await board.save();
 
     res.status(200).json({
-      message: 'Đã đóng (soft delete) Board',
+      message: "Đã đóng (soft delete) Board",
       board,
     });
   } catch (err) {
-    console.error('Lỗi server khi đóng Board:', err);
+    console.error("Lỗi server khi đóng Board:", err);
     res.status(500).json({
-      message: 'Lỗi server khi đóng Board',
+      message: "Lỗi server khi đóng Board",
       error: err.message,
     });
   }
@@ -340,7 +340,7 @@ exports.deleteBoard = async (req, res) => {
     if (!board) {
       return res
         .status(404)
-        .json({ message: 'Board không tồn tại hoặc đã bị xóa' });
+        .json({ message: "Board không tồn tại hoặc đã bị xóa" });
     }
 
     // Mark tất cả BoardMembership liên quan thành deleted (optional)
@@ -350,12 +350,12 @@ exports.deleteBoard = async (req, res) => {
     );
 
     res.status(200).json({
-      message: 'Đã xóa vĩnh viễn Board',
+      message: "Đã xóa vĩnh viễn Board",
     });
   } catch (err) {
-    console.error('Lỗi server khi xóa Board:', err);
+    console.error("Lỗi server khi xóa Board:", err);
     res.status(500).json({
-      message: 'Lỗi server khi xóa Board',
+      message: "Lỗi server khi xóa Board",
       error: err.message,
     });
   }
@@ -365,12 +365,12 @@ exports.deleteBoard = async (req, res) => {
 exports.inviteBoardMembers = async (req, res) => {
   try {
     const { workspaceId, boardId } = req.params;
-    const { emails, role = 'read-only' } = req.body;
+    const { emails, role = "read-only" } = req.body;
     const inviterId = req.user._id;
 
     // 1) Lấy board đích
     const board = await Board.findById(boardId);
-    if (!board) return res.status(404).json({ message: 'Board không tồn tại' });
+    if (!board) return res.status(404).json({ message: "Board không tồn tại" });
     const { workDuration: wdTarget } = board.criteria;
 
     // 2) Lấy users theo emails
@@ -378,7 +378,7 @@ exports.inviteBoardMembers = async (req, res) => {
     if (!users.length)
       return res
         .status(400)
-        .json({ message: 'Không tìm thấy user nào với emails đã cho' });
+        .json({ message: "Không tìm thấy user nào với emails đã cho" });
 
     // 3) Check xem có invite hoặc member rồi
     const existing = await BoardMembership.findOne({
@@ -388,16 +388,16 @@ exports.inviteBoardMembers = async (req, res) => {
     });
     if (existing)
       return res.status(400).json({
-        message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
+        message: "Người dùng đã là thành viên hoặc đang chờ xác nhận",
       });
 
     // 4) Lấy tất cả các board khác mà user đã accepted
     const acceptedMems = await BoardMembership.find({
       userId: { $in: users.map((u) => u._id) },
-      invitationResponse: 'accepted',
+      invitationResponse: "accepted",
       isDeleted: false,
       boardId: { $ne: boardId },
-    }).populate('boardId', 'criteria.workDuration name');
+    }).populate("boardId", "criteria.workDuration name");
 
     // 5) Kiểm tra overlap
     const overlap = acceptedMems.find((m) => {
@@ -420,13 +420,13 @@ exports.inviteBoardMembers = async (req, res) => {
     }
 
     // 6) Nếu OK, tạo invite như cũ
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = crypto.randomBytes(32).toString("hex");
     const invites = users.map((u) => ({
       boardId,
       userId: u._id,
       role,
-      applicationStatus: 'applied',
-      invitationResponse: 'pending',
+      applicationStatus: "applied",
+      invitationResponse: "pending",
       invitedBy: inviterId,
       invitedAt: new Date(),
       invitationToken: token,
@@ -448,12 +448,12 @@ exports.inviteBoardMembers = async (req, res) => {
       );
     }
 
-    return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
+    return res.status(200).json({ message: "Đã gửi lời mời thành công" });
   } catch (err) {
     console.error(err);
     return res
       .status(500)
-      .json({ message: 'Server error', error: err.message });
+      .json({ message: "Server error", error: err.message });
   }
 };
 
@@ -462,10 +462,10 @@ exports.respondToBoardInvite = async (req, res) => {
   try {
     const { token, action } = req.body; // action: 'accept' | 'decline'
 
-    if (!token || !['accept', 'decline'].includes(action)) {
+    if (!token || !["accept", "decline"].includes(action)) {
       return res
         .status(400)
-        .json({ message: 'Thiếu token hoặc action không hợp lệ' });
+        .json({ message: "Thiếu token hoặc action không hợp lệ" });
     }
 
     // 1. Tìm membership theo token
@@ -475,22 +475,22 @@ exports.respondToBoardInvite = async (req, res) => {
     if (!membership) {
       return res
         .status(400)
-        .json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
+        .json({ message: "Token không hợp lệ hoặc đã hết hạn" });
     }
 
     // 2. Kiểm tra đã xử lý rồi?
-    if (membership.invitationResponse !== 'pending') {
+    if (membership.invitationResponse !== "pending") {
       return res
         .status(400)
-        .json({ message: 'Lời mời đã được xử lý trước đó' });
+        .json({ message: "Lời mời đã được xử lý trước đó" });
     }
 
     // 3. Xử lý action
     //    Chúng ta gán invitationResponse (thay vì applicationStatus)
-    if (action === 'accept') {
-      membership.invitationResponse = 'accepted';
+    if (action === "accept") {
+      membership.invitationResponse = "accepted";
     } else {
-      membership.invitationResponse = 'declined';
+      membership.invitationResponse = "declined";
     }
 
     // Lưu lại trước khi save, để trả về cho client
@@ -507,14 +507,14 @@ exports.respondToBoardInvite = async (req, res) => {
     // 6. Trả về cho client
     return res.status(200).json({
       message: `Bạn đã ${
-        action === 'accept' ? 'chấp nhận' : 'từ chối'
+        action === "accept" ? "chấp nhận" : "từ chối"
       } lời mời vào Board.`,
       status: responseStatus, // trả 'accepted' hoặc 'declined'
     });
   } catch (err) {
-    console.error('Lỗi khi xử lý invite-response:', err);
+    console.error("Lỗi khi xử lý invite-response:", err);
     return res.status(500).json({
-      message: 'Lỗi server khi phản hồi lời mời',
+      message: "Lỗi server khi phản hồi lời mời",
       error: err.message,
     });
   }
@@ -528,30 +528,30 @@ exports.getQualifiedUsers = async (req, res) => {
     // 1) Tìm board
     const board = await Board.findById(boardId);
     if (!board) {
-      return res.status(404).json({ message: 'Board không tồn tại' });
+      return res.status(404).json({ message: "Board không tồn tại" });
     }
 
     // 2) Lấy các user đã accepted trong workspace (loại bỏ creator)
     const workspaceMems = await WorkspaceMembership.find({
       workspaceId: board.workspaceId,
-      invitationStatus: 'accepted',
+      invitationStatus: "accepted",
       isDeleted: false,
-      role: { $ne: 'creatorWorkspace' },
-    }).select('userId');
+      role: { $ne: "creatorWorkspace" },
+    }).select("userId");
     const workspaceUserIds = workspaceMems.map((m) => m.userId);
 
     if (!workspaceUserIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: 'Chưa có thành viên nào trong workspace' });
+        .json({ users: [], message: "Chưa có thành viên nào trong workspace" });
     }
 
     // 3) Lấy các user đã là member của board này
     const boardMems = await BoardMembership.find({
       boardId: board._id,
-      invitationResponse: 'accepted', // hoặc invitationStatus tuỳ model
+      invitationResponse: "accepted", // hoặc invitationStatus tuỳ model
       isDeleted: false,
-    }).select('userId');
+    }).select("userId");
     const boardUserIds = boardMems.map((m) => m.userId);
 
     // 4) Chỉ giữ những user vừa ở workspace, vừa chưa ở board
@@ -561,7 +561,7 @@ exports.getQualifiedUsers = async (req, res) => {
     if (!candidateIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: 'Không có user nào đủ điều kiện' });
+        .json({ users: [], message: "Không có user nào đủ điều kiện" });
     }
 
     // 5) Build query động dựa trên criteria
@@ -581,8 +581,8 @@ exports.getQualifiedUsers = async (req, res) => {
         $gte: [
           {
             $subtract: [
-              '$expectedWorkDuration.endDate',
-              '$expectedWorkDuration.startDate',
+              "$expectedWorkDuration.endDate",
+              "$expectedWorkDuration.startDate",
             ],
           },
           span,
@@ -592,104 +592,117 @@ exports.getQualifiedUsers = async (req, res) => {
 
     // 6) Trả về danh sách user
     const users = await User.find(userQuery).select(
-      'username email skills yearOfExperience expectedWorkDuration'
+      "username email skills yearOfExperience expectedWorkDuration"
     );
 
     return res.status(200).json({ users });
   } catch (err) {
-    console.error('Lỗi getQualifiedUsers:', err);
+    console.error("Lỗi getQualifiedUsers:", err);
     return res.status(500).json({
-      message: 'Server lỗi khi lấy người dùng theo tiêu chí',
+      message: "Server lỗi khi lấy người dùng theo tiêu chí",
       error: err.message,
     });
   }
 };
 
-// suggest members by skill and date
+// suggest member based on skill, date, time
 exports.suggestMembers = async (req, res) => {
-  res.set('Cache-Control', 'no-store');
+  res.set("Cache-Control", "no-store");
 
   try {
     const { boardId } = req.params;
-    /* -----------------old--------------- */
-    // const skills = (req.query.skills || '')
-    //   .split(',')
-    //   .map((s) => s.trim().toLowerCase())
-    //   .filter(Boolean);
+    let { skills, startDate, endDate } = req.query;
 
-    const { skills, startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        message:
+          "Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian",
+      });
+    }
 
-    //  Lấy danh sách userId đã accepted vào board
+    // Đảm bảo startDate và endDate có định dạng đầy đủ ISO (có giờ)
+    const reqStart = new Date(startDate);
+    const reqEnd = new Date(endDate);
+
+    // B1. Lấy thành viên đã accepted
     const boardMems = await BoardMembership.find({
       boardId,
-      /*------------old---------------- */
-      //    applicationStatus: 'accepted',
-      //   isDeleted: false,
-      // })
-      //   .select('userId')
-      //   .lean();
-
-      // const userIds = memberships.map((m) => m.userId);
-      // if (!userIds.length) {
-      //   // Nếu chưa có member nào, trả về mảng rỗng luôn
-      //   return res.status(200).json({ success: true, users: [] });
-      // }
-
-      // // 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
-      // const regexes = skills.map((s) => new RegExp(`^${s}$`, 'i'));
-      // const users = await User.find({
-      //   _id: { $in: userIds },
-      //   skills: { $in: regexes },
-      // })
-      //   .select('_id username email skills')
-      //   .lean();
-
-      invitationResponse: 'accepted',
+      invitationResponse: "accepted",
       isDeleted: false,
-    }).select('userId');
+    }).select("userId");
 
-    const boardUserIds = boardMems.map((m) => m.userId);
+    const boardUserIds = boardMems.map((m) => m.userId.toString());
     if (!boardUserIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: 'Board chưa có thành viên nào' });
+        .json({ users: [], message: "Board chưa có thành viên nào" });
     }
 
-    const userQuery = { _id: { $in: boardUserIds } };
+    // B2. Lấy task có khoảng thời gian giao nhau (overlap) với reqStart - reqEnd
+    const overlappingTasks = await Task.find({
+      boardId,
+      assignedTo: { $in: boardUserIds },
+      isDeleted: false,
+      startDate: { $lt: reqEnd },
+      endDate: { $gt: reqStart },
+    }).select("assignedTo startDate endDate");
+    overlappingTasks.forEach((t, i) => {
+      console.log(`  🔸 Task ${i + 1}:`, {
+        assignedTo: t.assignedTo?.toString(),
+        from: t.startDate?.toISOString(),
+        to: t.endDate?.toISOString(),
+      });
+    });
 
-    //  Nếu có skills
-    if (skills) {
+    const busyUserIds = new Set(
+      overlappingTasks
+        .map((t) => t.assignedTo)
+        .filter((id) => id)
+        .map((id) => id.toString())
+    );
+
+    // B3. Lọc thành viên chưa bận
+    const availableUserIds = boardUserIds.filter(
+      (uid) => !busyUserIds.has(uid)
+    );
+
+    if (!availableUserIds.length) {
+      return res
+        .status(200)
+        .json({ users: [], message: "Không có ai rảnh trong thời gian này" });
+    }
+
+    // B4. Truy vấn user phù hợp
+    const userQuery = {
+      _id: {
+        $in: availableUserIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
+      "expectedWorkDuration.startDate": { $lte: reqStart },
+      "expectedWorkDuration.endDate": { $gte: reqEnd },
+    };
+
+    // B5. Thêm điều kiện kỹ năng nếu có
+    if (skills && typeof skills === "string") {
       const skillArr = skills
-        .split(',')
+        .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
+
       if (skillArr.length > 0) {
         userQuery.skills = { $in: skillArr };
       }
     }
 
-    //  Nếu có ngày
-    if (startDate && endDate) {
-      const reqStart = new Date(startDate);
-      const reqEnd = new Date(endDate);
-      userQuery['expectedWorkDuration.startDate'] = { $lte: reqStart };
-      userQuery['expectedWorkDuration.endDate'] = { $gte: reqEnd };
-    } else if (startDate || endDate) {
-      return res.status(400).json({
-        message:
-          'Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian',
-      });
-    }
-
     const users = await User.find(userQuery).select(
-      'username email avatar skills expectedWorkDuration'
+      "username email avatar skills expectedWorkDuration"
     );
 
+    console.log("🎯 Số người dùng được gợi ý:", users.length);
     return res.status(200).json({ users });
   } catch (err) {
-    console.error('Lỗi filterBoardMembers:', err);
+    console.error("❌ Lỗi suggestMembers:", err);
     return res.status(500).json({
-      message: 'Server lỗi khi lọc thành viên',
+      message: "Server lỗi khi lọc thành viên",
       error: err.message,
     });
   }
