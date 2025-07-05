@@ -10,7 +10,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
     updateFileName,
     shareFileWithTaskUsers,
     canUploadFiles,
-    showGoogleAuthModal,
+    // showGoogleAuthModal,
     handleGoogleAuth,
     toast,
   } = useCommon();
