@@ -1,12 +1,13 @@
-const mongoose = require("mongoose");
-const Workspace = require("../models/workspaceModel");
-const Membership = require("../models/memberShipModel");
-const User = require("../models/userModel");
-const sendEmail = require("../utils/sendMail");
-const Board = require("../models/boardModel");
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
+const mongoose = require('mongoose');
+const Workspace = require('../models/workspaceModel');
+const Membership = require('../models/memberShipModel');
+const User = require('../models/userModel');
+const sendEmail = require('../utils/sendMail');
+const Board = require('../models/boardModel');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const NotificationService = require('../services/NotificationService');
 
 // Lấy workspace mà user đã tạo hoặc đã tham gia, kèm countBoard
 exports.getAllWorkspace = async (req, res) => {
@@ -333,25 +334,34 @@ exports.inviteMember = async (req, res) => {
 </body>
 </html>
 `;
-    // 7. Gửi email thực tế
-    await sendEmail(
-      user.email,
-      `Bạn được mời vào workspace "${workspace.name}"`,
-      emailHtml
-    );
+		// 7. Gửi email thực tế
+		await sendEmail(
+			user.email,
+			`Bạn được mời vào workspace "${workspace.name}"`,
+			emailHtml
+		);
+		// 7.1 gửi thông báo real-time sau khi gửi lời mời
+		await NotificationService.createPersonalNotification({
+			title: `Lời mời tham gia workspace`,
+			content: `Bạn được mời tham gia workspace "${workspace.name}"`,
+			type: 'workspace_invite',
+			targetUserId: user._id,
+			targetWorkspaceId: workspace._id,
+			createdBy: inviterId,
+		});
 
-    // 8. Phản hồi
-    res.status(200).json({
-      message: "Đã gửi lời mời thành công",
-      inviteLink,
-    });
-  } catch (err) {
-    console.error("Lỗi gửi lời mời:", err);
-    res.status(500).json({
-      message: "Lỗi khi gửi lời mời",
-      error: err.message,
-    });
-  }
+		// 8. Phản hồi
+		res.status(200).json({
+			message: 'Đã gửi lời mời thành công',
+			inviteLink,
+		});
+	} catch (err) {
+		console.error('Lỗi gửi lời mời:', err);
+		res.status(500).json({
+			message: 'Lỗi khi gửi lời mời',
+			error: err.message,
+		});
+	}
 };
 
 // Xác nhận lời mời
