@@ -114,6 +114,14 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       assignedTo,
       listTitle: task.listTitle,
       assignedBy: task.assignedBy,
+      documents:
+        Array.isArray(updatedFields.documents) && updatedFields.documents.length
+          ? updatedFields.documents
+          : task.documents,
+      checklist:
+        Array.isArray(updatedFields.checklist) && updatedFields.checklist.length
+          ? updatedFields.checklist
+          : task.checklist,
     };
   };
 
@@ -141,7 +149,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate(mergeTask(res.data.data));
+      // onUpdate(mergeTask(res.data.data));
+      await refreshTaskData();
       setToastMessage("Cập nhật tiêu đề thành công");
       setShowToast(true);
       setIsEditingTitle(false);
@@ -166,7 +175,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      onUpdate(mergeTask(res.data.data));
+      // onUpdate(mergeTask(res.data.data));
+      await refreshTaskData();
       setIsEditingDesc(false);
       setToastMessage("Cập nhật mô tả thành công");
       setShowToast(true);
@@ -189,7 +199,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       );
 
       const updatedFields = res.data.data;
-      onUpdate(mergeTask({ ...updatedFields, assignedTo: user }));
+      // onUpdate(mergeTask({ ...updatedFields, assignedTo: user }));
+      await refreshTaskData();
       setToastMessage(`Đã giao nhiệm vụ cho ${user.username || user.email}`);
       setShowToast(true);
       setShowInviteModal(false);
@@ -209,7 +220,8 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const updatedFields = res.data.data;
-      onUpdate(mergeTask(updatedFields));
+      // onUpdate(mergeTask(updatedFields));
+      await refreshTaskData();
       setToastMessage("Xóa thành công !");
       setShowToast(true);
     } catch (err) {
@@ -406,6 +418,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   mergeTask={mergeTask}
                   minDate={boardWorkStart}
                   maxDate={boardWorkEnd}
+                   refreshTaskData={refreshTaskData}
                 />
               )}
 
@@ -426,8 +439,12 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     isOpen={showChecklistModal}
                     onClose={() => setShowChecklistModal(false)}
                     task={task}
-                    onAdd={(updatedField) => {
-                      onUpdate(mergeTask(updatedField));
+                    // onAdd={(updatedField) => {
+                    //   onUpdate(mergeTask(updatedField));
+                    //   setShowChecklistModal(false);
+                    // }}
+                    onAdd={async () => {
+                      await refreshTaskData();
                       setShowChecklistModal(false);
                     }}
                   />
@@ -592,8 +609,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
             {/* CHECKLIST */}
             <ProgressTask
               task={task}
-              mergeTask={mergeTask}
-              onUpdate={onUpdate}
+              // mergeTask={mergeTask}
+              // onUpdate={onUpdate}
+              refreshTaskData={refreshTaskData}
               isAssignee={isAssignee}
               isAssigner={isAssigner}
             />

@@ -5,8 +5,9 @@ import { Button } from "react-bootstrap";
 
 const ProgressTask = ({
   task,
-  mergeTask,
-  onUpdate,
+  // mergeTask,
+  // onUpdate,
+  refreshTaskData,
   isAssignee,
   isAssigner,
 }) => {
@@ -32,7 +33,9 @@ const ProgressTask = ({
         { checklist: newList },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      onUpdate(mergeTask(res.data.data));
+      // onUpdate(mergeTask(res.data.data));
+      await refreshTaskData();
+
     } catch (err) {
       console.error("Cập nhật tiến độ thất bại:", err);
       alert(
