@@ -29,9 +29,11 @@ const CreateBoardModal = ({ show, onHide, workspaceId, onCreated }) => {
 			.get(`${apiBaseUrl}/skills`, {
 				headers: { Authorization: `Bearer ${accessToken}` },
 			})
-			.then((res) => setSkillsOptions(res.data.skills || []))
+			.then((res) => setSkillsOptions(res.data.data.skills || []))
 			.catch(() => toast.error('Không lấy được danh sách kỹ năng'));
 	}, [show]);
+	console.log("skill", skillsOptions);
+	
 
 	useEffect(() => {
 		if (!show) {

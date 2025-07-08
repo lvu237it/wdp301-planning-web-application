@@ -1,0 +1,422 @@
+[
+  {
+    "name": "JavaScript",
+    "icon": "devicon:javascript-plain",
+    "tags": ["dev", "language", "frontend", "backend"],
+    "value": "javascript",
+    "label": "JavaScript"
+  },
+  {
+    "name": "TypeScript",
+    "icon": "devicon:typescript-plain",
+    "tags": ["dev", "language", "frontend", "backend"],
+    "value": "typescript",
+    "label": "TypeScript"
+  },
+  {
+    "name": "Java",
+    "icon": "devicon:java-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "java",
+    "label": "Java"
+  },
+  {
+    "name": "Python",
+    "icon": "devicon:python-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "python",
+    "label": "Python"
+  },
+  {
+    "name": "C#",
+    "icon": "devicon:csharp-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "csharp",
+    "label": "C#"
+  },
+  {
+    "name": "Go",
+    "icon": "devicon:go-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "go",
+    "label": "Go"
+  },
+  {
+    "name": "PHP",
+    "icon": "devicon:php-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "php",
+    "label": "PHP"
+  },
+  {
+    "name": "Ruby",
+    "icon": "devicon:ruby-plain",
+    "tags": ["dev", "language", "backend"],
+    "value": "ruby",
+    "label": "Ruby"
+  },
+  {
+    "name": "Node.js",
+    "icon": "devicon:nodejs-plain",
+    "tags": ["dev", "runtime", "backend"],
+    "value": "nodejs",
+    "label": "Node.js"
+  },
+  {
+    "name": "React",
+    "icon": "devicon:react-original",
+    "tags": ["dev", "framework", "frontend"],
+    "value": "react",
+    "label": "React"
+  },
+  {
+    "name": "Angular",
+    "icon": "devicon:angularjs-plain",
+    "tags": ["dev", "framework", "frontend"],
+    "value": "angular",
+    "label": "Angular"
+  },
+  {
+    "name": "Vue.js",
+    "icon": "devicon:vuejs-plain",
+    "tags": ["dev", "framework", "frontend"],
+    "value": "vuejs",
+    "label": "Vue.js"
+  },
+  {
+    "name": "HTML5",
+    "icon": "devicon:html5-plain",
+    "tags": ["dev", "markup", "frontend"],
+    "value": "html5",
+    "label": "HTML5"
+  },
+  {
+    "name": "CSS3",
+    "icon": "devicon:css3-plain",
+    "tags": ["dev", "style", "frontend"],
+    "value": "css3",
+    "label": "CSS3"
+  },
+  {
+    "name": "Bootstrap",
+    "icon": "devicon:bootstrap-plain",
+    "tags": ["dev", "framework", "frontend"],
+    "value": "bootstrap",
+    "label": "Bootstrap"
+  },
+  {
+    "name": "Tailwind CSS",
+    "icon": "devicon:tailwindcss-plain",
+    "tags": ["dev", "framework", "frontend"],
+    "value": "tailwindcss",
+    "label": "Tailwind CSS"
+  },
+  {
+    "name": "MySQL",
+    "icon": "devicon:mysql-plain",
+    "tags": ["dev", "database"],
+    "value": "mysql",
+    "label": "MySQL"
+  },
+  {
+    "name": "PostgreSQL",
+    "icon": "devicon:postgresql-plain",
+    "tags": ["dev", "database"],
+    "value": "postgresql",
+    "label": "PostgreSQL"
+  },
+  {
+    "name": "MongoDB",
+    "icon": "devicon:mongodb-plain",
+    "tags": ["dev", "database"],
+    "value": "mongodb",
+    "label": "MongoDB"
+  },
+  {
+    "name": "Redis",
+    "icon": "devicon:redis-plain",
+    "tags": ["dev", "database"],
+    "value": "redis",
+    "label": "Redis"
+  },
+  {
+    "name": "Docker",
+    "icon": "devicon:docker-plain",
+    "tags": ["devops", "infrastructure"],
+    "value": "docker",
+    "label": "Docker"
+  },
+  {
+    "name": "Kubernetes",
+    "icon": "devicon:kubernetes-plain",
+    "tags": ["devops", "infrastructure"],
+    "value": "kubernetes",
+    "label": "Kubernetes"
+  },
+  {
+    "name": "AWS",
+    "icon": "logos:aws",
+    "tags": ["cloud", "infrastructure"],
+    "value": "aws",
+    "label": "AWS"
+  },
+  {
+    "name": "Azure",
+    "icon": "logos:microsoft-azure",
+    "tags": ["cloud", "infrastructure"],
+    "value": "azure",
+    "label": "Azure"
+  },
+  {
+    "name": "Google Cloud",
+    "icon": "logos:google-cloud",
+    "tags": ["cloud", "infrastructure"],
+    "value": "googlecloud",
+    "label": "Google Cloud"
+  },
+  {
+    "name": "Terraform",
+    "icon": "logos:terraform",
+    "tags": ["devops", "infrastructure"],
+    "value": "terraform",
+    "label": "Terraform"
+  },
+  {
+    "name": "Ansible",
+    "icon": "logos:ansible",
+    "tags": ["devops", "infrastructure"],
+    "value": "ansible",
+    "label": "Ansible"
+  },
+  {
+    "name": ".NET",
+    "icon": "devicon:dot-net-plain",
+    "tags": ["dev", "framework", "backend"],
+    "value": "dotnet",
+    "label": ".NET"
+  },
+  {
+    "name": "Spring",
+    "icon": "logos:spring",
+    "tags": ["dev", "framework", "backend"],
+    "value": "spring",
+    "label": "Spring"
+  },
+  {
+    "name": "Django",
+    "icon": "logos:django",
+    "tags": ["dev", "framework", "backend"],
+    "value": "django",
+    "label": "Django"
+  },
+  {
+    "name": "Flask",
+    "icon": "logos:flask",
+    "tags": ["dev", "framework", "backend"],
+    "value": "flask",
+    "label": "Flask"
+  },
+  {
+    "name": "GraphQL",
+    "icon": "logos:graphql",
+    "tags": ["dev", "api"],
+    "value": "graphql",
+    "label": "GraphQL"
+  },
+  {
+    "name": "REST API",
+    "icon": "fa-solid:code",
+    "tags": ["dev", "api"],
+    "value": "restapi",
+    "label": "REST API"
+  },
+  {
+    "name": "Git",
+    "icon": "devicon:git-plain",
+    "tags": ["dev", "version_control"],
+    "value": "git",
+    "label": "Git"
+  },
+  {
+    "name": "GitHub",
+    "icon": "devicon:github-original",
+    "tags": ["dev", "version_control"],
+    "value": "github",
+    "label": "GitHub"
+  },
+  {
+    "name": "Jenkins",
+    "icon": "devicon:jenkins-plain",
+    "tags": ["devops", "ci_cd"],
+    "value": "jenkins",
+    "label": "Jenkins"
+  },
+  {
+    "name": "GitHub Actions",
+    "icon": "fa-brands:github",
+    "tags": ["devops", "ci_cd"],
+    "value": "githubactions",
+    "label": "GitHub Actions"
+  },
+  {
+    "name": "Jest",
+    "icon": "logos:jest",
+    "tags": ["testing", "qa"],
+    "value": "jest",
+    "label": "Jest"
+  },
+  {
+    "name": "Selenium",
+    "icon": "logos:selenium",
+    "tags": ["testing", "qa"],
+    "value": "selenium",
+    "label": "Selenium"
+  },
+  {
+    "name": "Microsoft Word",
+    "icon": "fa-solid:file-word",
+    "tags": ["office", "microsoft"],
+    "value": "microsoftword",
+    "label": "Microsoft Word"
+  },
+  {
+    "name": "Microsoft Excel",
+    "icon": "fa-solid:file-excel",
+    "tags": ["office", "microsoft"],
+    "value": "microsoftexcel",
+    "label": "Microsoft Excel"
+  },
+  {
+    "name": "Microsoft PowerPoint",
+    "icon": "fa-solid:file-powerpoint",
+    "tags": ["office", "microsoft"],
+    "value": "microsoftpowerpoint",
+    "label": "Microsoft PowerPoint"
+  },
+  {
+    "name": "Google Docs",
+    "icon": "si:googledocs",
+    "tags": ["office", "google"],
+    "value": "googledocs",
+    "label": "Google Docs"
+  },
+  {
+    "name": "Google Sheets",
+    "icon": "si:googlesheets",
+    "tags": ["office", "google"],
+    "value": "googlesheets",
+    "label": "Google Sheets"
+  },
+  {
+    "name": "Google Slides",
+    "icon": "si:googleslides",
+    "tags": ["office", "google"],
+    "value": "googleslides",
+    "label": "Google Slides"
+  },
+  {
+    "name": "Adobe Photoshop",
+    "icon": "logos:adobe-photoshop",
+    "tags": ["design", "adobe"],
+    "value": "adobephotoshop",
+    "label": "Adobe Photoshop"
+  },
+  {
+    "name": "Adobe Illustrator",
+    "icon": "logos:adobe-illustrator",
+    "tags": ["design", "adobe"],
+    "value": "adobeillustrator",
+    "label": "Adobe Illustrator"
+  },
+  {
+    "name": "Adobe InDesign",
+    "icon": "simple-icons:adobeindesign",
+    "tags": ["design", "adobe"],
+    "value": "adobeindesign",
+    "label": "Adobe InDesign"
+  },
+  {
+    "name": "Adobe Premiere Pro",
+    "icon": "fa-solid:film",
+    "tags": ["design", "adobe"],
+    "value": "adobepremierepro",
+    "label": "Adobe Premiere Pro"
+  },
+  {
+    "name": "Adobe After Effects",
+    "icon": "simple-icons:adobeaftereffects",
+    "tags": ["design", "adobe"],
+    "value": "adobeaftereffects",
+    "label": "Adobe After Effects"
+  },
+  {
+    "name": "Adobe Lightroom",
+    "icon": "simple-icons:adobelightroom",
+    "tags": ["design", "adobe"],
+    "value": "adobelightroom",
+    "label": "Adobe Lightroom"
+  },
+  {
+    "name": "Figma",
+    "icon": "logos:figma",
+    "tags": ["design", "pm"],
+    "value": "figma",
+    "label": "Figma"
+  },
+  {
+    "name": "Sketch",
+    "icon": "logos:sketch",
+    "tags": ["design"],
+    "value": "sketch",
+    "label": "Sketch"
+  },
+  {
+    "name": "Jira",
+    "icon": "logos:jira",
+    "tags": ["pm", "ba"],
+    "value": "jira",
+    "label": "Jira"
+  },
+  {
+    "name": "Confluence",
+    "icon": "logos:confluence",
+    "tags": ["pm", "ba"],
+    "value": "confluence",
+    "label": "Confluence"
+  },
+  {
+    "name": "Trello",
+    "icon": "devicon:trello-plain",
+    "tags": ["pm", "ba"],
+    "value": "trello",
+    "label": "Trello"
+  },
+  {
+    "name": "Miro",
+    "icon": "logos:miro",
+    "tags": ["pm", "ba"],
+    "value": "miro",
+    "label": "Miro"
+  },
+  {
+    "name": "Slack",
+    "icon": "devicon:slack-plain",
+    "tags": ["workflow", "communication"],
+    "value": "slack",
+    "label": "Slack"
+  },
+  {
+    "name": "Postman",
+    "icon": "devicon:postman-plain",
+    "tags": ["testing", "qa"],
+    "value": "postman",
+    "label": "Postman"
+  },
+  {
+    "name": "Cucumber",
+    "icon": "devicon:cucumber-plain",
+    "tags": ["testing", "qa"],
+    "value": "cucumber",
+    "label": "Cucumber"
+  }
+]

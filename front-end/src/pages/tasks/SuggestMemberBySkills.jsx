@@ -26,7 +26,7 @@ export default function SuggestMemberBySkills({
       })
       .then((res) => {
         setAllSkills(
-          (res.data.skills || []).map((s) => ({
+          (res.data.data.skills || []).map((s) => ({
             value: s.value,
             label: s.label,
           }))
