@@ -62,45 +62,54 @@ const Profile = () => {
     email: '',
     about: '',
     experience: '',
-    skills: [], // Array of skill names (strings)
+    skills: [], // Array of lowercase skill values
     yearOfExperience: 0,
-    availability: { status: 'available', willingToJoin: true },
-    expectedWorkDuration: { min: 0, max: 0, unit: 'hours' },
+    availability: {
+      status: 'available',
+      willingToJoin: true,
+    },
+    expectedWorkDuration: {
+      startDate: '', // e.g. "2025-07-01"
+      endDate: '', // e.g. "2025-12-31"
+    },
   });
   const [newSkill, setNewSkill] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Load profile on mount
   useEffect(() => {
     const loadProfile = async () => {
       const user = await fetchUserProfile();
-      if (user) {
-        // Normalize skills to use skill names (strings) from backend
-        const normalizedSkills = (user.skills || [])
-          .map((skill) =>
-            typeof skill === 'string' ? skill : skill?.name || ''
-          )
-          .filter(Boolean); // Remove any undefined/null entries
-        setProfile(user);
-        setFormData({
-          avatar: user.avatar || '',
-          fullname: user.fullname || '',
-          username: user.username || '',
-          email: user.email || '',
-          about: user.about || '',
-          experience: user.experience || '',
-          skills: normalizedSkills,
-          yearOfExperience: user.yearOfExperience || 0,
-          availability: user.availability || {
-            status: 'available',
-            willingToJoin: true,
-          },
-          expectedWorkDuration: user.expectedWorkDuration || {
-            min: 0,
-            max: 0,
-            unit: 'hours',
-          },
-        });
-      }
+      if (!user) return;
+
+      // Normalize skills to lowercase strings
+      const normalizedSkills = (user.skills || []).map((s) =>
+        typeof s === 'string' ? s : s?.value || ''
+      );
+
+      setProfile(user);
+      setFormData({
+        avatar: user.avatar || '',
+        fullname: user.fullname || '',
+        username: user.username || '',
+        email: user.email || '',
+        about: user.about || '',
+        experience: user.experience || '',
+        skills: normalizedSkills,
+        yearOfExperience: user.yearOfExperience || 0,
+        availability: user.availability || {
+          status: 'available',
+          willingToJoin: true,
+        },
+        expectedWorkDuration: {
+          startDate: user.expectedWorkDuration?.startDate
+            ? user.expectedWorkDuration.startDate.split('T')[0]
+            : '',
+          endDate: user.expectedWorkDuration?.endDate
+            ? user.expectedWorkDuration.endDate.split('T')[0]
+            : '',
+        },
+      });
     };
     loadProfile();
 
@@ -139,10 +148,11 @@ const Profile = () => {
       setIsLinkingGoogle(false);
     }
   }, []);
-  // fetchUserProfile
 
+  // Handle all form inputs, including nested fields
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+
     if (name.includes('availability.')) {
       const key = name.split('.')[1];
       setFormData((prev) => ({
@@ -153,12 +163,12 @@ const Profile = () => {
         },
       }));
     } else if (name.includes('expectedWorkDuration.')) {
-      const key = name.split('.')[1];
+      const key = name.split('.')[1]; // "startDate" or "endDate"
       setFormData((prev) => ({
         ...prev,
         expectedWorkDuration: {
           ...prev.expectedWorkDuration,
-          [key]: key === 'unit' ? value : Number(value),
+          [key]: value,
         },
       }));
     } else {
@@ -169,38 +179,36 @@ const Profile = () => {
     }
   };
 
-  // Filter skills, excluding already selected and matching name or tags
+  // Skill search/filter
   const filteredSkills = (skillsList || []).filter((s) => {
-    if (!s || !s.name || !s.tags) return false; // Skip invalid skill objects
+    if (!s?.value || !Array.isArray(s.tags)) return false;
     return (
-      !formData.skills.some(
-        (fs) => fs.toLowerCase() === s.name.toLowerCase()
-      ) &&
-      (s.name.toLowerCase().includes(newSkill.toLowerCase()) ||
-        (Array.isArray(s.tags) &&
-          s.tags.some((t) => t.toLowerCase().includes(newSkill.toLowerCase()))))
+      !formData.skills.includes(s.value) &&
+      (s.value.includes(newSkill.toLowerCase()) ||
+        s.tags.some((t) => t.toLowerCase().includes(newSkill.toLowerCase())))
     );
   });
 
   const handleSearchChange = (e) => {
-    setNewSkill(e.target.value);
+    setNewSkill(e.target.value.toLowerCase());
     setShowSuggestions(true);
   };
 
-  const handleSelectSkill = (skillName) => {
+  const handleSelectSkill = (skillValue) => {
     setFormData((prev) => ({
       ...prev,
-      skills: [...prev.skills, skillName],
+      skills: [...prev.skills, skillValue],
     }));
     setNewSkill('');
     setShowSuggestions(false);
   };
 
-  const handleRemoveSkill = (skill) =>
+  const handleRemoveSkill = (skillValue) => {
     setFormData((prev) => ({
       ...prev,
-      skills: prev.skills.filter((s) => s !== skill),
+      skills: prev.skills.filter((v) => v !== skillValue),
     }));
+  };
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -217,24 +225,10 @@ const Profile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Map skill names to their corresponding _id values
-    const skillIds = formData.skills
-      .map((skillName) => {
-        const skill = skillsList.find(
-          (s) => s?.name && s.name.toLowerCase() === skillName.toLowerCase()
-        );
-        return skill ? skill._id : null;
-      })
-      .filter((id) => id !== null);
-
-    const updatedFormData = { ...formData, skills: skillIds };
-    const ok = await updateUserProfile(updatedFormData);
+    // We now send skills as array of values, plus the two dates
+    const ok = await updateUserProfile(formData);
     if (ok) {
-      setProfile((prev) => ({
-        ...prev,
-        ...formData,
-        skills: formData.skills.map((name) => ({ name })), // Update profile.skills to match formData
-      }));
+      setProfile((prev) => ({ ...prev, ...formData }));
       setIsEditing(false);
       toast.success('Profile updated');
     }
@@ -247,7 +241,6 @@ const Profile = () => {
       </div>
     );
   }
-
   if (skillsError) {
     return (
       <div className='d-flex justify-content-center align-items-center vh-100'>
@@ -368,24 +361,24 @@ const Profile = () => {
             <div className='mt-2'>
               <Badge
                 bg={
-                  profile.availability?.status === 'available'
+                  profile.availability.status === 'available'
                     ? 'success'
                     : 'danger'
                 }
                 className='me-2'
               >
                 <FaCheckCircle />{' '}
-                {profile.availability?.status === 'available'
+                {profile.availability.status === 'available'
                   ? 'Available'
                   : 'Busy'}
               </Badge>
-              {profile.availability?.willingToJoin && (
+              {profile.availability.willingToJoin && (
                 <Badge bg='info' className='me-2'>
                   Open to opportunities
                 </Badge>
               )}
               <Badge bg='warning'>
-                <FaCalendarAlt /> {profile.yearOfExperience || 0} yrs
+                <FaCalendarAlt /> {profile.yearOfExperience} yrs
               </Badge>
             </div>
           </div>
@@ -415,11 +408,9 @@ const Profile = () => {
             <Card.Header>Work Preferences</Card.Header>
             <Card.Body>
               <p>
-                Duration: {profile.expectedWorkDuration?.min || 0}–
-                {profile.expectedWorkDuration?.max || 0}{' '}
-                {profile.expectedWorkDuration?.unit || 'hours'}
+                Contract: {profile.expectedWorkDuration.startDate || '—'} –{' '}
+                {profile.expectedWorkDuration.endDate || '—'}
               </p>
-              <p>Status: {profile.availability?.status || 'available'}</p>
             </Card.Body>
           </Card>
         </Col>
@@ -427,16 +418,12 @@ const Profile = () => {
           <Card className='profile-card'>
             <Card.Header>Skills</Card.Header>
             <Card.Body>
-              {profile.skills?.length ? (
-                profile.skills.map((s, i) => {
-                  const skillObj = skillsList.find(
-                    (sk) =>
-                      sk?.name && sk.name.toLowerCase() === s.name.toLowerCase()
-                  );
+              {profile.skills.length > 0 ? (
+                profile.skills.map((val, i) => {
+                  const sk = skillsList.find((s) => s.value === val);
                   return (
                     <Badge bg='secondary' key={i} className='me-1 mb-1'>
-                      {renderIcon(skillObj?.icon || '')}
-                      <span>{skillObj?.name || s.name}</span>
+                      {renderIcon(sk?.icon)} {sk?.value || val}
                     </Badge>
                   );
                 })
@@ -516,6 +503,7 @@ const Profile = () => {
           </Modal.Header>
           <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
             <Row className='g-3'>
+              {/* Fullname, Username, Email */}
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Full Name</Form.Label>
@@ -550,6 +538,8 @@ const Profile = () => {
                   />
                 </Form.Group>
               </Col>
+
+              {/* About & Experience */}
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>About</Form.Label>
@@ -574,6 +564,8 @@ const Profile = () => {
                   />
                 </Form.Group>
               </Col>
+
+              {/* Years & Availability */}
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Years of Exp</Form.Label>
@@ -608,45 +600,34 @@ const Profile = () => {
                   onChange={handleInputChange}
                 />
               </Col>
-              <Col md={4}>
+
+              {/* Contract Dates */}
+              <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Min</Form.Label>
+                  <Form.Label>Contract Start</Form.Label>
                   <Form.Control
-                    type='number'
-                    name='expectedWorkDuration.min'
-                    min={0}
-                    value={formData.expectedWorkDuration.min}
+                    type='date'
+                    name='expectedWorkDuration.startDate'
+                    value={formData.expectedWorkDuration.startDate}
                     onChange={handleInputChange}
+                    required
                   />
                 </Form.Group>
               </Col>
-              <Col md={4}>
+              <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Max</Form.Label>
+                  <Form.Label>Contract End</Form.Label>
                   <Form.Control
-                    type='number'
-                    name='expectedWorkDuration.max'
-                    min={0}
-                    value={formData.expectedWorkDuration.max}
+                    type='date'
+                    name='expectedWorkDuration.endDate'
+                    value={formData.expectedWorkDuration.endDate}
                     onChange={handleInputChange}
+                    required
                   />
                 </Form.Group>
               </Col>
-              <Col md={4}>
-                <Form.Group>
-                  <Form.Label>Unit</Form.Label>
-                  <Form.Select
-                    name='expectedWorkDuration.unit'
-                    value={formData.expectedWorkDuration.unit}
-                    onChange={handleInputChange}
-                  >
-                    <option value='hours'>Hours</option>
-                    <option value='days'>Days</option>
-                    <option value='weeks'>Weeks</option>
-                    <option value='months'>Months</option>
-                  </Form.Select>
-                </Form.Group>
-              </Col>
+
+              {/* Skills */}
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Skills</Form.Label>
@@ -664,23 +645,14 @@ const Profile = () => {
                       <Button
                         variant='outline-secondary'
                         disabled={
-                          !newSkill.trim() ||
-                          !skillsList.find(
-                            (s) =>
-                              s?.name &&
-                              s.name.toLowerCase() ===
-                                newSkill.trim().toLowerCase()
-                          )
+                          !filteredSkills.find((s) => s.value === newSkill)
                         }
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          const match = skillsList.find(
-                            (s) =>
-                              s?.name &&
-                              s.name.toLowerCase() ===
-                                newSkill.trim().toLowerCase()
+                          const match = filteredSkills.find(
+                            (s) => s.value === newSkill
                           );
-                          if (match) handleSelectSkill(match.name);
+                          if (match) handleSelectSkill(match.value);
                         }}
                       >
                         <FaPlus />
@@ -692,11 +664,11 @@ const Profile = () => {
                           <div
                             key={s._id}
                             className='skill-search-item d-flex justify-content-between align-items-center'
-                            onMouseDown={() => handleSelectSkill(s.name)}
+                            onMouseDown={() => handleSelectSkill(s.value)}
                           >
                             <div>
-                              {renderIcon(s.icon || '')}
-                              <span className='ms-1'>{s.name}</span>
+                              {renderIcon(s.icon)}
+                              <span className='ms-1'>{s.value}</span>
                             </div>
                             <small className='text-muted'>
                               {(s.tags || []).join(', ')}
@@ -707,15 +679,15 @@ const Profile = () => {
                     )}
                   </div>
                   <div className='mt-2'>
-                    {formData.skills.map((s, i) => (
+                    {formData.skills.map((val, i) => (
                       <Badge bg='secondary' key={i} className='me-1 mb-1'>
                         {renderIcon(
-                          skillsList.find((sk) => sk?.name === s)?.icon || ''
+                          skillsList.find((sk) => sk.value === val)?.icon
                         )}
-                        {s}{' '}
+                        {val}{' '}
                         <FaTimes
                           style={{ cursor: 'pointer' }}
-                          onClick={() => handleRemoveSkill(s)}
+                          onClick={() => handleRemoveSkill(val)}
                         />
                       </Badge>
                     ))}

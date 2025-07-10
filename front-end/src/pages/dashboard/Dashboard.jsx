@@ -387,7 +387,7 @@ const Dashboard = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-5'>
               <Card className='border-0 shadow-md bg-gradient-to-r from-blue-500 to-blue-600 text-white'>
                 <CardContent className='p-4'>
                   <div className='flex items-center justify-between'>
@@ -452,12 +452,12 @@ const Dashboard = () => {
                 {/* Workspaces */}
                 <Card className='border-0 shadow-md'>
                   <CardHeader
-                    className='cursor-pointer hover:bg-gray-50 transition-colors py-3'
+                    className='px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors'
                     onClick={() => toggleSection('workspaces')}
                   >
                     <CardTitle className='flex items-center justify-between text-base'>
                       <div className='flex items-center gap-2'>
-                        <FolderOpen className='h-4 w-4' />
+                        <FolderOpen className='-mt-1 h-4 w-4' />
                         Your Workspaces
                         <Badge variant='secondary' className='text-xs'>
                           {workspaces.length}
@@ -474,14 +474,15 @@ const Dashboard = () => {
                     </CardDescription>
                   </CardHeader>
                   {expandedSections.workspaces && (
-                    <CardContent className='pt-0'>
+                    <CardContent className='p-4'>
                       {paginatedWorkspaces.length === 0 ? (
                         <p className='text-gray-500 text-center py-4 text-sm'>
                           No workspaces available.
                         </p>
                       ) : (
                         <>
-                          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                          {/* ↑ Increased gap here from 4 → 5 */}
+                          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
                             {paginatedWorkspaces.map((workspace) => (
                               <Card
                                 key={workspace._id}
@@ -529,12 +530,12 @@ const Dashboard = () => {
                 {selectedWorkspace && (
                   <Card className='border-0 shadow-md'>
                     <CardHeader
-                      className='cursor-pointer hover:bg-gray-50 transition-colors py-3'
+                      className='px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors'
                       onClick={() => toggleSection('boards')}
                     >
                       <CardTitle className='flex items-center justify-between text-base'>
                         <div className='flex items-center gap-2'>
-                          <CheckSquare className='h-4 w-4' />
+                          <CheckSquare className='-mt-1 h-4 w-4' />
                           {selectedWorkspace.name} - Boards
                           <Badge variant='secondary' className='text-xs'>
                             {boards.length}
@@ -551,14 +552,15 @@ const Dashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     {expandedSections.boards && (
-                      <CardContent className='pt-0'>
+                      <CardContent className='p-4'>
                         {paginatedBoards.length === 0 ? (
                           <p className='text-gray-500 text-center py-4 text-sm'>
                             No boards available.
                           </p>
                         ) : (
                           <>
-                            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                            {/* ↑ Increased gap here from 4 → 5 */}
+                            <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
                               {paginatedBoards.map((board) => (
                                 <Card
                                   key={board._id}
@@ -594,12 +596,12 @@ const Dashboard = () => {
                 {selectedBoard && (
                   <Card className='border-0 shadow-md'>
                     <CardHeader
-                      className='cursor-pointer hover:bg-gray-50 transition-colors py-3'
+                      className='px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors'
                       onClick={() => toggleSection('lists')}
                     >
                       <CardTitle className='flex items-center justify-between text-base'>
                         <div className='flex items-center gap-2'>
-                          <List className='h-4 w-4' />
+                          <List className='-mt-1 h-4 w-4' />
                           {selectedBoard.name} - Lists
                           <Badge variant='secondary' className='text-xs'>
                             {lists.length}
@@ -616,13 +618,14 @@ const Dashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     {expandedSections.lists && (
-                      <CardContent className='pt-0'>
+                      <CardContent className='p-4'>
                         {lists.length === 0 ? (
                           <p className='text-gray-500 text-center py-4 text-sm'>
                             No lists available.
                           </p>
                         ) : (
-                          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                          /* ↑ Increased gap here from 4 → 5 */
+                          <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
                             {lists.map((list) => (
                               <Card
                                 key={list._id}
@@ -662,7 +665,7 @@ const Dashboard = () => {
                 {selectedBoard && (
                   <Card className='border-0 shadow-md'>
                     <CardHeader
-                      className='cursor-pointer hover:bg-gray-50 transition-colors py-3'
+                      className='px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors'
                       onClick={() => toggleSection('tasks')}
                     >
                       <CardTitle className='flex items-center justify-between text-base'>
@@ -684,7 +687,7 @@ const Dashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     {expandedSections.tasks && (
-                      <CardContent className='pt-0'>
+                      <CardContent className='p-4'>
                         {paginatedTasks.length === 0 ? (
                           <p className='text-gray-500 text-center py-4 text-sm'>
                             No tasks available.
@@ -753,7 +756,7 @@ const Dashboard = () => {
                 {selectedWorkspace && (
                   <Card className='border-0 shadow-md'>
                     <CardHeader
-                      className='cursor-pointer hover:bg-gray-50 transition-colors py-3'
+                      className='px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors'
                       onClick={() => toggleSection('users')}
                     >
                       <CardTitle className='flex items-center justify-between text-base'>
@@ -775,7 +778,7 @@ const Dashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     {expandedSections.users && (
-                      <CardContent className='pt-0'>
+                      <CardContent className='p-4'>
                         {paginatedUsers.length === 0 ? (
                           <p className='text-gray-500 text-center py-4 text-sm'>
                             No team members yet.
@@ -833,13 +836,13 @@ const Dashboard = () => {
 
                 {/* Quick Stats */}
                 <Card className='border-0 shadow-md'>
-                  <CardHeader className='py-3'>
+                  <CardHeader className='px-4 py-3'>
                     <CardTitle className='flex items-center gap-2 text-base'>
                       <BarChart3 className='h-4 w-4' />
                       Quick Stats
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className='pt-0 space-y-3'>
+                  <CardContent className='p-4 space-y-3'>
                     <div className='flex items-center justify-between'>
                       <span className='text-xs text-gray-600'>
                         Completed Tasks
@@ -883,7 +886,7 @@ const Dashboard = () => {
                           Overall Progress
                         </span>
                         <span className='text-xs font-medium'>
-                          {overallProgress}%
+                          {overallProgress}%{' '}
                         </span>
                       </div>
                       <Progress value={overallProgress} className='h-1.5' />
