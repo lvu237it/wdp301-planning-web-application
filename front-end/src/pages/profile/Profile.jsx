@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { initializeIcons } from '@fluentui/font-icons-mdl2';
-import 'devicon/devicon.min.css';
-import { Icon } from '@iconify/react';
-import { SiGoogledocs, SiGooglesheets, SiGoogleslides } from 'react-icons/si';
+import React, { useState, useEffect } from "react";
+import { initializeIcons } from "@fluentui/font-icons-mdl2";
+import "devicon/devicon.min.css";
+import { Icon } from "@iconify/react";
+import { SiGoogledocs, SiGooglesheets, SiGoogleslides } from "react-icons/si";
 import {
   Container,
   Row,
@@ -16,7 +16,7 @@ import {
   Modal,
   InputGroup,
   FormControl,
-} from 'react-bootstrap';
+} from "react-bootstrap";
 import {
   FaCamera,
   FaEdit,
@@ -26,13 +26,29 @@ import {
   FaCheckCircle,
   FaPlus,
   FaTimes,
-} from 'react-icons/fa';
-import { useCommon } from '../../contexts/CommonContext';
-import './profile.css';
-import { FaGoogle, FaLink, FaUnlink, FaInfoCircle } from 'react-icons/fa';
+  FaLink,
+  FaUnlink,
+  FaGoogle,
+} from "react-icons/fa";
+import { useCommon } from "../../contexts/CommonContext";
+import "./profile.css";
+
+// ** New imports for date picker **
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 // Initialize Fluent UI MDL2 icons
 initializeIcons();
+
+// Helper to format any ISO date (with time) into `dd/mm/yyyy`
+const formatDateDisplay = (isoDate) => {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 const Profile = () => {
   const {
@@ -44,7 +60,6 @@ const Profile = () => {
     skillsList,
     loadingSkills,
     skillsError,
-    // Google linking functions
     googleLinkStatus,
     checkGoogleLinkStatus,
     linkGoogleAccount,
@@ -56,24 +71,24 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    avatar: '',
-    fullname: '',
-    username: '',
-    email: '',
-    about: '',
-    experience: '',
-    skills: [], // Array of lowercase skill values
+    avatar: "",
+    fullname: "",
+    username: "",
+    email: "",
+    about: "",
+    experience: "",
+    skills: [],
     yearOfExperience: 0,
     availability: {
-      status: 'available',
+      status: "available",
       willingToJoin: true,
     },
     expectedWorkDuration: {
-      startDate: '', // e.g. "2025-07-01"
-      endDate: '', // e.g. "2025-12-31"
+      startDate: "",
+      endDate: "",
     },
   });
-  const [newSkill, setNewSkill] = useState('');
+  const [newSkill, setNewSkill] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Load profile on mount
@@ -82,104 +97,92 @@ const Profile = () => {
       const user = await fetchUserProfile();
       if (!user) return;
 
-      // Normalize skills to lowercase strings
+      // Normalize skills
       const normalizedSkills = (user.skills || []).map((s) =>
-        typeof s === 'string' ? s : s?.value || ''
+        typeof s === "string" ? s : s?.value || ""
       );
 
       setProfile(user);
       setFormData({
-        avatar: user.avatar || '',
-        fullname: user.fullname || '',
-        username: user.username || '',
-        email: user.email || '',
-        about: user.about || '',
-        experience: user.experience || '',
+        avatar: user.avatar || "",
+        fullname: user.fullname || "",
+        username: user.username || "",
+        email: user.email || "",
+        about: user.about || "",
+        experience: user.experience || "",
         skills: normalizedSkills,
         yearOfExperience: user.yearOfExperience || 0,
         availability: user.availability || {
-          status: 'available',
+          status: "available",
           willingToJoin: true,
         },
         expectedWorkDuration: {
           startDate: user.expectedWorkDuration?.startDate
-            ? user.expectedWorkDuration.startDate.split('T')[0]
-            : '',
+            ? user.expectedWorkDuration.startDate
+            : "",
           endDate: user.expectedWorkDuration?.endDate
-            ? user.expectedWorkDuration.endDate.split('T')[0]
-            : '',
+            ? user.expectedWorkDuration.endDate
+            : "",
         },
       });
     };
     loadProfile();
-
-    // Load Google link status
     checkGoogleLinkStatus();
   }, []);
 
-  // Handle query parameters from Google OAuth callback
+  // Handle Google OAuth callback states...
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const error = urlParams.get('error');
-    const message = urlParams.get('message');
+    const success = urlParams.get("success");
+    const error = urlParams.get("error");
+    const message = urlParams.get("message");
 
-    if (success === 'google_link_success') {
-      console.log(
-        '🔗 Google account linking successful - clearing linking state'
-      );
-      toast.success('Google account linked successfully!');
-      // Clear linking state
+    if (success === "google_link_success") {
+      toast.success("Google account linked successfully!");
       setIsLinkingGoogle(false);
-      // Refresh Google link status
       checkGoogleLinkStatus();
-      // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (error === 'google_link_failed') {
-      console.log('🔗 Google account linking failed - clearing linking state');
-      toast.error(message || 'Failed to link Google account');
-      // Clear linking state
+    } else if (error === "google_link_failed") {
+      toast.error(message || "Failed to link Google account");
       setIsLinkingGoogle(false);
-      // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (isLinkingGoogle) {
-      // Clear linking state if user navigates away from linking flow
-      console.log('🔗 Clearing linking state on page load');
       setIsLinkingGoogle(false);
     }
   }, []);
 
-  // Handle all form inputs, including nested fields
+  // Generic input change handler
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-
-    if (name.includes('availability.')) {
-      const key = name.split('.')[1];
+    if (name.includes("availability.")) {
+      const key = name.split(".")[1];
       setFormData((prev) => ({
         ...prev,
         availability: {
           ...prev.availability,
-          [key]: type === 'checkbox' ? checked : value,
-        },
-      }));
-    } else if (name.includes('expectedWorkDuration.')) {
-      const key = name.split('.')[1]; // "startDate" or "endDate"
-      setFormData((prev) => ({
-        ...prev,
-        expectedWorkDuration: {
-          ...prev.expectedWorkDuration,
-          [key]: value,
+          [key]: type === "checkbox" ? checked : value,
         },
       }));
     } else {
       setFormData((prev) => ({
         ...prev,
-        [name]: type === 'checkbox' ? checked : value,
+        [name]: type === "checkbox" ? checked : value,
       }));
     }
   };
 
-  // Skill search/filter
+  // ** New date handler for react-datepicker **
+  const handleDateChange = (date, key) => {
+    setFormData((prev) => ({
+      ...prev,
+      expectedWorkDuration: {
+        ...prev.expectedWorkDuration,
+        [key]: date ? date.toISOString() : "",
+      },
+    }));
+  };
+
+  // Skills filtering
   const filteredSkills = (skillsList || []).filter((s) => {
     if (!s?.value || !Array.isArray(s.tags)) return false;
     return (
@@ -199,7 +202,7 @@ const Profile = () => {
       ...prev,
       skills: [...prev.skills, skillValue],
     }));
-    setNewSkill('');
+    setNewSkill("");
     setShowSuggestions(false);
   };
 
@@ -210,6 +213,7 @@ const Profile = () => {
     }));
   };
 
+  // Avatar upload
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -217,33 +221,33 @@ const Profile = () => {
       const url = await uploadImageToCloudinary(file);
       await updateUserProfile({ avatar: url });
       setProfile((prev) => ({ ...prev, avatar: url }));
-      toast.success('Avatar updated');
+      toast.success("Avatar updated");
     } catch {
-      toast.error('Failed to upload avatar');
+      toast.error("Failed to upload avatar");
     }
   };
 
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // We now send skills as array of values, plus the two dates
     const ok = await updateUserProfile(formData);
     if (ok) {
       setProfile((prev) => ({ ...prev, ...formData }));
       setIsEditing(false);
-      toast.success('Profile updated');
+      toast.success("Profile updated");
     }
   };
 
   if (!profile || loadingSkills) {
     return (
-      <div className='d-flex justify-content-center align-items-center vh-100'>
-        <Spinner animation='border' />
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <Spinner animation="border" />
       </div>
     );
   }
   if (skillsError) {
     return (
-      <div className='d-flex justify-content-center align-items-center vh-100'>
+      <div className="d-flex justify-content-center align-items-center vh-100">
         <p>Error loading skills: {skillsError}</p>
       </div>
     );
@@ -253,131 +257,117 @@ const Profile = () => {
     setIsLinkingGoogle(true);
     try {
       await linkGoogleAccount();
-    } catch (error) {
-      console.error('Error linking Google account:', error);
-      toast.error('Failed to initiate Google account linking');
+    } catch {
+      toast.error("Failed to initiate Google account linking");
     } finally {
       setIsLinkingGoogle(false);
     }
   };
 
   const handleUnlinkGoogle = async () => {
-    // Check if user has password before allowing unlink
     if (!googleLinkStatus?.hasPassword) {
-      toast.error(
-        'Không thể hủy liên kết Google account. Đây là phương thức đăng nhập duy nhất của bạn. Vui lòng thiết lập mật khẩu trước.'
-      );
+      toast.error("Cannot unlink Google: set a password first.");
       return;
     }
-
-    if (
-      window.confirm(
-        'Bạn có chắc chắn muốn hủy liên kết tài khoản Google? Điều này sẽ hạn chế một số tính năng và bạn sẽ chỉ có thể đăng nhập bằng email/password.'
-      )
-    ) {
+    if (window.confirm("Are you sure you want to unlink Google account?")) {
       try {
         await unlinkGoogleAccount();
-        toast.success('Hủy liên kết Google account thành công!');
-        // Refresh Google link status and profile data
-        await Promise.all([checkGoogleLinkStatus(), loadProfile()]);
-      } catch (error) {
-        console.error('Error unlinking Google account:', error);
-        toast.error(
-          error.response?.data?.message ||
-            'Không thể hủy liên kết Google account'
-        );
+        toast.success("Google account unlinked");
+        await Promise.all([checkGoogleLinkStatus()]);
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Unlink failed");
       }
     }
   };
 
   const renderIcon = (iconKey) => {
     if (!iconKey) return null;
-    if (iconKey.startsWith('devicon:')) {
-      return <i className={`${iconKey.replace(':', '-')} colored me-1`} />;
+    if (iconKey.startsWith("devicon:")) {
+      return <i className={`${iconKey.replace(":", "-")} colored me-1`} />;
     }
-    if (iconKey.startsWith('fluent-mdl2:')) {
-      const name = iconKey.split(':')[1];
+    if (iconKey.startsWith("fluent-mdl2:")) {
+      const name = iconKey.split(":")[1];
       return (
-        <i className={`ms-Icon ms-Icon--${name} me-1`} aria-hidden='true' />
+        <i className={`ms-Icon ms-Icon--${name} me-1`} aria-hidden="true" />
       );
     }
-    if (iconKey === 'si:googledocs')
-      return <SiGoogledocs className='me-1' size={20} />;
-    if (iconKey === 'si:googlesheets')
-      return <SiGooglesheets className='me-1' size={20} />;
-    if (iconKey === 'si:googleslides')
-      return <SiGoogleslides className='me-1' size={20} />;
-    return <Icon icon={iconKey} width={20} height={20} className='me-1' />;
+    if (iconKey === "si:googledocs")
+      return <SiGoogledocs className="me-1" size={20} />;
+    if (iconKey === "si:googlesheets")
+      return <SiGooglesheets className="me-1" size={20} />;
+    if (iconKey === "si:googleslides")
+      return <SiGoogleslides className="me-1" size={20} />;
+    return <Icon icon={iconKey} width={20} height={20} className="me-1" />;
   };
 
   return (
-    <Container className={`${isMobile ? 'mobile' : ''} profile-content`}>
+    <Container className={`${isMobile ? "mobile" : ""} profile-content`}>
       {/* Header */}
-      <Card className='mb-4'>
-        <div className='profile-cover' />
-        <Card.Body className='d-flex align-items-end profile-info'>
-          <div className='position-relative me-4 profile-avatar'>
+      <Card className="mb-4">
+        <div className="profile-cover" />
+        <Card.Body className="d-flex align-items-end profile-info">
+          <div className="position-relative me-4 profile-avatar">
             <Image
-              src={profile.avatar || 'https://via.placeholder.com/120'}
+              src={profile.avatar || "https://via.placeholder.com/120"}
               roundedCircle
               width={120}
               height={120}
-              alt='avatar'
+              alt="avatar"
             />
-            <label className='btn-edit-avatar'>
+            <label className="btn-edit-avatar">
               <Form.Control
-                type='file'
-                accept='image/*'
+                type="file"
+                accept="image/*"
                 hidden
                 onChange={handleImageUpload}
               />
               <FaCamera />
             </label>
           </div>
-          <div className='flex-grow-1'>
-            <div className='d-flex justify-content-between align-items-center'>
+          <div className="flex-grow-1">
+            <div className="d-flex justify-content-between align-items-center">
               <div>
-                <h2>{profile.fullname || 'No Name'}</h2>
-                <div className='profile-subinfo'>
+                <h2>{profile.fullname || "No Name"}</h2>
+                <div className="profile-subinfo">
                   {profile.username && (
-                    <Badge bg='secondary' className='me-2'>
+                    <Badge bg="secondary" className="me-2">
                       <FaUser /> @{profile.username}
                     </Badge>
                   )}
                   {profile.location && (
-                    <Badge bg='secondary'>
+                    <Badge bg="secondary">
                       <FaMapMarkerAlt /> {profile.location}
                     </Badge>
                   )}
                 </div>
               </div>
               <Button
-                variant='outline-success'
+                variant="outline-success"
                 onClick={() => setIsEditing(true)}
               >
                 <FaEdit /> Edit
               </Button>
             </div>
-            <div className='mt-2'>
+            <div className="mt-2">
               <Badge
                 bg={
-                  profile.availability.status === 'available'
-                    ? 'success'
-                    : 'danger'
+                  profile.availability.status === "available"
+                    ? "success"
+                    : "danger"
                 }
-                className='me-2'
+                className="me-2"
               >
-                <FaCheckCircle />{' '}
-                {profile.availability.status === 'available'
-                  ? 'Available'
-                  : 'Busy'}
+                <FaCheckCircle />{" "}
+                {profile.availability.status === "available"
+                  ? "Available"
+                  : "Busy"}
               </Badge>
               {profile.availability.willingToJoin && (
-                <Badge bg='info' className='me-2'>
+                <Badge bg="info" className="me-2">
                   Open to opportunities
                 </Badge>
               )}
-              <Badge bg='warning'>
+              <Badge bg="warning">
                 <FaCalendarAlt /> {profile.yearOfExperience} yrs
               </Badge>
             </div>
@@ -386,43 +376,50 @@ const Profile = () => {
       </Card>
 
       {/* Content Grid */}
-      <Row className='gy-4'>
+      <Row className="gy-4">
         <Col lg={6}>
-          <Card className='profile-card'>
+          <Card className="profile-card">
             <Card.Header>About</Card.Header>
             <Card.Body>
-              <p>{profile.about || 'No description.'}</p>
+              <p>{profile.about || "No description."}</p>
             </Card.Body>
           </Card>
         </Col>
         <Col lg={6}>
-          <Card className='profile-card'>
+          <Card className="profile-card">
             <Card.Header>Experience</Card.Header>
             <Card.Body>
-              <p>{profile.experience || 'No experience info.'}</p>
+              <p>{profile.experience || "No experience info."}</p>
             </Card.Body>
           </Card>
         </Col>
+        {/* Work Preferences with formatted dates */}
         <Col lg={6}>
-          <Card className='profile-card'>
+          <Card className="profile-card">
             <Card.Header>Work Preferences</Card.Header>
             <Card.Body>
               <p>
-                Contract: {profile.expectedWorkDuration.startDate || '—'} –{' '}
-                {profile.expectedWorkDuration.endDate || '—'}
+                Contract:{" "}
+                {profile.expectedWorkDuration.startDate
+                  ? formatDateDisplay(profile.expectedWorkDuration.startDate)
+                  : "—"}{" "}
+                –{" "}
+                {profile.expectedWorkDuration.endDate
+                  ? formatDateDisplay(profile.expectedWorkDuration.endDate)
+                  : "—"}
               </p>
             </Card.Body>
           </Card>
         </Col>
         <Col lg={6}>
-          <Card className='profile-card'>
+          <Card className="profile-card">
             <Card.Header>Skills</Card.Header>
             <Card.Body>
               {profile.skills.length > 0 ? (
                 profile.skills.map((val, i) => {
                   const sk = skillsList.find((s) => s.value === val);
                   return (
-                    <Badge bg='secondary' key={i} className='me-1 mb-1'>
+                    <Badge bg="secondary" key={i} className="me-1 mb-1">
                       {renderIcon(sk?.icon)} {sk?.value || val}
                     </Badge>
                   );
@@ -434,59 +431,51 @@ const Profile = () => {
           </Card>
         </Col>
 
-        {/* Google Account Integration */}
+        {/* Google Integration */}
         <Col lg={12}>
-          <Card className='profile-card'>
-            <Card.Header className='d-flex align-items-center'>
-              <FaGoogle className='me-2' style={{ color: '#4285F4' }} />
+          <Card className="profile-card">
+            <Card.Header className="d-flex align-items-center">
+              <FaGoogle className="me-2" style={{ color: "#4285F4" }} />
               Google Account Integration
             </Card.Header>
             <Card.Body>
               {googleLinkStatus.loading ? (
-                <div className='d-flex align-items-center'>
-                  <Spinner animation='border' size='sm' className='me-2' />
+                <div className="d-flex align-items-center">
+                  <Spinner animation="border" size="sm" className="me-2" />
                   <span>Checking Google account status...</span>
                 </div>
               ) : googleLinkStatus.hasGoogleAccount ? (
                 <div>
-                  <div className='d-flex align-items-center mb-3'>
-                    <Badge bg='success' className='me-2'>
-                      <FaCheckCircle className='me-1' />
-                      Connected
-                    </Badge>
-                    <span className='text-muted'>
-                      Your account is linked with Google (
-                      {googleLinkStatus.email})
-                    </span>
-                  </div>
-                  <p className='text-muted mb-3'>
-                    Your Google account is connected, enabling access to Google
-                    Calendar, Drive, and Meet features.
-                  </p>
+                  <Badge bg="success" className="me-2">
+                    <FaCheckCircle className="me-1" />
+                    Connected
+                  </Badge>
+                  <p className="text-muted">Linked: {googleLinkStatus.email}</p>
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    onClick={handleUnlinkGoogle}
+                  >
+                    <FaUnlink className="me-1" /> Unlink
+                  </Button>
                 </div>
               ) : (
                 <div>
-                  <div className='d-flex align-items-center mb-3'>
-                    <Badge bg='warning' className='me-2'>
-                      <FaTimes className='me-1' />
-                      Not Connected
-                    </Badge>
-                    <span className='text-muted'>
-                      Link your Google account to access enhanced features
-                    </span>
-                  </div>
-                  <p className='text-muted mb-3'>
-                    Connect your Google account to use Calendar integration,
-                    file sharing with Google Drive, and Google Meet scheduling.
+                  <Badge bg="warning" className="me-2">
+                    <FaTimes className="me-1" />
+                    Not Connected
+                  </Badge>
+                  <p className="text-muted">
+                    Link to use Calendar, Drive & Meet.
                   </p>
                   <Button
-                    variant='primary'
-                    size='sm'
+                    variant="primary"
+                    size="sm"
                     onClick={handleLinkGoogle}
                     disabled={isLinkingGoogle}
                   >
-                    <FaLink className='me-1' />
-                    {isLinkingGoogle ? 'Linking...' : 'Link Google Account'}
+                    <FaLink className="me-1" />
+                    {isLinkingGoogle ? "Linking..." : "Link Google"}
                   </Button>
                 </div>
               )}
@@ -495,20 +484,20 @@ const Profile = () => {
         </Col>
       </Row>
 
-      {/* Edit Modal */}
-      <Modal show={isEditing} onHide={() => setIsEditing(false)} size='lg'>
+      {/* Edit Modal with DatePicker */}
+      <Modal show={isEditing} onHide={() => setIsEditing(false)} size="lg">
         <Form onSubmit={handleSubmit}>
           <Modal.Header closeButton>
             <Modal.Title>Edit Profile</Modal.Title>
           </Modal.Header>
-          <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-            <Row className='g-3'>
+          <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
+            <Row className="g-3">
               {/* Fullname, Username, Email */}
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Full Name</Form.Label>
                   <Form.Control
-                    name='fullname'
+                    name="fullname"
                     value={formData.fullname}
                     onChange={handleInputChange}
                     required
@@ -519,7 +508,7 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Username</Form.Label>
                   <Form.Control
-                    name='username'
+                    name="username"
                     value={formData.username}
                     onChange={handleInputChange}
                     required
@@ -530,8 +519,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Email</Form.Label>
                   <Form.Control
-                    type='email'
-                    name='email'
+                    type="email"
+                    name="email"
                     value={formData.email}
                     onChange={handleInputChange}
                     required
@@ -544,8 +533,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>About</Form.Label>
                   <Form.Control
-                    as='textarea'
-                    name='about'
+                    as="textarea"
+                    name="about"
                     rows={3}
                     value={formData.about}
                     onChange={handleInputChange}
@@ -556,8 +545,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Experience</Form.Label>
                   <Form.Control
-                    as='textarea'
-                    name='experience'
+                    as="textarea"
+                    name="experience"
                     rows={2}
                     value={formData.experience}
                     onChange={handleInputChange}
@@ -570,8 +559,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Years of Exp</Form.Label>
                   <Form.Control
-                    type='number'
-                    name='yearOfExperience'
+                    type="number"
+                    name="yearOfExperience"
                     min={0}
                     value={formData.yearOfExperience}
                     onChange={handleInputChange}
@@ -582,46 +571,56 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Availability Status</Form.Label>
                   <Form.Select
-                    name='availability.status'
+                    name="availability.status"
                     value={formData.availability.status}
                     onChange={handleInputChange}
                   >
-                    <option value='available'>Available</option>
-                    <option value='busy'>Busy</option>
+                    <option value="available">Available</option>
+                    <option value="busy">Busy</option>
                   </Form.Select>
                 </Form.Group>
               </Col>
-              <Col md={4} className='d-flex align-items-center'>
+              <Col md={4} className="d-flex align-items-center">
                 <Form.Check
-                  type='checkbox'
-                  label='Open to opportunities'
-                  name='availability.willingToJoin'
+                  type="checkbox"
+                  label="Open to opportunities"
+                  name="availability.willingToJoin"
                   checked={formData.availability.willingToJoin}
                   onChange={handleInputChange}
                 />
               </Col>
 
-              {/* Contract Dates */}
+              {/* Contract Dates with DatePicker */}
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Contract Start</Form.Label>
-                  <Form.Control
-                    type='date'
-                    name='expectedWorkDuration.startDate'
-                    value={formData.expectedWorkDuration.startDate}
-                    onChange={handleInputChange}
+                  <Form.Label>Contract Start: </Form.Label>
+                  <DatePicker
+                    selected={
+                      formData.expectedWorkDuration.startDate
+                        ? new Date(formData.expectedWorkDuration.startDate)
+                        : null
+                    }
+                    onChange={(date) => handleDateChange(date, "startDate")}
+                    dateFormat="dd/MM/yyyy"
+                    className="form-control"
+                    placeholderText="DD/MM/YYYY"
                     required
                   />
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>Contract End</Form.Label>
-                  <Form.Control
-                    type='date'
-                    name='expectedWorkDuration.endDate'
-                    value={formData.expectedWorkDuration.endDate}
-                    onChange={handleInputChange}
+                  <Form.Label>Contract End: </Form.Label>
+                  <DatePicker
+                    selected={
+                      formData.expectedWorkDuration.endDate
+                        ? new Date(formData.expectedWorkDuration.endDate)
+                        : null
+                    }
+                    onChange={(date) => handleDateChange(date, "endDate")}
+                    dateFormat="dd/MM/yyyy"
+                    className="form-control"
+                    placeholderText="DD/MM/YYYY"
                     required
                   />
                 </Form.Group>
@@ -631,10 +630,10 @@ const Profile = () => {
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Skills</Form.Label>
-                  <div className='skill-select'>
+                  <div className="skill-select">
                     <InputGroup>
                       <FormControl
-                        placeholder='Search a skill…'
+                        placeholder="Search a skill…"
                         value={newSkill}
                         onChange={handleSearchChange}
                         onFocus={() => setShowSuggestions(true)}
@@ -643,7 +642,7 @@ const Profile = () => {
                         }
                       />
                       <Button
-                        variant='outline-secondary'
+                        variant="outline-secondary"
                         disabled={
                           !filteredSkills.find((s) => s.value === newSkill)
                         }
@@ -659,34 +658,34 @@ const Profile = () => {
                       </Button>
                     </InputGroup>
                     {showSuggestions && filteredSkills.length > 0 && (
-                      <div className='skill-search-dropdown'>
+                      <div className="skill-search-dropdown">
                         {filteredSkills.map((s) => (
                           <div
                             key={s._id}
-                            className='skill-search-item d-flex justify-content-between align-items-center'
+                            className="skill-search-item d-flex justify-content-between align-items-center"
                             onMouseDown={() => handleSelectSkill(s.value)}
                           >
                             <div>
                               {renderIcon(s.icon)}
-                              <span className='ms-1'>{s.value}</span>
+                              <span className="ms-1">{s.value}</span>
                             </div>
-                            <small className='text-muted'>
-                              {(s.tags || []).join(', ')}
+                            <small className="text-muted">
+                              {(s.tags || []).join(", ")}
                             </small>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                  <div className='mt-2'>
+                  <div className="mt-2">
                     {formData.skills.map((val, i) => (
-                      <Badge bg='secondary' key={i} className='me-1 mb-1'>
+                      <Badge bg="secondary" key={i} className="me-1 mb-1">
                         {renderIcon(
                           skillsList.find((sk) => sk.value === val)?.icon
                         )}
-                        {val}{' '}
+                        {val}{" "}
                         <FaTimes
-                          style={{ cursor: 'pointer' }}
+                          style={{ cursor: "pointer" }}
                           onClick={() => handleRemoveSkill(val)}
                         />
                       </Badge>
@@ -697,10 +696,10 @@ const Profile = () => {
             </Row>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant='secondary' onClick={() => setIsEditing(false)}>
+            <Button variant="secondary" onClick={() => setIsEditing(false)}>
               Cancel
             </Button>
-            <Button type='submit' variant='primary'>
+            <Button type="submit" variant="primary">
               Save Changes
             </Button>
           </Modal.Footer>
