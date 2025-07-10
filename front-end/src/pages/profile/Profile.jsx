@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { initializeIcons } from "@fluentui/font-icons-mdl2";
-import "devicon/devicon.min.css";
-import { Icon } from "@iconify/react";
-import { SiGoogledocs, SiGooglesheets, SiGoogleslides } from "react-icons/si";
+import React, { useState, useEffect } from 'react';
+import { initializeIcons } from '@fluentui/font-icons-mdl2';
+import 'devicon/devicon.min.css';
+import { Icon } from '@iconify/react';
+import { SiGoogledocs, SiGooglesheets, SiGoogleslides } from 'react-icons/si';
 import {
   Container,
   Row,
@@ -16,7 +16,7 @@ import {
   Modal,
   InputGroup,
   FormControl,
-} from "react-bootstrap";
+} from 'react-bootstrap';
 import {
   FaCamera,
   FaEdit,
@@ -26,9 +26,10 @@ import {
   FaCheckCircle,
   FaPlus,
   FaTimes,
-} from "react-icons/fa";
-import { useCommon } from "../../contexts/CommonContext";
-import "./profile.css";
+} from 'react-icons/fa';
+import { useCommon } from '../../contexts/CommonContext';
+import './profile.css';
+import { FaGoogle, FaLink, FaUnlink, FaInfoCircle } from 'react-icons/fa';
 
 // Initialize Fluent UI MDL2 icons
 initializeIcons();
@@ -43,23 +44,30 @@ const Profile = () => {
     skillsList,
     loadingSkills,
     skillsError,
+    // Google linking functions
+    googleLinkStatus,
+    checkGoogleLinkStatus,
+    linkGoogleAccount,
+    unlinkGoogleAccount,
+    isLinkingGoogle,
+    setIsLinkingGoogle,
   } = useCommon();
 
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    avatar: "",
-    fullname: "",
-    username: "",
-    email: "",
-    about: "",
-    experience: "",
+    avatar: '',
+    fullname: '',
+    username: '',
+    email: '',
+    about: '',
+    experience: '',
     skills: [], // Array of skill names (strings)
     yearOfExperience: 0,
-    availability: { status: "available", willingToJoin: true },
-    expectedWorkDuration: { min: 0, max: 0, unit: "hours" },
+    availability: { status: 'available', willingToJoin: true },
+    expectedWorkDuration: { min: 0, max: 0, unit: 'hours' },
   });
-  const [newSkill, setNewSkill] = useState("");
+  const [newSkill, setNewSkill] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
@@ -69,59 +77,94 @@ const Profile = () => {
         // Normalize skills to use skill names (strings) from backend
         const normalizedSkills = (user.skills || [])
           .map((skill) =>
-            typeof skill === "string" ? skill : skill?.name || ""
+            typeof skill === 'string' ? skill : skill?.name || ''
           )
           .filter(Boolean); // Remove any undefined/null entries
         setProfile(user);
         setFormData({
-          avatar: user.avatar || "",
-          fullname: user.fullname || "",
-          username: user.username || "",
-          email: user.email || "",
-          about: user.about || "",
-          experience: user.experience || "",
+          avatar: user.avatar || '',
+          fullname: user.fullname || '',
+          username: user.username || '',
+          email: user.email || '',
+          about: user.about || '',
+          experience: user.experience || '',
           skills: normalizedSkills,
           yearOfExperience: user.yearOfExperience || 0,
           availability: user.availability || {
-            status: "available",
+            status: 'available',
             willingToJoin: true,
           },
           expectedWorkDuration: user.expectedWorkDuration || {
             min: 0,
             max: 0,
-            unit: "hours",
+            unit: 'hours',
           },
         });
       }
     };
     loadProfile();
+
+    // Load Google link status
+    checkGoogleLinkStatus();
+  }, []);
+
+  // Handle query parameters from Google OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+    const message = urlParams.get('message');
+
+    if (success === 'google_link_success') {
+      console.log(
+        '🔗 Google account linking successful - clearing linking state'
+      );
+      toast.success('Google account linked successfully!');
+      // Clear linking state
+      setIsLinkingGoogle(false);
+      // Refresh Google link status
+      checkGoogleLinkStatus();
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error === 'google_link_failed') {
+      console.log('🔗 Google account linking failed - clearing linking state');
+      toast.error(message || 'Failed to link Google account');
+      // Clear linking state
+      setIsLinkingGoogle(false);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (isLinkingGoogle) {
+      // Clear linking state if user navigates away from linking flow
+      console.log('🔗 Clearing linking state on page load');
+      setIsLinkingGoogle(false);
+    }
   }, []);
   // fetchUserProfile
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    if (name.includes("availability.")) {
-      const key = name.split(".")[1];
+    if (name.includes('availability.')) {
+      const key = name.split('.')[1];
       setFormData((prev) => ({
         ...prev,
         availability: {
           ...prev.availability,
-          [key]: type === "checkbox" ? checked : value,
+          [key]: type === 'checkbox' ? checked : value,
         },
       }));
-    } else if (name.includes("expectedWorkDuration.")) {
-      const key = name.split(".")[1];
+    } else if (name.includes('expectedWorkDuration.')) {
+      const key = name.split('.')[1];
       setFormData((prev) => ({
         ...prev,
         expectedWorkDuration: {
           ...prev.expectedWorkDuration,
-          [key]: key === "unit" ? value : Number(value),
+          [key]: key === 'unit' ? value : Number(value),
         },
       }));
     } else {
       setFormData((prev) => ({
         ...prev,
-        [name]: type === "checkbox" ? checked : value,
+        [name]: type === 'checkbox' ? checked : value,
       }));
     }
   };
@@ -149,7 +192,7 @@ const Profile = () => {
       ...prev,
       skills: [...prev.skills, skillName],
     }));
-    setNewSkill("");
+    setNewSkill('');
     setShowSuggestions(false);
   };
 
@@ -166,9 +209,9 @@ const Profile = () => {
       const url = await uploadImageToCloudinary(file);
       await updateUserProfile({ avatar: url });
       setProfile((prev) => ({ ...prev, avatar: url }));
-      toast.success("Avatar updated");
+      toast.success('Avatar updated');
     } catch {
-      toast.error("Failed to upload avatar");
+      toast.error('Failed to upload avatar');
     }
   };
 
@@ -193,114 +236,155 @@ const Profile = () => {
         skills: formData.skills.map((name) => ({ name })), // Update profile.skills to match formData
       }));
       setIsEditing(false);
-      toast.success("Profile updated");
+      toast.success('Profile updated');
     }
   };
 
   if (!profile || loadingSkills) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <Spinner animation="border" />
+      <div className='d-flex justify-content-center align-items-center vh-100'>
+        <Spinner animation='border' />
       </div>
     );
   }
 
   if (skillsError) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
+      <div className='d-flex justify-content-center align-items-center vh-100'>
         <p>Error loading skills: {skillsError}</p>
       </div>
     );
   }
 
+  const handleLinkGoogle = async () => {
+    setIsLinkingGoogle(true);
+    try {
+      await linkGoogleAccount();
+    } catch (error) {
+      console.error('Error linking Google account:', error);
+      toast.error('Failed to initiate Google account linking');
+    } finally {
+      setIsLinkingGoogle(false);
+    }
+  };
+
+  const handleUnlinkGoogle = async () => {
+    // Check if user has password before allowing unlink
+    if (!googleLinkStatus?.hasPassword) {
+      toast.error(
+        'Không thể hủy liên kết Google account. Đây là phương thức đăng nhập duy nhất của bạn. Vui lòng thiết lập mật khẩu trước.'
+      );
+      return;
+    }
+
+    if (
+      window.confirm(
+        'Bạn có chắc chắn muốn hủy liên kết tài khoản Google? Điều này sẽ hạn chế một số tính năng và bạn sẽ chỉ có thể đăng nhập bằng email/password.'
+      )
+    ) {
+      try {
+        await unlinkGoogleAccount();
+        toast.success('Hủy liên kết Google account thành công!');
+        // Refresh Google link status and profile data
+        await Promise.all([checkGoogleLinkStatus(), loadProfile()]);
+      } catch (error) {
+        console.error('Error unlinking Google account:', error);
+        toast.error(
+          error.response?.data?.message ||
+            'Không thể hủy liên kết Google account'
+        );
+      }
+    }
+  };
+
   const renderIcon = (iconKey) => {
     if (!iconKey) return null;
-    if (iconKey.startsWith("devicon:")) {
-      return <i className={`${iconKey.replace(":", "-")} colored me-1`} />;
+    if (iconKey.startsWith('devicon:')) {
+      return <i className={`${iconKey.replace(':', '-')} colored me-1`} />;
     }
-    if (iconKey.startsWith("fluent-mdl2:")) {
-      const name = iconKey.split(":")[1];
+    if (iconKey.startsWith('fluent-mdl2:')) {
+      const name = iconKey.split(':')[1];
       return (
-        <i className={`ms-Icon ms-Icon--${name} me-1`} aria-hidden="true" />
+        <i className={`ms-Icon ms-Icon--${name} me-1`} aria-hidden='true' />
       );
     }
-    if (iconKey === "si:googledocs")
-      return <SiGoogledocs className="me-1" size={20} />;
-    if (iconKey === "si:googlesheets")
-      return <SiGooglesheets className="me-1" size={20} />;
-    if (iconKey === "si:googleslides")
-      return <SiGoogleslides className="me-1" size={20} />;
-    return <Icon icon={iconKey} width={20} height={20} className="me-1" />;
+    if (iconKey === 'si:googledocs')
+      return <SiGoogledocs className='me-1' size={20} />;
+    if (iconKey === 'si:googlesheets')
+      return <SiGooglesheets className='me-1' size={20} />;
+    if (iconKey === 'si:googleslides')
+      return <SiGoogleslides className='me-1' size={20} />;
+    return <Icon icon={iconKey} width={20} height={20} className='me-1' />;
   };
 
   return (
-    <Container className={`${isMobile ? "mobile" : ""} profile-content`}>
+    <Container className={`${isMobile ? 'mobile' : ''} profile-content`}>
       {/* Header */}
-      <Card className="mb-4">
-        <div className="profile-cover" />
-        <Card.Body className="d-flex align-items-end profile-info">
-          <div className="position-relative me-4 profile-avatar">
+      <Card className='mb-4'>
+        <div className='profile-cover' />
+        <Card.Body className='d-flex align-items-end profile-info'>
+          <div className='position-relative me-4 profile-avatar'>
             <Image
-              src={profile.avatar || "https://via.placeholder.com/120"}
+              src={profile.avatar || 'https://via.placeholder.com/120'}
               roundedCircle
               width={120}
               height={120}
-              alt="avatar"
+              alt='avatar'
             />
-            <label className="btn-edit-avatar">
+            <label className='btn-edit-avatar'>
               <Form.Control
-                type="file"
-                accept="image/*"
+                type='file'
+                accept='image/*'
                 hidden
                 onChange={handleImageUpload}
               />
               <FaCamera />
             </label>
           </div>
-          <div className="flex-grow-1">
-            <div className="d-flex justify-content-between align-items-center">
+          <div className='flex-grow-1'>
+            <div className='d-flex justify-content-between align-items-center'>
               <div>
-                <h2>{profile.fullname || "No Name"}</h2>
-                <div className="profile-subinfo">
+                <h2>{profile.fullname || 'No Name'}</h2>
+                <div className='profile-subinfo'>
                   {profile.username && (
-                    <Badge bg="secondary" className="me-2">
+                    <Badge bg='secondary' className='me-2'>
                       <FaUser /> @{profile.username}
                     </Badge>
                   )}
                   {profile.location && (
-                    <Badge bg="secondary">
+                    <Badge bg='secondary'>
                       <FaMapMarkerAlt /> {profile.location}
                     </Badge>
                   )}
                 </div>
               </div>
               <Button
-                variant="outline-success"
+                variant='outline-success'
                 onClick={() => setIsEditing(true)}
               >
                 <FaEdit /> Edit
               </Button>
             </div>
-            <div className="mt-2">
+            <div className='mt-2'>
               <Badge
                 bg={
-                  profile.availability?.status === "available"
-                    ? "success"
-                    : "danger"
+                  profile.availability?.status === 'available'
+                    ? 'success'
+                    : 'danger'
                 }
-                className="me-2"
+                className='me-2'
               >
-                <FaCheckCircle />{" "}
-                {profile.availability?.status === "available"
-                  ? "Available"
-                  : "Busy"}
+                <FaCheckCircle />{' '}
+                {profile.availability?.status === 'available'
+                  ? 'Available'
+                  : 'Busy'}
               </Badge>
               {profile.availability?.willingToJoin && (
-                <Badge bg="info" className="me-2">
+                <Badge bg='info' className='me-2'>
                   Open to opportunities
                 </Badge>
               )}
-              <Badge bg="warning">
+              <Badge bg='warning'>
                 <FaCalendarAlt /> {profile.yearOfExperience || 0} yrs
               </Badge>
             </div>
@@ -309,38 +393,38 @@ const Profile = () => {
       </Card>
 
       {/* Content Grid */}
-      <Row className="gy-4">
+      <Row className='gy-4'>
         <Col lg={6}>
-          <Card className="profile-card">
+          <Card className='profile-card'>
             <Card.Header>About</Card.Header>
             <Card.Body>
-              <p>{profile.about || "No description."}</p>
+              <p>{profile.about || 'No description.'}</p>
             </Card.Body>
           </Card>
         </Col>
         <Col lg={6}>
-          <Card className="profile-card">
+          <Card className='profile-card'>
             <Card.Header>Experience</Card.Header>
             <Card.Body>
-              <p>{profile.experience || "No experience info."}</p>
+              <p>{profile.experience || 'No experience info.'}</p>
             </Card.Body>
           </Card>
         </Col>
         <Col lg={6}>
-          <Card className="profile-card">
+          <Card className='profile-card'>
             <Card.Header>Work Preferences</Card.Header>
             <Card.Body>
               <p>
                 Duration: {profile.expectedWorkDuration?.min || 0}–
-                {profile.expectedWorkDuration?.max || 0}{" "}
-                {profile.expectedWorkDuration?.unit || "hours"}
+                {profile.expectedWorkDuration?.max || 0}{' '}
+                {profile.expectedWorkDuration?.unit || 'hours'}
               </p>
-              <p>Status: {profile.availability?.status || "available"}</p>
+              <p>Status: {profile.availability?.status || 'available'}</p>
             </Card.Body>
           </Card>
         </Col>
         <Col lg={6}>
-          <Card className="profile-card">
+          <Card className='profile-card'>
             <Card.Header>Skills</Card.Header>
             <Card.Body>
               {profile.skills?.length ? (
@@ -350,8 +434,8 @@ const Profile = () => {
                       sk?.name && sk.name.toLowerCase() === s.name.toLowerCase()
                   );
                   return (
-                    <Badge bg="secondary" key={i} className="me-1 mb-1">
-                      {renderIcon(skillObj?.icon || "")}
+                    <Badge bg='secondary' key={i} className='me-1 mb-1'>
+                      {renderIcon(skillObj?.icon || '')}
                       <span>{skillObj?.name || s.name}</span>
                     </Badge>
                   );
@@ -362,21 +446,81 @@ const Profile = () => {
             </Card.Body>
           </Card>
         </Col>
+
+        {/* Google Account Integration */}
+        <Col lg={12}>
+          <Card className='profile-card'>
+            <Card.Header className='d-flex align-items-center'>
+              <FaGoogle className='me-2' style={{ color: '#4285F4' }} />
+              Google Account Integration
+            </Card.Header>
+            <Card.Body>
+              {googleLinkStatus.loading ? (
+                <div className='d-flex align-items-center'>
+                  <Spinner animation='border' size='sm' className='me-2' />
+                  <span>Checking Google account status...</span>
+                </div>
+              ) : googleLinkStatus.hasGoogleAccount ? (
+                <div>
+                  <div className='d-flex align-items-center mb-3'>
+                    <Badge bg='success' className='me-2'>
+                      <FaCheckCircle className='me-1' />
+                      Connected
+                    </Badge>
+                    <span className='text-muted'>
+                      Your account is linked with Google (
+                      {googleLinkStatus.email})
+                    </span>
+                  </div>
+                  <p className='text-muted mb-3'>
+                    Your Google account is connected, enabling access to Google
+                    Calendar, Drive, and Meet features.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className='d-flex align-items-center mb-3'>
+                    <Badge bg='warning' className='me-2'>
+                      <FaTimes className='me-1' />
+                      Not Connected
+                    </Badge>
+                    <span className='text-muted'>
+                      Link your Google account to access enhanced features
+                    </span>
+                  </div>
+                  <p className='text-muted mb-3'>
+                    Connect your Google account to use Calendar integration,
+                    file sharing with Google Drive, and Google Meet scheduling.
+                  </p>
+                  <Button
+                    variant='primary'
+                    size='sm'
+                    onClick={handleLinkGoogle}
+                    disabled={isLinkingGoogle}
+                  >
+                    <FaLink className='me-1' />
+                    {isLinkingGoogle ? 'Linking...' : 'Link Google Account'}
+                  </Button>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
       </Row>
 
       {/* Edit Modal */}
-      <Modal show={isEditing} onHide={() => setIsEditing(false)} size="lg">
+      <Modal show={isEditing} onHide={() => setIsEditing(false)} size='lg'>
         <Form onSubmit={handleSubmit}>
           <Modal.Header closeButton>
             <Modal.Title>Edit Profile</Modal.Title>
           </Modal.Header>
-          <Modal.Body style={{ maxHeight: "70vh", overflowY: "auto" }}>
-            <Row className="g-3">
+          <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <Row className='g-3'>
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Full Name</Form.Label>
                   <Form.Control
-                    name="fullname"
+                    name='fullname'
                     value={formData.fullname}
                     onChange={handleInputChange}
                     required
@@ -387,7 +531,7 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Username</Form.Label>
                   <Form.Control
-                    name="username"
+                    name='username'
                     value={formData.username}
                     onChange={handleInputChange}
                     required
@@ -398,8 +542,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Email</Form.Label>
                   <Form.Control
-                    type="email"
-                    name="email"
+                    type='email'
+                    name='email'
                     value={formData.email}
                     onChange={handleInputChange}
                     required
@@ -410,8 +554,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>About</Form.Label>
                   <Form.Control
-                    as="textarea"
-                    name="about"
+                    as='textarea'
+                    name='about'
                     rows={3}
                     value={formData.about}
                     onChange={handleInputChange}
@@ -422,8 +566,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Experience</Form.Label>
                   <Form.Control
-                    as="textarea"
-                    name="experience"
+                    as='textarea'
+                    name='experience'
                     rows={2}
                     value={formData.experience}
                     onChange={handleInputChange}
@@ -434,8 +578,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Years of Exp</Form.Label>
                   <Form.Control
-                    type="number"
-                    name="yearOfExperience"
+                    type='number'
+                    name='yearOfExperience'
                     min={0}
                     value={formData.yearOfExperience}
                     onChange={handleInputChange}
@@ -446,20 +590,20 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Availability Status</Form.Label>
                   <Form.Select
-                    name="availability.status"
+                    name='availability.status'
                     value={formData.availability.status}
                     onChange={handleInputChange}
                   >
-                    <option value="available">Available</option>
-                    <option value="busy">Busy</option>
+                    <option value='available'>Available</option>
+                    <option value='busy'>Busy</option>
                   </Form.Select>
                 </Form.Group>
               </Col>
-              <Col md={4} className="d-flex align-items-center">
+              <Col md={4} className='d-flex align-items-center'>
                 <Form.Check
-                  type="checkbox"
-                  label="Open to opportunities"
-                  name="availability.willingToJoin"
+                  type='checkbox'
+                  label='Open to opportunities'
+                  name='availability.willingToJoin'
                   checked={formData.availability.willingToJoin}
                   onChange={handleInputChange}
                 />
@@ -468,8 +612,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Min</Form.Label>
                   <Form.Control
-                    type="number"
-                    name="expectedWorkDuration.min"
+                    type='number'
+                    name='expectedWorkDuration.min'
                     min={0}
                     value={formData.expectedWorkDuration.min}
                     onChange={handleInputChange}
@@ -480,8 +624,8 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Max</Form.Label>
                   <Form.Control
-                    type="number"
-                    name="expectedWorkDuration.max"
+                    type='number'
+                    name='expectedWorkDuration.max'
                     min={0}
                     value={formData.expectedWorkDuration.max}
                     onChange={handleInputChange}
@@ -492,24 +636,24 @@ const Profile = () => {
                 <Form.Group>
                   <Form.Label>Unit</Form.Label>
                   <Form.Select
-                    name="expectedWorkDuration.unit"
+                    name='expectedWorkDuration.unit'
                     value={formData.expectedWorkDuration.unit}
                     onChange={handleInputChange}
                   >
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
-                    <option value="weeks">Weeks</option>
-                    <option value="months">Months</option>
+                    <option value='hours'>Hours</option>
+                    <option value='days'>Days</option>
+                    <option value='weeks'>Weeks</option>
+                    <option value='months'>Months</option>
                   </Form.Select>
                 </Form.Group>
               </Col>
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Skills</Form.Label>
-                  <div className="skill-select">
+                  <div className='skill-select'>
                     <InputGroup>
                       <FormControl
-                        placeholder="Search a skill…"
+                        placeholder='Search a skill…'
                         value={newSkill}
                         onChange={handleSearchChange}
                         onFocus={() => setShowSuggestions(true)}
@@ -518,7 +662,7 @@ const Profile = () => {
                         }
                       />
                       <Button
-                        variant="outline-secondary"
+                        variant='outline-secondary'
                         disabled={
                           !newSkill.trim() ||
                           !skillsList.find(
@@ -543,34 +687,34 @@ const Profile = () => {
                       </Button>
                     </InputGroup>
                     {showSuggestions && filteredSkills.length > 0 && (
-                      <div className="skill-search-dropdown">
+                      <div className='skill-search-dropdown'>
                         {filteredSkills.map((s) => (
                           <div
                             key={s._id}
-                            className="skill-search-item d-flex justify-content-between align-items-center"
+                            className='skill-search-item d-flex justify-content-between align-items-center'
                             onMouseDown={() => handleSelectSkill(s.name)}
                           >
                             <div>
-                              {renderIcon(s.icon || "")}
-                              <span className="ms-1">{s.name}</span>
+                              {renderIcon(s.icon || '')}
+                              <span className='ms-1'>{s.name}</span>
                             </div>
-                            <small className="text-muted">
-                              {(s.tags || []).join(", ")}
+                            <small className='text-muted'>
+                              {(s.tags || []).join(', ')}
                             </small>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                  <div className="mt-2">
+                  <div className='mt-2'>
                     {formData.skills.map((s, i) => (
-                      <Badge bg="secondary" key={i} className="me-1 mb-1">
+                      <Badge bg='secondary' key={i} className='me-1 mb-1'>
                         {renderIcon(
-                          skillsList.find((sk) => sk?.name === s)?.icon || ""
+                          skillsList.find((sk) => sk?.name === s)?.icon || ''
                         )}
-                        {s}{" "}
+                        {s}{' '}
                         <FaTimes
-                          style={{ cursor: "pointer" }}
+                          style={{ cursor: 'pointer' }}
                           onClick={() => handleRemoveSkill(s)}
                         />
                       </Badge>
@@ -581,10 +725,10 @@ const Profile = () => {
             </Row>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setIsEditing(false)}>
+            <Button variant='secondary' onClick={() => setIsEditing(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
+            <Button type='submit' variant='primary'>
               Save Changes
             </Button>
           </Modal.Footer>

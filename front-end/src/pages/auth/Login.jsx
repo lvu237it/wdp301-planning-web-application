@@ -75,7 +75,7 @@ function Login() {
       try {
         const success = await login(formData.email, formData.password);
         if (!success) {
-          toast.error('Login failed');
+          toast.error('Login failed. Please try again or using Google login.');
         }
       } finally {
         setIsLoading(false);

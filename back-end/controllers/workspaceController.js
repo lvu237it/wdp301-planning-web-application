@@ -17,9 +17,9 @@ exports.getAllWorkspace = async (req, res) => {
     // 1. Tìm tất cả membership đã accepted của người dùng
     const memberships = await Membership.find({
       userId,
-      invitationStatus: "accepted",
+      invitationStatus: 'accepted',
       isDeleted: false,
-    }).select("workspaceId");
+    }).select('workspaceId');
 
     const workspaceIdsFromMembership = memberships.map((m) => m.workspaceId);
 
@@ -29,13 +29,13 @@ exports.getAllWorkspace = async (req, res) => {
       isDeleted: false,
       $or: [{ creator: userId }, { _id: { $in: workspaceIdsFromMembership } }],
     })
-      .populate("creator", "username email")
+      .populate('creator', 'username email')
       .populate({
-        path: "members",
+        path: 'members',
         match: { isDeleted: false },
         populate: {
-          path: "userId",
-          select: "username email",
+          path: 'userId',
+          select: 'username email',
         },
       })
       .lean();
@@ -59,7 +59,7 @@ exports.getAllWorkspace = async (req, res) => {
       data: workspacesWithCount,
     });
   } catch (error) {
-    console.error("getAllWorkspace error:", error);
+    console.error('getAllWorkspace error:', error);
     return res.status(500).json({
       success: false,
       error: error.message,
@@ -77,7 +77,7 @@ exports.createWorkspace = async (req, res) => {
     const creatorId = req.user._id;
 
     if (!name || !creatorId) {
-      throw new Error("Thiếu thông tin name hoặc creator");
+      throw new Error('Thiếu thông tin name hoặc creator');
     }
 
     // 1. Tạo workspace
@@ -92,8 +92,8 @@ exports.createWorkspace = async (req, res) => {
         {
           workspaceId: newWorkspace._id,
           userId: creatorId,
-          role: "creatorWorkspace",
-          invitationStatus: "accepted",
+          role: 'creatorWorkspace',
+          invitationStatus: 'accepted',
         },
       ],
       { session }
@@ -108,15 +108,15 @@ exports.createWorkspace = async (req, res) => {
     session.endSession();
 
     res.status(201).json({
-      message: "Tạo workspace và thành viên creator thành công",
+      message: 'Tạo workspace và thành viên creator thành công',
       workspace: newWorkspace,
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error("Lỗi khi tạo workspace:", error);
+    console.error('Lỗi khi tạo workspace:', error);
     res.status(500).json({
-      message: "Tạo workspace thất bại, đã rollback",
+      message: 'Tạo workspace thất bại, đã rollback',
       error: error.message,
     });
   }
@@ -134,16 +134,16 @@ exports.updateWorkspace = async (req, res) => {
     });
 
     if (!workspace) {
-      return res.status(404).json({ message: "Workspace không tồn tại" });
+      return res.status(404).json({ message: 'Workspace không tồn tại' });
     }
 
     res.status(200).json({
-      message: "Cập nhật workspace thành công",
+      message: 'Cập nhật workspace thành công',
       workspace,
     });
   } catch (error) {
     res.status(500).json({
-      message: "Lỗi server khi cập nhật workspace",
+      message: 'Lỗi server khi cập nhật workspace',
       error: error.message,
     });
   }
@@ -156,11 +156,11 @@ exports.closeWorkspace = async (req, res) => {
 
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) {
-      return res.status(404).json({ message: "Workspace không tồn tại" });
+      return res.status(404).json({ message: 'Workspace không tồn tại' });
     }
 
     if (workspace.isDeleted) {
-      return res.status(400).json({ message: "Workspace đã bị đóng trước đó" });
+      return res.status(400).json({ message: 'Workspace đã bị đóng trước đó' });
     }
 
     workspace.isDeleted = true;
@@ -168,12 +168,12 @@ exports.closeWorkspace = async (req, res) => {
     await workspace.save();
 
     res.status(200).json({
-      message: "Workspace đã được đóng (soft delete)",
+      message: 'Workspace đã được đóng (soft delete)',
       workspace,
     });
   } catch (error) {
     res.status(500).json({
-      message: "Lỗi server khi đóng workspace",
+      message: 'Lỗi server khi đóng workspace',
       error: error.message,
     });
   }
@@ -183,20 +183,20 @@ exports.closeWorkspace = async (req, res) => {
 exports.deleteWorkspace = async (req, res) => {
   try {
     const { workspaceId } = req.params;
-    console.log("🔥 DELETE /workspace/:id hit with", req.params.workspaceId);
+    console.log('🔥 DELETE /workspace/:id hit with', req.params.workspaceId);
     const workspace = await Workspace.findByIdAndDelete(workspaceId);
     if (!workspace) {
       return res
         .status(404)
-        .json({ message: "Workspace không tồn tại hoặc đã bị xóa" });
+        .json({ message: 'Workspace không tồn tại hoặc đã bị xóa' });
     }
 
     res.status(200).json({
-      message: "Workspace đã bị xóa vĩnh viễn",
+      message: 'Workspace đã bị xóa vĩnh viễn',
     });
   } catch (error) {
     res.status(500).json({
-      message: "Lỗi server khi xóa workspace",
+      message: 'Lỗi server khi xóa workspace',
       error: error.message,
     });
   }
@@ -206,19 +206,19 @@ exports.deleteWorkspace = async (req, res) => {
 exports.inviteMember = async (req, res) => {
   try {
     const { workspaceId } = req.params;
-    const { email, role = "memberWorkspace" } = req.body;
+    const { email, role = 'memberWorkspace' } = req.body;
     const inviterId = req.user._id;
 
     // 1. Kiểm tra workspace tồn tại
     const workspace = await Workspace.findById(workspaceId);
     if (!workspace) {
-      return res.status(404).json({ message: "Workspace không tồn tại" });
+      return res.status(404).json({ message: 'Workspace không tồn tại' });
     }
 
     // 2. Tìm user theo email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "Người dùng không tồn tại" });
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
     }
 
     // 3. Kiểm tra nếu đã là thành viên
@@ -229,18 +229,18 @@ exports.inviteMember = async (req, res) => {
     if (existing) {
       return res
         .status(400)
-        .json({ message: "Người dùng đã là thành viên hoặc đang chờ" });
+        .json({ message: 'Người dùng đã là thành viên hoặc đang chờ' });
     }
 
     // 4. Tạo token mời
-    const token = crypto.randomBytes(32).toString("hex");
+    const token = crypto.randomBytes(32).toString('hex');
 
     // 5. Tạo bản ghi membership
     const membership = await Membership.create({
       workspaceId,
       userId: user._id,
       role,
-      invitationStatus: "pending",
+      invitationStatus: 'pending',
       invitationToken: token,
     });
 
@@ -334,34 +334,34 @@ exports.inviteMember = async (req, res) => {
 </body>
 </html>
 `;
-		// 7. Gửi email thực tế
-		await sendEmail(
-			user.email,
-			`Bạn được mời vào workspace "${workspace.name}"`,
-			emailHtml
-		);
-		// 7.1 gửi thông báo real-time sau khi gửi lời mời
-		await NotificationService.createPersonalNotification({
-			title: `Lời mời tham gia workspace`,
-			content: `Bạn được mời tham gia workspace "${workspace.name}"`,
-			type: 'workspace_invite',
-			targetUserId: user._id,
-			targetWorkspaceId: workspace._id,
-			createdBy: inviterId,
-		});
+    // 7. Gửi email thực tế
+    await sendEmail(
+      user.email,
+      `Bạn được mời vào workspace "${workspace.name}"`,
+      emailHtml
+    );
+    // 7.1 gửi thông báo real-time sau khi gửi lời mời
+    await NotificationService.createPersonalNotification({
+      title: `Lời mời tham gia workspace`,
+      content: `Bạn được mời tham gia workspace "${workspace.name}"`,
+      type: 'workspace_invite',
+      targetUserId: user._id,
+      targetWorkspaceId: workspace._id,
+      createdBy: inviterId,
+    });
 
-		// 8. Phản hồi
-		res.status(200).json({
-			message: 'Đã gửi lời mời thành công',
-			inviteLink,
-		});
-	} catch (err) {
-		console.error('Lỗi gửi lời mời:', err);
-		res.status(500).json({
-			message: 'Lỗi khi gửi lời mời',
-			error: err.message,
-		});
-	}
+    // 8. Phản hồi
+    res.status(200).json({
+      message: 'Đã gửi lời mời thành công',
+      inviteLink,
+    });
+  } catch (err) {
+    console.error('Lỗi gửi lời mời:', err);
+    res.status(500).json({
+      message: 'Lỗi khi gửi lời mời',
+      error: err.message,
+    });
+  }
 };
 
 // Xác nhận lời mời
@@ -370,26 +370,26 @@ exports.respondToInvite = async (req, res) => {
     const { token, action } = req.body;
 
     if (!token) {
-      return res.status(400).json({ message: "Thiếu token xác nhận" });
+      return res.status(400).json({ message: 'Thiếu token xác nhận' });
     }
 
     const membership = await Membership.findOne({ invitationToken: token });
     if (!membership) {
       return res
         .status(400)
-        .json({ message: "Token không hợp lệ hoặc đã hết hạn" });
+        .json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 
-    if (membership.invitationStatus !== "pending") {
+    if (membership.invitationStatus !== 'pending') {
       return res
         .status(400)
-        .json({ message: "Lời mời đã được xử lý trước đó" });
+        .json({ message: 'Lời mời đã được xử lý trước đó' });
     }
 
     let workspace;
 
-    if (action === "accept") {
-      membership.invitationStatus = "accepted";
+    if (action === 'accept') {
+      membership.invitationStatus = 'accepted';
 
       // Cập nhật workspace.members
       workspace = await Workspace.findById(membership.workspaceId);
@@ -397,10 +397,10 @@ exports.respondToInvite = async (req, res) => {
         workspace.members.push(membership._id);
         await workspace.save();
       }
-    } else if (action === "decline") {
-      membership.invitationStatus = "declined";
+    } else if (action === 'decline') {
+      membership.invitationStatus = 'declined';
     } else {
-      return res.status(400).json({ message: "Hành động không hợp lệ" });
+      return res.status(400).json({ message: 'Hành động không hợp lệ' });
     }
 
     membership.invitationToken = undefined;
@@ -408,13 +408,13 @@ exports.respondToInvite = async (req, res) => {
 
     res.status(200).json({
       message: `Bạn đã ${
-        action === "accept" ? "chấp nhận" : "từ chối"
+        action === 'accept' ? 'chấp nhận' : 'từ chối'
       } lời mời tham gia workspace.`,
       status: membership.invitationStatus,
     });
   } catch (err) {
     res.status(500).json({
-      message: "Lỗi server khi phản hồi lời mời",
+      message: 'Lỗi server khi phản hồi lời mời',
       error: err.message,
     });
   }
@@ -430,13 +430,13 @@ exports.getWorkspaceUsers = async (req, res) => {
     const { workspaceId } = req.params;
     const workspace = await Workspace.findById(workspaceId)
       .populate({
-        path: "members",
-        match: { isDeleted: false, invitationStatus: "accepted" },
-        populate: { path: "userId", select: "username email fullname avatar" },
+        path: 'members',
+        match: { isDeleted: false, invitationStatus: 'accepted' },
+        populate: { path: 'userId', select: 'username email fullname avatar' },
       })
       .lean();
     if (!workspace) {
-      return res.status(404).json({ message: "Workspace not found" });
+      return res.status(404).json({ message: 'Workspace not found' });
     }
 
     const users = workspace.members.map((m) => ({
@@ -451,7 +451,7 @@ exports.getWorkspaceUsers = async (req, res) => {
 
     res.status(200).json({ success: true, users });
   } catch (err) {
-    console.error("getWorkspaceUsers error:", err);
+    console.error('getWorkspaceUsers error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };

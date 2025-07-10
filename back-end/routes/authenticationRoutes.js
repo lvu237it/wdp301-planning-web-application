@@ -15,6 +15,9 @@ const {
   linkGoogleAccount,
   getCurrentUser,
   googleAuthCallbackUserData,
+  checkGoogleLinkStatus,
+  initiateGoogleLink,
+  unlinkGoogleAccount,
 } = require('../controllers/authenticationController');
 const auth = require('../utils/auth');
 
@@ -33,9 +36,11 @@ router.get('/auth/google/login/callback', googleAuthCallback);
 // Special callback endpoint for frontend to get user data after OAuth
 router.get('/auth/google/callback/userdata', googleAuthCallbackUserData);
 
-// Route cho liên kết tài khoản Google với tài khoản hiện tại - optional
-// router.get('/link-google', verifyToken, googleAuth); // Khởi tạo liên kết Google
-// router.get('/auth/link-google', linkGoogleAccount);
+// Routes cho liên kết tài khoản Google với tài khoản hiện tại
+router.get('/google-link-status', verifyToken, checkGoogleLinkStatus); // Kiểm tra trạng thái liên kết
+router.get('/link-google', verifyToken, initiateGoogleLink); // Khởi tạo liên kết Google
+router.get('/auth/google/link/callback', linkGoogleAccount); // Callback sau khi liên kết
+router.delete('/unlink-google', verifyToken, unlinkGoogleAccount); // Hủy liên kết Google
 
 // Protected routes
 router.get('/auth/me', verifyToken, getCurrentUser);
