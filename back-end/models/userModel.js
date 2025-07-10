@@ -43,12 +43,12 @@ const userSchema = new mongoose.Schema(
     //   },
     // ],
     skills: [
-			{
-				type: String,
-				trim: true,
-				// lowercase: true,
-			},
-		],
+      {
+        type: String,
+        trim: true,
+        // lowercase: true,
+      },
+    ],
     about: {
       type: String,
     },
@@ -72,21 +72,8 @@ const userSchema = new mongoose.Schema(
       },
     },
     expectedWorkDuration: {
-      min: {
-        type: Number,
-        min: [0, "Thời gian làm việc tối thiểu không thể nhỏ hơn 0"],
-        default: 0,
-      },
-      max: {
-        type: Number,
-        min: [0, "Thời gian làm việc tối đa không thể nhỏ hơn 0"],
-        default: 0,
-      },
-      unit: {
-        type: String,
-        enum: ["hours", "days", "weeks", "months"],
-        default: "hours",
-      },
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
     },
     isDeleted: {
       type: Boolean,
