@@ -36,12 +36,6 @@ const userSchema = new mongoose.Schema(
       enum: ["userSystem", "adminSystem"],
       default: "userSystem",
     },
-    // skills: [
-    //   {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: "Skill",
-    //   },
-    // ],
     skills: [
       {
         type: String,

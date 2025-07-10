@@ -8,7 +8,7 @@ const WorkspaceMembership = require('../models/memberShipModel');
 const Workspace = require('../models/workspaceModel');
 const List = require('../models/listModel');
 const NotificationService = require('../services/NotificationService');
-
+const Task = require("../models/taskModel");
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
   try {
@@ -350,6 +350,108 @@ exports.deleteBoard = async (req, res) => {
 };
 
 // thêm người dùng với read-only role trên Board
+// exports.inviteBoardMembers = async (req, res) => {
+//   try {
+//     const { workspaceId, boardId } = req.params;
+//     const { emails, role = 'read-only' } = req.body;
+//     const inviterId = req.user._id;
+
+//     // 1) Lấy board đích
+//     const board = await Board.findById(boardId);
+//     if (!board) return res.status(404).json({ message: 'Board không tồn tại' });
+//     const { workDuration: wdTarget } = board.criteria;
+
+//     // 2) Lấy users theo emails
+//     const users = await User.find({ email: { $in: emails } });
+//     if (!users.length)
+//       return res
+//         .status(400)
+//         .json({ message: 'Không tìm thấy user nào với emails đã cho' });
+
+//     // 3) Check xem có invite hoặc member rồi
+//     const existing = await BoardMembership.findOne({
+//       boardId,
+//       userId: { $in: users.map((u) => u._id) },
+//       isDeleted: false,
+//     });
+//     if (existing)
+//       return res.status(400).json({
+//         message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
+//       });
+
+//     // 4) Lấy tất cả các board khác mà user đã accepted
+//     const acceptedMems = await BoardMembership.find({
+//       userId: { $in: users.map((u) => u._id) },
+//       invitationResponse: 'accepted',
+//       isDeleted: false,
+//       boardId: { $ne: boardId },
+//     }).populate('boardId', 'criteria.workDuration name');
+
+//     // 5) Kiểm tra overlap
+//     const overlap = acceptedMems.find((m) => {
+//       const wd = m.boardId.criteria.workDuration;
+//       return wdTarget.startDate < wd.endDate && wd.startDate < wdTarget.endDate;
+//     });
+//     if (overlap) {
+//       const {
+//         name: otherName,
+//         criteria: { workDuration: wd },
+//       } = overlap.boardId;
+//       return res.status(400).json({
+//         message:
+//           `User ${users[0].fullname} đang tham gia "${otherName}" trong giai đoạn ` +
+//           `${wd.startDate.toISOString().slice(0, 10)} → ` +
+//           `${wd.endDate
+//             .toISOString()
+//             .slice(0, 10)} vui lòng mời người dùng khác`,
+//       });
+//     }
+
+//     // 6) Nếu OK, tạo invite như cũ
+//     const token = crypto.randomBytes(32).toString('hex');
+//     const invites = users.map((u) => ({
+//       boardId,
+//       userId: u._id,
+//       role,
+//       applicationStatus: 'applied',
+//       invitationResponse: 'pending',
+//       invitedBy: inviterId,
+//       invitedAt: new Date(),
+//       invitationToken: token,
+//     }));
+//     await BoardMembership.insertMany(invites);
+
+//     // 7) Gửi mail cho từng user
+//     for (const user of users) {
+//       const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
+//       await sendEmail(
+//         user.email,
+//         `Bạn được mời vào Board "${board.name}"`,
+//         `
+//           <p>Xin chào ${user.fullname},</p>
+//           <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
+//           <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
+//           <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
+//         `
+//       );
+//       await NotificationService.createPersonalNotification({
+//         title: `Lời mời tham gia board`,
+//         content: `Bạn được mời tham gia board "${board.name}"`,
+//         type: 'board_invite',
+//         targetUserId: user._id,
+//         targetWorkspaceId: board.workspaceId,
+//         createdBy: inviterId,
+//       });
+//     }
+
+//     return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
+//   } catch (err) {
+//     console.error(err);
+//     return res
+//       .status(500)
+//       .json({ message: 'Server error', error: err.message });
+//   }
+// };
 exports.inviteBoardMembers = async (req, res) => {
   try {
     const { workspaceId, boardId } = req.params;
@@ -358,15 +460,33 @@ exports.inviteBoardMembers = async (req, res) => {
 
     // 1) Lấy board đích
     const board = await Board.findById(boardId);
-    if (!board) return res.status(404).json({ message: 'Board không tồn tại' });
+    if (!board) {
+      return res.status(404).json({ message: 'Board không tồn tại' });
+    }
+
+    // Check criteria tồn tại
+    if (!board.criteria || !board.criteria.workDuration) {
+      return res.status(400).json({
+        message: 'Board thiếu thông tin criteria hoặc workDuration',
+      });
+    }
+
     const { workDuration: wdTarget } = board.criteria;
+
+    // Check workDuration có startDate và endDate hợp lệ
+    if (!wdTarget.startDate || !wdTarget.endDate) {
+      return res.status(400).json({
+        message: 'Board workDuration thiếu startDate hoặc endDate',
+      });
+    }
 
     // 2) Lấy users theo emails
     const users = await User.find({ email: { $in: emails } });
-    if (!users.length)
+    if (!users.length) {
       return res
         .status(400)
         .json({ message: 'Không tìm thấy user nào với emails đã cho' });
+    }
 
     // 3) Check xem có invite hoặc member rồi
     const existing = await BoardMembership.findOne({
@@ -374,10 +494,11 @@ exports.inviteBoardMembers = async (req, res) => {
       userId: { $in: users.map((u) => u._id) },
       isDeleted: false,
     });
-    if (existing)
+    if (existing) {
       return res.status(400).json({
         message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
       });
+    }
 
     // 4) Lấy tất cả các board khác mà user đã accepted
     const acceptedMems = await BoardMembership.find({
@@ -389,9 +510,23 @@ exports.inviteBoardMembers = async (req, res) => {
 
     // 5) Kiểm tra overlap
     const overlap = acceptedMems.find((m) => {
-      const wd = m.boardId.criteria.workDuration;
-      return wdTarget.startDate < wd.endDate && wd.startDate < wdTarget.endDate;
+      const otherBoard = m.boardId;
+      if (!otherBoard || !otherBoard.criteria || !otherBoard.criteria.workDuration) {
+        return false; // skip nếu board kia thiếu dữ liệu
+      }
+
+      const wd = otherBoard.criteria.workDuration;
+      if (!wd.startDate || !wd.endDate) {
+        return false; // skip nếu board kia thiếu ngày
+      }
+
+      // So sánh overlap
+      return (
+        new Date(wdTarget.startDate) < new Date(wd.endDate) &&
+        new Date(wd.startDate) < new Date(wdTarget.endDate)
+      );
     });
+
     if (overlap) {
       const {
         name: otherName,
@@ -399,15 +534,13 @@ exports.inviteBoardMembers = async (req, res) => {
       } = overlap.boardId;
       return res.status(400).json({
         message:
-          `User ${users[0].fullname} đang tham gia "${otherName}" trong giai đoạn ` +
-          `${wd.startDate.toISOString().slice(0, 10)} → ` +
-          `${wd.endDate
-            .toISOString()
-            .slice(0, 10)} vui lòng mời người dùng khác`,
+          `User ${users[0].fullname || users[0].username} đang tham gia "${otherName}" ` +
+          `trong giai đoạn ${new Date(wd.startDate).toISOString().slice(0, 10)} → ` +
+          `${new Date(wd.endDate).toISOString().slice(0, 10)}. Vui lòng mời người dùng khác.`,
       });
     }
 
-    // 6) Nếu OK, tạo invite như cũ
+    // 6) Nếu OK, tạo invite
     const token = crypto.randomBytes(32).toString('hex');
     const invites = users.map((u) => ({
       boardId,
@@ -421,14 +554,14 @@ exports.inviteBoardMembers = async (req, res) => {
     }));
     await BoardMembership.insertMany(invites);
 
-    // 7) Gửi mail cho từng user
+    // 7) Gửi mail và thông báo cho từng user
     for (const user of users) {
       const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
       await sendEmail(
         user.email,
         `Bạn được mời vào Board "${board.name}"`,
         `
-          <p>Xin chào ${user.fullname},</p>
+          <p>Xin chào ${user.fullname || user.username},</p>
           <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
           <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
           <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
@@ -446,12 +579,13 @@ exports.inviteBoardMembers = async (req, res) => {
 
     return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
   } catch (err) {
-    console.error(err);
+    console.error('❌ inviteBoardMembers error:', err);
     return res
       .status(500)
       .json({ message: 'Server error', error: err.message });
   }
 };
+
 
 // phản hồi lời mời Board
 exports.respondToBoardInvite = async (req, res) => {
@@ -603,89 +737,106 @@ exports.getQualifiedUsers = async (req, res) => {
 
 // suggest members by skill and date
 exports.suggestMembers = async (req, res) => {
-  res.set('Cache-Control', 'no-store');
+  res.set("Cache-Control", "no-store");
 
   try {
     const { boardId } = req.params;
-    /* -----------------old--------------- */
-    // const skills = (req.query.skills || '')
-    //   .split(',')
-    //   .map((s) => s.trim().toLowerCase())
-    //   .filter(Boolean);
+    let { skills, startDate, endDate } = req.query;
+	console.log("skill" , skills);
+	console.log("startDate" , startDate);
+	console.log("endDate" , endDate);
+	
 
-    const { skills, startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        message:
+          "Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian",
+      });
+    }
 
-    //  Lấy danh sách userId đã accepted vào board
+    // Đảm bảo startDate và endDate có định dạng đầy đủ ISO (có giờ)
+    const reqStart = new Date(startDate);
+    const reqEnd = new Date(endDate);
+
+    // B1. Lấy thành viên đã accepted
     const boardMems = await BoardMembership.find({
       boardId,
-      /*------------old---------------- */
-      //    applicationStatus: 'accepted',
-      //   isDeleted: false,
-      // })
-      //   .select('userId')
-      //   .lean();
-
-      // const userIds = memberships.map((m) => m.userId);
-      // if (!userIds.length) {
-      //   // Nếu chưa có member nào, trả về mảng rỗng luôn
-      //   return res.status(200).json({ success: true, users: [] });
-      // }
-
-      // // 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
-      // const regexes = skills.map((s) => new RegExp(`^${s}$`, 'i'));
-      // const users = await User.find({
-      //   _id: { $in: userIds },
-      //   skills: { $in: regexes },
-      // })
-      //   .select('_id username email skills')
-      //   .lean();
-
-      invitationResponse: 'accepted',
+      invitationResponse: "accepted",
       isDeleted: false,
-    }).select('userId');
+    }).select("userId");
 
-    const boardUserIds = boardMems.map((m) => m.userId);
+    const boardUserIds = boardMems.map((m) => m.userId.toString());
     if (!boardUserIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: 'Board chưa có thành viên nào' });
+        .json({ users: [], message: "Board chưa có thành viên nào" });
     }
 
-    const userQuery = { _id: { $in: boardUserIds } };
+    // B2. Lấy task có khoảng thời gian giao nhau (overlap) với reqStart - reqEnd
+    const overlappingTasks = await Task.find({
+      boardId,
+      assignedTo: { $in: boardUserIds },
+      isDeleted: false,
+      startDate: { $lt: reqEnd },
+      endDate: { $gt: reqStart },
+    }).select("assignedTo startDate endDate");
+    overlappingTasks.forEach((t, i) => {
+      console.log(`  🔸 Task ${i + 1}:`, {
+        assignedTo: t.assignedTo?.toString(),
+        from: t.startDate?.toISOString(),
+        to: t.endDate?.toISOString(),
+      });
+    });
 
-    //  Nếu có skills
-    if (skills) {
+    const busyUserIds = new Set(
+      overlappingTasks
+        .map((t) => t.assignedTo)
+        .filter((id) => id)
+        .map((id) => id.toString())
+    );
+
+    // B3. Lọc thành viên chưa bận
+    const availableUserIds = boardUserIds.filter(
+      (uid) => !busyUserIds.has(uid)
+    );
+
+    if (!availableUserIds.length) {
+      return res
+        .status(200)
+        .json({ users: [], message: "Không có ai rảnh trong thời gian này" });
+    }
+
+    // B4. Truy vấn user phù hợp
+    const userQuery = {
+      _id: {
+        $in: availableUserIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
+      "expectedWorkDuration.startDate": { $lte: reqStart },
+      "expectedWorkDuration.endDate": { $gte: reqEnd },
+    };
+
+    // B5. Thêm điều kiện kỹ năng nếu có
+    if (skills && typeof skills === "string") {
       const skillArr = skills
-        .split(',')
+        .split(",")
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
+
       if (skillArr.length > 0) {
         userQuery.skills = { $in: skillArr };
       }
     }
 
-    //  Nếu có ngày
-    if (startDate && endDate) {
-      const reqStart = new Date(startDate);
-      const reqEnd = new Date(endDate);
-      userQuery['expectedWorkDuration.startDate'] = { $lte: reqStart };
-      userQuery['expectedWorkDuration.endDate'] = { $gte: reqEnd };
-    } else if (startDate || endDate) {
-      return res.status(400).json({
-        message:
-          'Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian',
-      });
-    }
-
     const users = await User.find(userQuery).select(
-      'username email avatar skills expectedWorkDuration'
+      "username email avatar skills expectedWorkDuration"
     );
 
+    console.log("🎯 Số người dùng được gợi ý:", users.length);
     return res.status(200).json({ users });
   } catch (err) {
-    console.error('Lỗi filterBoardMembers:', err);
+    console.error("❌ Lỗi suggestMembers:", err);
     return res.status(500).json({
-      message: 'Server lỗi khi lọc thành viên',
+      message: "Server lỗi khi lọc thành viên",
       error: err.message,
     });
   }
