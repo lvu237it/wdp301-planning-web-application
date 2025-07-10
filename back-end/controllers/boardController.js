@@ -8,6 +8,7 @@ const WorkspaceMembership = require('../models/memberShipModel');
 const Workspace = require('../models/workspaceModel');
 const List = require('../models/listModel');
 const NotificationService = require('../services/NotificationService');
+const Task = require("../models/taskModel");
 
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
@@ -601,92 +602,109 @@ exports.getQualifiedUsers = async (req, res) => {
 	}
 };
 
-// suggest members by skill and date
+// suggest member based on skill, date, time
 exports.suggestMembers = async (req, res) => {
-	res.set('Cache-Control', 'no-store');
+  res.set("Cache-Control", "no-store");
 
-	try {
-		const { boardId } = req.params;
-		/* -----------------old--------------- */
-		// const skills = (req.query.skills || '')
-		//   .split(',')
-		//   .map((s) => s.trim().toLowerCase())
-		//   .filter(Boolean);
+  try {
+    const { boardId } = req.params;
+    let { skills, startDate, endDate } = req.query;
+	console.log("skill" , skills);
+	console.log("startDate" , startDate);
+	console.log("endDate" , endDate);
+	
 
-		const { skills, startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        message:
+          "Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian",
+      });
+    }
 
-		//  Lấy danh sách userId đã accepted vào board
-		const boardMems = await BoardMembership.find({
-			boardId,
-			/*------------old---------------- */
-			//    applicationStatus: 'accepted',
-			//   isDeleted: false,
-			// })
-			//   .select('userId')
-			//   .lean();
+    // Đảm bảo startDate và endDate có định dạng đầy đủ ISO (có giờ)
+    const reqStart = new Date(startDate);
+    const reqEnd = new Date(endDate);
 
-			// const userIds = memberships.map((m) => m.userId);
-			// if (!userIds.length) {
-			//   // Nếu chưa có member nào, trả về mảng rỗng luôn
-			//   return res.status(200).json({ success: true, users: [] });
-			// }
+    // B1. Lấy thành viên đã accepted
+    const boardMems = await BoardMembership.find({
+      boardId,
+      invitationResponse: "accepted",
+      isDeleted: false,
+    }).select("userId");
 
-			// // 3) Tìm User có _id trong userIds và có ít nhất 1 skill khớp
-			// const regexes = skills.map((s) => new RegExp(`^${s}$`, 'i'));
-			// const users = await User.find({
-			//   _id: { $in: userIds },
-			//   skills: { $in: regexes },
-			// })
-			//   .select('_id username email skills')
-			//   .lean();
+    const boardUserIds = boardMems.map((m) => m.userId.toString());
+    if (!boardUserIds.length) {
+      return res
+        .status(200)
+        .json({ users: [], message: "Board chưa có thành viên nào" });
+    }
 
-			invitationResponse: 'accepted',
-			isDeleted: false,
-		}).select('userId');
+    // B2. Lấy task có khoảng thời gian giao nhau (overlap) với reqStart - reqEnd
+    const overlappingTasks = await Task.find({
+      boardId,
+      assignedTo: { $in: boardUserIds },
+      isDeleted: false,
+      startDate: { $lt: reqEnd },
+      endDate: { $gt: reqStart },
+    }).select("assignedTo startDate endDate");
+    overlappingTasks.forEach((t, i) => {
+      console.log(`  🔸 Task ${i + 1}:`, {
+        assignedTo: t.assignedTo?.toString(),
+        from: t.startDate?.toISOString(),
+        to: t.endDate?.toISOString(),
+      });
+    });
 
-		const boardUserIds = boardMems.map((m) => m.userId);
-		if (!boardUserIds.length) {
-			return res
-				.status(200)
-				.json({ users: [], message: 'Board chưa có thành viên nào' });
-		}
+    const busyUserIds = new Set(
+      overlappingTasks
+        .map((t) => t.assignedTo)
+        .filter((id) => id)
+        .map((id) => id.toString())
+    );
 
-		const userQuery = { _id: { $in: boardUserIds } };
+    // B3. Lọc thành viên chưa bận
+    const availableUserIds = boardUserIds.filter(
+      (uid) => !busyUserIds.has(uid)
+    );
 
-		//  Nếu có skills
-		if (skills) {
-			const skillArr = skills
-				.split(',')
-				.map((s) => s.trim().toLowerCase())
-				.filter(Boolean);
-			if (skillArr.length > 0) {
-				userQuery.skills = { $in: skillArr };
-			}
-		}
+    if (!availableUserIds.length) {
+      return res
+        .status(200)
+        .json({ users: [], message: "Không có ai rảnh trong thời gian này" });
+    }
 
-		//  Nếu có ngày
-		if (startDate && endDate) {
-			const reqStart = new Date(startDate);
-			const reqEnd = new Date(endDate);
-			userQuery['expectedWorkDuration.startDate'] = { $lte: reqStart };
-			userQuery['expectedWorkDuration.endDate'] = { $gte: reqEnd };
-		} else if (startDate || endDate) {
-			return res.status(400).json({
-				message:
-					'Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian',
-			});
-		}
+    // B4. Truy vấn user phù hợp
+    const userQuery = {
+      _id: {
+        $in: availableUserIds.map((id) => new mongoose.Types.ObjectId(id)),
+      },
+      "expectedWorkDuration.startDate": { $lte: reqStart },
+      "expectedWorkDuration.endDate": { $gte: reqEnd },
+    };
 
-		const users = await User.find(userQuery).select(
-			'username email avatar skills expectedWorkDuration'
-		);
+    // B5. Thêm điều kiện kỹ năng nếu có
+    if (skills && typeof skills === "string") {
+      const skillArr = skills
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
 
-		return res.status(200).json({ users });
-	} catch (err) {
-		console.error('Lỗi filterBoardMembers:', err);
-		return res.status(500).json({
-			message: 'Server lỗi khi lọc thành viên',
-			error: err.message,
-		});
-	}
+      if (skillArr.length > 0) {
+        userQuery.skills = { $in: skillArr };
+      }
+    }
+
+    const users = await User.find(userQuery).select(
+      "username email avatar skills expectedWorkDuration"
+    );
+
+    console.log("🎯 Số người dùng được gợi ý:", users.length);
+    return res.status(200).json({ users });
+  } catch (err) {
+    console.error("❌ Lỗi suggestMembers:", err);
+    return res.status(500).json({
+      message: "Server lỗi khi lọc thành viên",
+      error: err.message,
+    });
+  }
 };

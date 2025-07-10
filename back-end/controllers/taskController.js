@@ -296,6 +296,57 @@ exports.createTask = async (req, res) => {
   }
 };
 
+// exports.updateTask = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const {
+//       title,
+//       description,
+//       startDate,
+//       endDate,
+//       allDay,
+//       recurrence,
+//       reminderSettings,
+//       checklist,
+//       documents,
+//       progress,
+//     } = req.body;
+
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res
+//         .status(400)
+//         .json({ status: 'fail', message: 'ID không hợp lệ' });
+//     }
+//     const task = await Task.findOne({ _id: id, isDeleted: false });
+//     if (!task) {
+//       return res
+//         .status(404)
+//         .json({ status: 'fail', message: 'Không tìm thấy task' });
+//     }
+
+//     if (typeof title === 'string') task.title = title.trim();
+//     if (typeof description === 'string') task.description = description;
+//     if (startDate !== undefined) task.startDate = new Date(startDate);
+//     if (endDate !== undefined) task.endDate = new Date(endDate);
+//     if (allDay !== undefined) task.allDay = allDay;
+//     if (recurrence !== undefined) task.recurrence = recurrence;
+//     if (Array.isArray(reminderSettings))
+//       task.reminderSettings = reminderSettings;
+//     if (Array.isArray(checklist)) task.checklist = checklist;
+//     if (Array.isArray(documents)) task.documents = documents;
+//     if (typeof progress === 'number') task.progress = progress;
+
+//     const updatedTask = await task.save();
+
+//     res.status(200).json({ status: 'success', data: updatedTask });
+//   } catch (error) {
+//     console.error('Error while updating task:', error);
+//     res
+//       .status(500)
+//       .json({ status: 'error', message: 'Có lỗi xảy ra khi cập nhật task' });
+//   }
+// };
+
 exports.updateTask = async (req, res) => {
   try {
     const { id } = req.params;
@@ -317,6 +368,7 @@ exports.updateTask = async (req, res) => {
         .status(400)
         .json({ status: 'fail', message: 'ID không hợp lệ' });
     }
+
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
       return res
@@ -324,6 +376,10 @@ exports.updateTask = async (req, res) => {
         .json({ status: 'fail', message: 'Không tìm thấy task' });
     }
 
+    // Lưu lại deadline cũ để so sánh
+    const oldEndDate = task.endDate;
+
+    // Cập nhật các trường
     if (typeof title === 'string') task.title = title.trim();
     if (typeof description === 'string') task.description = description;
     if (startDate !== undefined) task.startDate = new Date(startDate);
@@ -337,6 +393,34 @@ exports.updateTask = async (req, res) => {
     if (typeof progress === 'number') task.progress = progress;
 
     const updatedTask = await task.save();
+    if (
+      endDate &&
+      task.assignedTo &&
+      oldEndDate?.toISOString() !== new Date(endDate).toISOString()
+    ) {
+      const assignedUser = await User.findById(task.assignedTo).select(
+        'email name'
+      );
+      if (assignedUser?.email) {
+        const deadlineText = new Date(task.endDate).toLocaleString('vi-VN');
+        const html = `
+          <h2>Chào ${assignedUser.name || assignedUser.email},</h2>
+          <p>Hạn chót của task bạn đang nhận <strong>"${task.title}"</strong> đã được thay đổi.</p>
+          <ul>
+            <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
+            <li><strong>Hạn chót mới:</strong> ${deadlineText}</li>
+          </ul>
+          <p>Vui lòng kiểm tra lại hệ thống để nắm thông tin mới nhất.</p>
+          <p>Trân trọng,<br/>Đội ngũ WebPlanPro</p>
+        `;
+        await sendEmail(
+          assignedUser.email,
+          `Cập nhật deadline cho task "${task.title}"`,
+          html
+        );
+        console.log(`Gửi mail deadline mới cho: ${assignedUser.email}`);
+      }
+    }
 
     res.status(200).json({ status: 'success', data: updatedTask });
   } catch (error) {

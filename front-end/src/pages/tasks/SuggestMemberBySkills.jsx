@@ -26,7 +26,7 @@ export default function SuggestMemberBySkills({
       })
       .then((res) => {
         setAllSkills(
-          (res.data.skills || []).map((s) => ({
+          (res.data.data.skills || []).map((s) => ({
             value: s.value,
             label: s.label,
           }))
@@ -38,7 +38,14 @@ export default function SuggestMemberBySkills({
   // format ngày VN
   const formatDateVN = (iso) => {
     if (!iso) return "";
-    return new Date(iso).toLocaleDateString("vi-VN");
+    const date = new Date(iso);
+    const time = date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const day = date.toLocaleDateString("vi-VN");
+    return `${time}, ${day}`;
   };
 
   // 2) Gợi ý khi nhấn nút
@@ -66,7 +73,11 @@ export default function SuggestMemberBySkills({
         `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}/suggest-members`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
-          params: { skills: skillsParam, startDate, endDate },
+          params: {
+            skills: skillsParam,
+            startDate: new Date(startDate).toISOString(),
+            endDate: new Date(endDate).toISOString(),
+          },
         }
       );
 
@@ -90,7 +101,7 @@ export default function SuggestMemberBySkills({
       <div className="mb-3">
         <strong>Thời gian của nhiệm vụ này:</strong>{" "}
         <p>Ngày bắt đầu : {formatDateVN(startDate)}</p>
-         <p>Ngày kết thúc :{formatDateVN(endDate)} </p>
+        <p>Ngày kết thúc : {formatDateVN(endDate)} </p>
       </div>
 
       {/* Chọn kỹ năng */}

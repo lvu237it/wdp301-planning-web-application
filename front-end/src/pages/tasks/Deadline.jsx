@@ -27,8 +27,9 @@ const Deadline = ({
   show,
   onClose,
   task,
-  mergeTask,
-  onUpdate,
+  // mergeTask,
+  // onUpdate,
+  refreshTaskData, 
   minDate,
   maxDate,
 }) => {
@@ -78,8 +79,10 @@ const Deadline = ({
         payload,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      const updated = res.data.data;
-      onUpdate(mergeTask(updated));
+      // const updated = res.data.data;
+      // onUpdate(mergeTask(updated));
+      await refreshTaskData();
+
       setToastMsg("Cập nhật ngày thành công");
       setShowToast(true);
       onClose();
