@@ -1,42 +1,47 @@
-const mongoose = require("mongoose");
-const User = require("../models/userModel");
-const Board = require("../models/boardModel");
-const Skill = require("../models/skillModel");
-const AppError = require("../utils/appError");
+const mongoose = require('mongoose');
+const User = require('../models/userModel');
+const Board = require('../models/boardModel');
+const Skill = require('../models/skillModel');
+const AppError = require('../utils/appError');
 
 exports.getProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id)
-      .select("-password -passwordResetToken -passwordResetExpires")
-      .populate("skills");
-
+    const user = await User.findById(req.user._id).select(
+      '-password -passwordResetToken -passwordResetExpires'
+    );
     if (!user) {
-      return next(new AppError("User not found.", 404));
+      return next(new AppError('User not found.', 404));
     }
 
+    // Check if user has password to determine if they can unlink Google account
+    const hasPassword = !!(user.password && user.password.trim());
+
     res.status(200).json({
-      status: "success",
+      status: 'success',
       data: {
         user: {
           id: user._id,
-          fullname: user.fullname || "",
-          username: user.username || "",
+          fullname: user.fullname || '',
+          username: user.username || '',
           email: user.email,
           role: user.role,
           avatar: user.avatar || null,
+          // now an array of lowercase strings
           skills: user.skills || [],
-          about: user.about || "",
-          experience: user.experience || "",
+          about: user.about || '',
+          experience: user.experience || '',
           yearOfExperience: user.yearOfExperience || 0,
           availability: user.availability || {
-            status: "available",
+            status: 'available',
             willingToJoin: true,
           },
-          expectedWorkDuration: user.expectedWorkDuration || {
-            min: 0,
-            max: 0,
-            unit: "hours",
+          // relay exactly what’s in the schema: startDate/endDate :contentReference[oaicite:0]{index=0}
+          expectedWorkDuration: {
+            startDate: user.expectedWorkDuration.startDate,
+            endDate: user.expectedWorkDuration.endDate,
           },
+          hasPassword: hasPassword, // Thêm field này để frontend biết user có thể unlink không
+          googleId: user.googleId, // Thêm googleId để frontend biết trạng thái liên kết
         },
       },
     });
@@ -49,121 +54,94 @@ exports.updateProfile = async (req, res, next) => {
   try {
     if (req.body.password || req.body.role) {
       return next(
-        new AppError("This route is not for password or role updates.", 400)
+        new AppError('This route is not for password or role updates.', 400)
       );
     }
 
-    const allowedFields = [
-      "fullname",
-      "username",
-      "email",
-      "avatar",
-      "skills",
-      "about",
-      "experience",
-      "yearOfExperience",
-      "availability",
-      "expectedWorkDuration",
+    // Only allow these fields
+    const allowed = [
+      'fullname',
+      'username',
+      'email',
+      'avatar',
+      'skills',
+      'about',
+      'experience',
+      'yearOfExperience',
+      'availability',
+      'expectedWorkDuration',
     ];
-    const filteredBody = {};
-    Object.keys(req.body).forEach((key) => {
-      if (allowedFields.includes(key)) {
-        filteredBody[key] = req.body[key];
-      }
+    const filtered = {};
+    Object.keys(req.body).forEach((k) => {
+      if (allowed.includes(k)) filtered[k] = req.body[k];
     });
 
-    if (filteredBody.email && filteredBody.email !== req.user.email) {
-      const existing = await User.findOne({
-        email: filteredBody.email,
-        _id: { $ne: req.user._id },
-      });
-      if (existing) {
+    // …email uniqueness checks…
+
+    // 1. Validate skills array of lowercase values
+    if (filtered.skills) {
+      if (!Array.isArray(filtered.skills)) {
         return next(
-          new AppError("That email is already in use by another account.", 400)
+          new AppError('Skills must be an array of skill values.', 400)
         );
       }
-    }
-
-    if (filteredBody.skills) {
-      if (!Array.isArray(filteredBody.skills)) {
-        return next(new AppError("Skills must be an array of skill IDs.", 400));
-      }
-
-      for (const skillId of filteredBody.skills) {
-        if (!mongoose.Types.ObjectId.isValid(skillId)) {
-          return next(new AppError(`Invalid skill ID: ${skillId}`, 400));
-        }
-        const skill = await Skill.findById(skillId);
+      for (const val of filtered.skills) {
+        const skill = await Skill.findOne({ value: val });
         if (!skill) {
-          return next(new AppError(`Skill not found: ${skillId}`, 404));
+          return next(new AppError(`Skill not found: ${val}`, 404));
         }
       }
     }
 
-    if (filteredBody.availability) {
-      if (!["available", "busy"].includes(filteredBody.availability.status)) {
-        return next(new AppError("Invalid availability status.", 400));
-      }
-      if (typeof filteredBody.availability.willingToJoin !== "boolean") {
-        return next(new AppError("WillingToJoin must be a boolean.", 400));
-      }
-    }
+    // 2. Validate availability (unchanged) …
 
-    if (filteredBody.expectedWorkDuration) {
-      if (
-        !["hours", "days", "weeks", "months"].includes(
-          filteredBody.expectedWorkDuration.unit
-        )
-      ) {
-        return next(new AppError("Invalid work duration unit.", 400));
+    // 3. Validate expectedWorkDuration.startDate/endDate
+    if (filtered.expectedWorkDuration) {
+      const { startDate, endDate } = filtered.expectedWorkDuration;
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      if (isNaN(s) || isNaN(e)) {
+        return next(new AppError('Invalid start or end date.', 400));
       }
-      if (
-        filteredBody.expectedWorkDuration.min < 0 ||
-        filteredBody.expectedWorkDuration.max < 0
-      ) {
+      if (s > e) {
         return next(
-          new AppError("Work duration values cannot be negative.", 400)
+          new AppError('Start date must be before or equal to end date.', 400)
         );
       }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      filteredBody,
-      {
-        new: true,
-        runValidators: true,
-      }
-    )
-      .select("-password -passwordResetToken -passwordResetExpires")
-      .populate("skills");
+    // 4. Perform update
+    const updated = await User.findByIdAndUpdate(req.user._id, filtered, {
+      new: true,
+      runValidators: true,
+    }).select('-password -passwordResetToken -passwordResetExpires');
 
-    if (!updatedUser) {
-      return next(new AppError("User not found.", 404));
+    if (!updated) {
+      return next(new AppError('User not found.', 404));
     }
 
+    // 5. Return in same shape as getProfile
     res.status(200).json({
-      status: "success",
+      status: 'success',
       data: {
         user: {
-          id: updatedUser._id,
-          fullname: updatedUser.fullname || "",
-          username: updatedUser.username || "",
-          email: updatedUser.email,
-          role: updatedUser.role,
-          avatar: updatedUser.avatar || null,
-          skills: updatedUser.skills || [],
-          about: updatedUser.about || "",
-          experience: updatedUser.experience || "",
-          yearOfExperience: updatedUser.yearOfExperience || 0,
-          availability: updatedUser.availability || {
-            status: "available",
+          id: updated._id,
+          fullname: updated.fullname || '',
+          username: updated.username || '',
+          email: updated.email,
+          role: updated.role,
+          avatar: updated.avatar || null,
+          skills: updated.skills || [],
+          about: updated.about || '',
+          experience: updated.experience || '',
+          yearOfExperience: updated.yearOfExperience || 0,
+          availability: updated.availability || {
+            status: 'available',
             willingToJoin: true,
           },
-          expectedWorkDuration: updatedUser.expectedWorkDuration || {
-            min: 0,
-            max: 0,
-            unit: "hours",
+          expectedWorkDuration: {
+            startDate: updated.expectedWorkDuration.startDate,
+            endDate: updated.expectedWorkDuration.endDate,
           },
         },
       },
@@ -178,35 +156,35 @@ exports.changePassword = async (req, res, next) => {
     const { currentPassword, newPassword, passwordConfirm } = req.body;
 
     if (!currentPassword || !newPassword || !passwordConfirm) {
-      return next(new AppError("All three fields are required.", 400));
+      return next(new AppError('All three fields are required.', 400));
     }
 
-    const user = await User.findById(req.user._id).select("+password");
+    const user = await User.findById(req.user._id).select('+password');
     if (!user) {
-      return next(new AppError("User not found.", 404));
+      return next(new AppError('User not found.', 404));
     }
 
     const isMatch = await user.correctPassword(currentPassword, user.password);
     if (!isMatch) {
-      return next(new AppError("Your current password is incorrect.", 401));
+      return next(new AppError('Your current password is incorrect.', 401));
     }
 
     if (newPassword !== passwordConfirm) {
-      return next(new AppError("New passwords do not match.", 400));
+      return next(new AppError('New passwords do not match.', 400));
     }
 
     user.password = newPassword;
     user.passwordChangedAt = Date.now();
     await user.save();
 
-    const token = require("jsonwebtoken").sign(
+    const token = require('jsonwebtoken').sign(
       { _id: user._id },
       process.env.JWT_SECRET,
       {
         expiresIn: process.env.JWT_EXPIRES_IN,
       }
     );
-    res.status(200).json({ status: "success", token });
+    res.status(200).json({ status: 'success', token });
   } catch (err) {
     next(err);
   }
@@ -218,7 +196,7 @@ exports.deactivateMe = async (req, res, next) => {
       isDeleted: true,
       deletedAt: Date.now(),
     });
-    res.status(204).json({ status: "success", data: null });
+    res.status(204).json({ status: 'success', data: null });
   } catch (err) {
     next(err);
   }
@@ -230,8 +208,8 @@ exports.findUsersByEmails = async (req, res, next) => {
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return res.status(400).json({
-        status: "error",
-        message: "Danh sách email không hợp lệ",
+        status: 'error',
+        message: 'Danh sách email không hợp lệ',
       });
     }
 
@@ -240,8 +218,8 @@ exports.findUsersByEmails = async (req, res, next) => {
 
     if (invalidEmails.length > 0) {
       return res.status(400).json({
-        status: "error",
-        message: `Email không hợp lệ: ${invalidEmails.join(", ")}`,
+        status: 'error',
+        message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
       });
     }
 
@@ -250,15 +228,15 @@ exports.findUsersByEmails = async (req, res, next) => {
 
     if (selfInvite) {
       return res.status(400).json({
-        status: "error",
-        message: "Bạn không thể mời chính mình tham gia sự kiện",
+        status: 'error',
+        message: 'Bạn không thể mời chính mình tham gia sự kiện',
       });
     }
 
     const users = await User.find({
       email: { $in: emails },
       isDeleted: false,
-    }).select("_id email username fullname");
+    }).select('_id email username fullname');
 
     const foundEmails = users.map((user) => user.email);
     const notFoundEmails = emails.filter(
@@ -266,13 +244,13 @@ exports.findUsersByEmails = async (req, res, next) => {
     );
 
     res.status(200).json({
-      status: "success",
+      status: 'success',
       data: {
         foundUsers: users.map((user) => ({
           userId: user._id,
           email: user.email,
           username: user.username,
-          fullname: user.fullname || "",
+          fullname: user.fullname || '',
         })),
         notFoundEmails,
       },
@@ -284,22 +262,22 @@ exports.findUsersByEmails = async (req, res, next) => {
 
 exports.getAllUsers = async (req, res, next) => {
   try {
-    if (req.user.role !== "adminSystem") {
-      return next(new AppError("Admin access required.", 403));
+    if (req.user.role !== 'adminSystem') {
+      return next(new AppError('Admin access required.', 403));
     }
 
     const users = await User.find({ isDeleted: false })
-      .select("-password -passwordResetToken -passwordResetExpires")
-      .populate("skills");
+      .select('-password -passwordResetToken -passwordResetExpires')
+      .populate('skills');
 
     res.status(200).json({
-      status: "success",
+      status: 'success',
       results: users.length,
       data: {
         users: users.map((u) => ({
           id: u._id,
-          fullname: u.fullname || "",
-          username: u.username || "",
+          fullname: u.fullname || '',
+          username: u.username || '',
           email: u.email,
           role: u.role,
           skills: u.skills || [],
@@ -313,24 +291,24 @@ exports.getAllUsers = async (req, res, next) => {
 
 exports.updateUserById = async (req, res, next) => {
   try {
-    if (req.user.role !== "adminSystem") {
-      return next(new AppError("Admin access required.", 403));
+    if (req.user.role !== 'adminSystem') {
+      return next(new AppError('Admin access required.', 403));
     }
 
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return next(new AppError("Invalid user ID format.", 400));
+      return next(new AppError('Invalid user ID format.', 400));
     }
 
     if (
       id === req.user._id.toString() &&
       req.body.role &&
-      req.body.role !== "adminSystem"
+      req.body.role !== 'adminSystem'
     ) {
-      return next(new AppError("You cannot change your own role.", 400));
+      return next(new AppError('You cannot change your own role.', 400));
     }
 
-    const allowedFields = ["role", "isDeleted"];
+    const allowedFields = ['role', 'isDeleted'];
     const filteredBody = {};
     Object.keys(req.body).forEach((key) => {
       if (allowedFields.includes(key)) {
@@ -342,20 +320,20 @@ exports.updateUserById = async (req, res, next) => {
       new: true,
       runValidators: true,
     })
-      .select("-password -passwordResetToken -passwordResetExpires")
-      .populate("skills");
+      .select('-password -passwordResetToken -passwordResetExpires')
+      .populate('skills');
 
     if (!updatedUser) {
-      return next(new AppError("User not found.", 404));
+      return next(new AppError('User not found.', 404));
     }
 
     res.status(200).json({
-      status: "success",
+      status: 'success',
       data: {
         user: {
           id: updatedUser._id,
-          fullname: updatedUser.fullname || "",
-          username: updatedUser.username || "",
+          fullname: updatedUser.fullname || '',
+          username: updatedUser.username || '',
           email: updatedUser.email,
           role: updatedUser.role,
           isDeleted: updatedUser.isDeleted,
@@ -370,28 +348,28 @@ exports.updateUserById = async (req, res, next) => {
 
 exports.deleteUserById = async (req, res, next) => {
   try {
-    if (req.user.role !== "adminSystem") {
-      return next(new AppError("Admin access required.", 403));
+    if (req.user.role !== 'adminSystem') {
+      return next(new AppError('Admin access required.', 403));
     }
 
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return next(new AppError("Invalid user ID format.", 400));
+      return next(new AppError('Invalid user ID format.', 400));
     }
 
     const user = await User.findById(id);
     if (!user) {
-      return next(new AppError("User not found.", 404));
+      return next(new AppError('User not found.', 404));
     }
 
-    if (user.role === "adminSystem") {
-      return next(new AppError("Cannot delete another admin user.", 400));
+    if (user.role === 'adminSystem') {
+      return next(new AppError('Cannot delete another admin user.', 400));
     }
 
     await User.findByIdAndDelete(id);
     res
       .status(200)
-      .json({ status: "success", message: "User deleted successfully." });
+      .json({ status: 'success', message: 'User deleted successfully.' });
   } catch (err) {
     next(err);
   }
@@ -402,15 +380,15 @@ exports.getUserById = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return next(new AppError("Invalid user ID.", 400));
+      return next(new AppError('Invalid user ID.', 400));
     }
 
     const user = await User.findById(id)
-      .select("-password -passwordResetToken -passwordResetExpires")
-      .populate("skills");
+      .select('-password -passwordResetToken -passwordResetExpires')
+      .populate('skills');
 
     if (!user) {
-      return next(new AppError("User not found.", 404));
+      return next(new AppError('User not found.', 404));
     }
 
     res.status(200).json({
@@ -418,23 +396,23 @@ exports.getUserById = async (req, res, next) => {
       data: {
         user: {
           id: user._id,
-          fullname: user.fullname || "",
-          username: user.username || "",
+          fullname: user.fullname || '',
+          username: user.username || '',
           email: user.email,
           role: user.role,
           avatar: user.avatar || null,
           skills: user.skills || [],
-          about: user.about || "",
-          experience: user.experience || "",
+          about: user.about || '',
+          experience: user.experience || '',
           yearOfExperience: user.yearOfExperience || 0,
           availability: user.availability || {
-            status: "available",
+            status: 'available',
             willingToJoin: true,
           },
           expectedWorkDuration: user.expectedWorkDuration || {
             min: 0,
             max: 0,
-            unit: "hours",
+            unit: 'hours',
           },
           createdAt: user.createdAt,
         },

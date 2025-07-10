@@ -594,12 +594,12 @@ exports.googleAuthCallbackUserData = async (req, res) => {
 //Link Google account to existing user
 exports.linkGoogleAccount = async (req, res, next) => {
   passport.authenticate(
-    'google',
+    'google-link',
     {
       failureRedirect: `${process.env.FRONTEND_URL}/profile?error=google_link_failed`,
     },
-    async (err, user) => {
-      if (err || !user) {
+    async (err, googleUser) => {
+      if (err || !googleUser) {
         console.error('Google link failed:', err);
         return res.redirect(
           `${
@@ -611,56 +611,130 @@ exports.linkGoogleAccount = async (req, res, next) => {
       }
 
       try {
-        // Cập nhật googleId cho user hiện tại
-        const currentUser = await User.findById(req.user._id);
+        console.log('🔗 Google link callback received');
+        console.log('🔗 Query parameters:', req.query);
+        console.log('🔗 Google user data:', googleUser);
+
+        // Lấy thông tin user từ state parameter
+        const state = req.query.state;
+        console.log('🔗 Received state parameter:', state);
+
+        if (!state) {
+          console.log('❌ Missing state parameter');
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=Missing state parameter`
+          );
+        }
+
+        let stateData;
+        try {
+          stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+          console.log('🔗 Decoded state data:', stateData);
+        } catch (e) {
+          console.log('❌ Invalid state parameter:', e.message);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=Invalid state parameter`
+          );
+        }
+
+        const currentUser = await User.findById(stateData.userId);
         if (!currentUser) {
           return res.redirect(
             `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=User not found`
           );
         }
 
+        // Kiểm tra user đã có googleId chưa
         if (currentUser.googleId) {
           return res.redirect(
             `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=Google account already linked`
           );
         }
 
-        currentUser.googleId = user.googleId;
+        // Kiểm tra email có trùng không
+        if (currentUser.email !== googleUser.email) {
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=Google email does not match your account email`
+          );
+        }
+
+        // Kiểm tra googleId này đã được liên kết với user khác chưa
+        const existingGoogleUser = await User.findOne({
+          googleId: googleUser.googleId,
+          _id: { $ne: currentUser._id },
+        });
+        if (existingGoogleUser) {
+          console.log('Existing Google user :', existingGoogleUser);
+          return res.redirect(
+            `${process.env.FRONTEND_URL}/profile?error=google_link_failed&message=This Google account is already linked to another user`
+          );
+        }
+        console.log('Current user:', currentUser);
+        console.log('Google user:', googleUser);
+
+        // Cập nhật googleId cho user hiện tại
+        currentUser.googleId = googleUser.googleId;
         await currentUser.save();
 
-        // Lưu Google tokens
-        const services = [
-          {
-            service: 'calendar',
-            scopes: ['https://www.googleapis.com/auth/calendar'],
-          },
-          {
-            service: 'drive',
-            scopes: [
-              'https://www.googleapis.com/auth/drive.file',
-              'https://www.googleapis.com/auth/drive.metadata.readonly',
-            ],
-          },
-          {
-            service: 'meet',
-            scopes: ['https://www.googleapis.com/auth/meetings.space.created'],
-          },
-        ];
-
-        for (const { service, scopes } of services) {
-          await GoogleToken.findOneAndUpdate(
-            { userId: currentUser._id, service },
+        // Lưu Google tokens nếu có
+        if (googleUser.accessToken || googleUser.refreshToken) {
+          const GoogleToken = require('../models/googleTokenModel');
+          const services = [
             {
-              userId: currentUser._id,
-              service,
-              scopes,
-              accessToken: user.accessToken || null,
-              refreshToken: user.refreshToken || null,
-              expiryDate: user.expiry_date || Date.now() + 3600 * 1000,
-              status: 'active',
+              service: 'calendar',
+              scopes: ['https://www.googleapis.com/auth/calendar'],
             },
-            { upsert: true, new: true }
-          );
+            {
+              service: 'drive',
+              scopes: [
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/drive.metadata.readonly',
+              ],
+            },
+            {
+              service: 'meet',
+              scopes: [
+                'https://www.googleapis.com/auth/meetings.space.created',
+              ],
+            },
+          ];
+
+          for (const { service, scopes } of services) {
+            await GoogleToken.findOneAndUpdate(
+              { userId: currentUser._id, service },
+              {
+                userId: currentUser._id,
+                service,
+                scopes,
+                accessToken: googleUser.accessToken || null,
+                refreshToken: googleUser.refreshToken || null,
+                expiryDate: googleUser.expiry_date || Date.now() + 3600 * 1000,
+                refreshTokenExpiryDate: Date.now() + 180 * 24 * 3600 * 1000,
+                status: 'active',
+                lastRefreshed: Date.now(),
+              },
+              { upsert: true, new: true }
+            );
+          }
+        }
+
+        // Gửi thông báo thành công
+        try {
+          await NotificationService.createPersonalNotification({
+            title: 'Liên kết Google thành công',
+            content:
+              'Bạn đã liên kết tài khoản Google thành công. Giờ đây bạn có thể sử dụng đầy đủ các tính năng của ứng dụng.',
+            type: 'google_link_success',
+            targetUserId: currentUser._id,
+            targetWorkspaceId: null,
+            createdBy: getAdminId(),
+            relatedUserId: null,
+            eventId: null,
+            taskId: null,
+            messageId: null,
+          });
+        } catch (notifError) {
+          console.warn('Failed to send notification:', notifError);
         }
 
         // Redirect về profile với thông báo thành công
@@ -679,4 +753,127 @@ exports.linkGoogleAccount = async (req, res, next) => {
       }
     }
   )(req, res, next);
+};
+
+// Check if current user has linked Google account
+exports.checkGoogleLinkStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select(
+      '+password googleId email'
+    );
+
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    // Check if user has password
+    const hasPassword = !!(user.password && user.password.trim());
+
+    res.status(200).json({
+      success: true,
+      data: {
+        hasGoogleAccount: !!user.googleId,
+        email: user.email,
+        googleId: user.googleId || null,
+        hasPassword: hasPassword, // Add this info
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Initiate Google account linking
+exports.initiateGoogleLink = (req, res, next) => {
+  console.log('🔗 Initiating Google account linking for user:', req.user._id);
+  console.log('🔗 User email:', req.user.email);
+
+  // Create state parameter with user info
+  const stateData = {
+    userId: req.user._id,
+    email: req.user.email,
+    timestamp: Date.now(),
+  };
+  const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
+
+  console.log('🔗 Created state parameter:', state);
+  console.log('🔗 State data:', stateData);
+
+  passport.authenticate('google-link', {
+    scope: [
+      'profile',
+      'email',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/meetings.space.created',
+      'https://www.googleapis.com/auth/calendar',
+    ],
+    prompt: 'select_account',
+    state: state,
+  })(req, res, next);
+};
+
+// Unlink Google account
+exports.unlinkGoogleAccount = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('+password');
+
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    if (!user.googleId) {
+      return next(new AppError('No Google account linked', 400));
+    }
+
+    // Check if user has password - if not, they cannot unlink Google account
+    const hasPassword = !!(user.password && user.password.trim());
+    if (!hasPassword) {
+      return next(
+        new AppError(
+          'Cannot unlink Google account. This is your only login method. Please set up a password first.',
+          400
+        )
+      );
+    }
+
+    console.log('🔗 Unlinking Google account for user:', user._id);
+    console.log('🔗 User has password:', hasPassword);
+
+    // Remove googleId
+    user.googleId = undefined;
+    await user.save();
+
+    // Remove Google tokens
+    const GoogleToken = require('../models/googleTokenModel');
+    await GoogleToken.deleteMany({ userId: user._id });
+
+    console.log('✅ Google account unlinked successfully for user:', user._id);
+
+    // Send notification
+    try {
+      await NotificationService.createPersonalNotification({
+        title: 'Hủy liên kết Google thành công',
+        content:
+          'Bạn đã hủy liên kết tài khoản Google. Một số tính năng có thể bị hạn chế.',
+        type: 'google_unlink_success',
+        targetUserId: user._id,
+        targetWorkspaceId: null,
+        createdBy: getAdminId(),
+        relatedUserId: null,
+        eventId: null,
+        taskId: null,
+        messageId: null,
+      });
+    } catch (notifError) {
+      console.warn('Failed to send notification:', notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Google account unlinked successfully',
+    });
+  } catch (err) {
+    next(err);
+  }
 };
