@@ -197,54 +197,124 @@
 }
 
 .action-badge {
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: capitalize;
-  letter-spacing: 0.3px;
 }
 
 .action-badge.success {
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
 }
 
 .action-badge.info {
-  background: linear-gradient(135deg, #cce7ff, #b3d9ff);
-  color: #004085;
-  border: 1px solid #b3d9ff;
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
 }
 
 .action-badge.danger {
-  background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .action-badge.warning {
-  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-  color: #856404;
-  border: 1px solid #ffeaa7;
+  background-color: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fed7aa;
+}
+
+.action-badge.primary {
+  background-color: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.action-badge.secondary {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .action-badge.default {
-  background: linear-gradient(135deg, #e2e6ea, #d1d6db);
-  color: #495057;
-  border: 1px solid #d1d6db;
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+
+/* Task activity badge */
+.badge.badge-task {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+}
+
+.badge.badge-list {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.badge.badge-sensitive {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+}
+
+.assignee-info,
+.assigner-info {
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 123, 255, 0.05);
+  border-left: 3px solid #007bff;
+  border-radius: 0 6px 6px 0;
+}
+
+.assignee-info .text-muted,
+.assigner-info .text-muted {
+  color: #6c757d !important;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.assignee-info strong,
+.assigner-info strong {
+  color: #007bff;
+  font-weight: 600;
 }
 
 .admin-only-badge {
-  background: linear-gradient(135deg, #ffd700, #ffed4e);
-  color: #8b5a00;
-  padding: 4px 8px;
+  background-color: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fed7aa;
+  padding: 2px 6px;
   border-radius: 8px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border: 1px solid #e6c200;
+  margin-left: 8px;
 }
 
 .activity-details {
@@ -483,10 +553,22 @@
   }
 }
 
+/* Enhanced new activity animation */
 .activity-item.new-activity {
-  animation: slideInFromTop 0.5s ease-out;
-  background: linear-gradient(135deg, #e8f5e8, #f0f8f0);
-  border-left: 4px solid #28a745;
+  animation: slideInFromTop 0.5s ease-out, highlight 3s ease-out;
+  border-left: 4px solid #10b981;
+  background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+@keyframes highlight {
+  0% {
+    background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%);
+    border-left-color: #10b981;
+  }
+  100% {
+    background: #ffffff;
+    border-left-color: transparent;
+  }
 }
 
 /* Scroll to top button */
@@ -546,5 +628,138 @@
   50% {
     opacity: 0.5;
     transform: scale(1.2);
+  }
+}
+
+/* Task activity specific styling */
+.activity-item[data-action^='task_'] .activity-icon {
+  background-color: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Sensitive activity styling */
+.activity-item.sensitive {
+  background-color: #fefbfb;
+  border-left: 3px solid #ef4444;
+}
+
+/* Enhanced activity details for task actions */
+.activity-details {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.activity-details strong {
+  color: #334155;
+  font-weight: 600;
+}
+
+/* Icon enhancements for specific task actions */
+.activity-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background-color: #f8fafc;
+  border: 2px solid #e2e8f0;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+/* Specific icon backgrounds for different actions */
+.activity-item[data-action='task_created'] .activity-icon {
+  background-color: #dcfce7;
+  border-color: #22c55e;
+}
+
+.activity-item[data-action='task_assigned'] .activity-icon {
+  background-color: #dbeafe;
+  border-color: #3b82f6;
+}
+
+.activity-item[data-action='task_deleted'] .activity-icon {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+}
+
+.activity-item[data-action='task_document_added'] .activity-icon {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+}
+
+/* Real-time indicator improvements */
+.real-time-indicator {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Enhanced filter buttons for task filtering */
+.filter-btn.task-filter {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: white;
+  border: none;
+}
+
+.filter-btn.task-filter:hover {
+  background: linear-gradient(135deg, #6d28d9, #5b21b6);
+  transform: translateY(-1px);
+}
+
+.filter-btn.task-filter.active {
+  background: linear-gradient(135deg, #5b21b6, #4c1d95);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+/* Dark mode support for activity logs */
+@media (prefers-color-scheme: dark) {
+  .activity-item {
+    background-color: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .activity-details {
+    color: #d1d5db;
+  }
+
+  .activity-icon {
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+
+  .badge.badge-task {
+    background-color: #3730a3;
+    color: #c4b5fd;
+    border-color: #5b21b6;
+  }
+
+  .badge.badge-sensitive {
+    background-color: #7f1d1d;
+    color: #fca5a5;
+    border-color: #dc2626;
   }
 }

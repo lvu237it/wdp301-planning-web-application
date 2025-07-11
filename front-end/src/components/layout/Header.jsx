@@ -46,26 +46,38 @@ const Header = () => {
     eventId = null,
     notificationType = null,
     responseStatus = null,
-    isRead = false
+    isRead = false,
+    taskId = null
   ) => {
     // Chỉ mark as read nếu chưa được đọc
     if (!isRead) {
       await markNotificationAsRead(notificationId);
     }
 
-    // Nếu thông báo có eventId và user đã chấp nhận tham gia event, navigate tới calendar
+    // Handle navigation based on notification type
     if (
       eventId &&
       notificationType === 'event_invitation' &&
       responseStatus === 'accepted'
     ) {
+      // Navigate to calendar for accepted event invitations
       navigate('/calendar');
-      // Đóng dropdown/modal sau khi navigate
       setShowNotifDropdown(false);
       setShowNotifModal(false);
     } else if (eventId && notificationType !== 'event_invitation') {
-      // Đối với các loại notification khác về event (event_update, event_reminder, etc.)
+      // Navigate to calendar for other event notifications
       navigate('/calendar');
+      setShowNotifDropdown(false);
+      setShowNotifModal(false);
+    } else if (taskId && notificationType?.startsWith('task_')) {
+      // Navigate to boards for task-related notifications
+      // You can enhance this to navigate to specific board/task if needed
+      navigate('/dashboard');
+      setShowNotifDropdown(false);
+      setShowNotifModal(false);
+    } else if (notificationType?.startsWith('list_')) {
+      // Navigate to dashboard for list-related notifications
+      navigate('/dashboard');
       setShowNotifDropdown(false);
       setShowNotifModal(false);
     }
@@ -225,7 +237,8 @@ const Header = () => {
                 notif.eventId,
                 notif.type,
                 notif.responseStatus,
-                notif.isRead
+                notif.isRead,
+                notif.taskId
               )
             }
             className={`notification-item py-2 ${
@@ -234,13 +247,16 @@ const Header = () => {
             style={{
               whiteSpace: 'normal',
               borderBottom: '1px solid #eee',
-              cursor: canNavigateToCalendar(
-                notif.eventId,
-                notif.type,
-                notif.responseStatus
-              )
-                ? 'pointer'
-                : 'default',
+              cursor:
+                canNavigateToCalendar(
+                  notif.eventId,
+                  notif.type,
+                  notif.responseStatus
+                ) ||
+                (notif.taskId && notif.type?.startsWith('task_')) ||
+                notif.type?.startsWith('list_')
+                  ? 'pointer'
+                  : 'default',
             }}
             title={
               canNavigateToCalendar(
@@ -249,6 +265,10 @@ const Header = () => {
                 notif.responseStatus
               )
                 ? 'Click to view in calendar'
+                : notif.taskId && notif.type?.startsWith('task_')
+                ? 'Click to view tasks'
+                : notif.type?.startsWith('list_')
+                ? 'Click to view lists'
                 : ''
             }
           >
@@ -269,6 +289,28 @@ const Header = () => {
                     }}
                   >
                     📅
+                  </small>
+                )}
+                {notif.taskId && notif.type?.startsWith('task_') && (
+                  <small className='ms-2' style={{ color: '#28a745' }}>
+                    {notif.type === 'task_created' && '✅'}
+                    {notif.type === 'task_assigned' && '📋'}
+                    {notif.type === 'task_assignment_confirmed' && '✅'}
+                    {notif.type === 'task_unassigned' && '❌'}
+                    {notif.type === 'task_unassignment_confirmed' && '✅'}
+                    {notif.type === 'task_updated' && '📝'}
+                    {notif.type === 'task_deleted' && '🗑️'}
+                    {notif.type === 'task_progress_updated' && '📊'}
+                    {notif.type === 'task_document_added' && '📎'}
+                    {notif.type === 'task_document_removed' && '🗑️'}
+                    {!notif.type?.includes('task_') && '📋'}
+                  </small>
+                )}
+                {notif.type?.startsWith('list_') && (
+                  <small className='ms-2' style={{ color: '#17a2b8' }}>
+                    {notif.type === 'list_created' && '✅'}
+                    {notif.type === 'list_updated' && '📝'}
+                    {notif.type === 'list_deleted' && '🗑️'}
                   </small>
                 )}
               </span>
@@ -591,7 +633,8 @@ const Header = () => {
                     notif.eventId,
                     notif.type,
                     notif.responseStatus,
-                    notif.isRead
+                    notif.isRead,
+                    notif.taskId
                   )
                 }
                 className={`notification-item py-2 ${

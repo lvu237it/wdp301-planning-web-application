@@ -1,6 +1,7 @@
 const List = require('../models/listModel');
 const Board = require('../models/boardModel');
 const mongoose = require('mongoose');
+const NotificationService = require('../services/NotificationService');
 
 // GET all lists for a specific board
 exports.getAllList = async (req, res) => {
@@ -171,6 +172,23 @@ exports.createList = async (req, res) => {
       { session }
     );
 
+    // Send notification to creator
+    try {
+      await NotificationService.createPersonalNotification({
+        title: 'Tạo danh sách thành công',
+        content: `Bạn đã tạo thành công danh sách "${title}"`,
+        type: 'list_created',
+        targetUserId: userId,
+        targetWorkspaceId: null, // Will be populated from board if needed
+        createdBy: userId,
+      });
+    } catch (notificationError) {
+      console.warn(
+        'Failed to send list creation notification:',
+        notificationError
+      );
+    }
+
     await session.commitTransaction();
     res.status(201).json({ status: 'success', data: newList });
   } catch (error) {
@@ -310,6 +328,24 @@ exports.updateList = async (req, res) => {
 
     list._userId = userId; // Gắn userId để middleware sử dụng
     const updatedList = await list.save();
+
+    // Send notification to updater
+    try {
+      await NotificationService.createPersonalNotification({
+        title: 'Cập nhật danh sách thành công',
+        content: `Bạn đã cập nhật thành công danh sách "${updatedList.title}"`,
+        type: 'list_updated',
+        targetUserId: userId,
+        targetWorkspaceId: null,
+        createdBy: userId,
+      });
+    } catch (notificationError) {
+      console.warn(
+        'Failed to send list update notification:',
+        notificationError
+      );
+    }
+
     res.status(200).json({ status: 'success', data: updatedList });
   } catch (error) {
     console.error('Error while updating list:', error);
@@ -392,6 +428,7 @@ exports.deleteList = async (req, res) => {
     }
 
     const { boardId, position: delPos } = list;
+    const listTitle = list.title; // Store title before deletion
 
     // Soft delete
     await List.findOneAndUpdate(
@@ -413,6 +450,23 @@ exports.deleteList = async (req, res) => {
       { $inc: { position: -1 } },
       { session }
     );
+
+    // Send notification to deleter
+    try {
+      await NotificationService.createPersonalNotification({
+        title: 'Xóa danh sách thành công',
+        content: `Bạn đã xóa thành công danh sách "${listTitle}"`,
+        type: 'list_deleted',
+        targetUserId: userId,
+        targetWorkspaceId: null,
+        createdBy: userId,
+      });
+    } catch (notificationError) {
+      console.warn(
+        'Failed to send list deletion notification:',
+        notificationError
+      );
+    }
 
     await session.commitTransaction();
     res

@@ -53,6 +53,15 @@ export const Common = ({ children }) => {
     }
   });
 
+  // Notification count state
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Sync notification count with unread notifications
+  useEffect(() => {
+    const unreadCount = notifications.filter((notif) => !notif.isRead).length;
+    setNotificationCount(unreadCount);
+  }, [notifications]);
+
   // Notification pagination states
   const [notificationPagination, setNotificationPagination] = useState({
     hasMore: true,
@@ -463,6 +472,7 @@ export const Common = ({ children }) => {
     setUserDataLocal(null);
     setIsAuthenticated(false);
     setNotifications([]);
+    setNotificationCount(0);
     setCalendarUser(null);
     setCalendarBoard(null);
     setIsGoogleAuthenticated(false);
@@ -853,204 +863,244 @@ export const Common = ({ children }) => {
 
   // Setup socket listeners với cải thiện
   const setupSocketListeners = () => {
-    let userId = userDataLocal?.id || userDataLocal?._id;
-    if (!userId) {
+    const socket = getSocket();
+    if (!socket) {
+      console.warn('⚠️ Socket not available in setupSocketListeners');
       return;
     }
 
-    try {
-      const socket = getSocket();
+    // Existing socket listeners...
+    socket.on('connect', () => {
+      setSocketConnected(true);
+      console.log('🔗 Socket connected successfully:', socket.id);
+    });
 
-      // Remove existing listeners first to avoid duplicates
-      socket.off('new_notification');
-      socket.off('notification_updated');
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('test_pong');
-      socket.off('new_event_message');
-      socket.off('edit_event_message');
-      socket.off('delete_event_message');
-      socket.off('new_activity');
-      socket.off('admin_activity');
+    socket.on('disconnect', () => {
+      setSocketConnected(false);
+      console.log('🔌 Socket disconnected');
+    });
 
-      // Xử lý thông báo mới
+    socket.on('connect_error', (error) => {
+      setSocketConnected(false);
+      console.error('❌ Socket connection error:', error);
+    });
+
+    // Handle notifications
+    if (userDataLocal) {
       const handleNewNotification = (notification) => {
+        console.log('📱 New notification received:', notification);
+
+        // Add notification to local state
         setNotifications((prev) => {
-          const newNotifications = [
-            { ...notification, isRead: false, readAt: null },
-            ...prev,
-          ];
-          localStorage.setItem(
-            'notifications',
-            JSON.stringify(newNotifications)
+          // Avoid duplicates
+          const exists = prev.some(
+            (n) => n.notificationId === notification.notificationId
           );
-          return newNotifications;
+          if (exists) return prev;
+
+          const newNotification = {
+            notificationId: notification.notificationId,
+            title: notification.title,
+            content: notification.content,
+            type: notification.type,
+            isRead: false,
+            createdAt: notification.createdAt,
+            eventId: notification.eventId || null,
+            taskId: notification.taskId || null,
+            messageId: notification.messageId || null,
+            responseStatus: notification.responseStatus || null,
+            responded: notification.responded || false,
+          };
+          return [newNotification, ...prev];
         });
 
-        if (
-          notification.type === 'event_invitation' ||
-          notification.type === 'event_update' ||
-          notification.type === 'event_status_update'
-        ) {
-          {
-            toast.info(notification.title, {
-              description: notification.content,
-              duration: 3000,
-            });
-          }
-        } else if (notification.type === 'new_message') {
-          // Thông báo tin nhắn mới với icon đặc biệt
-          toast(notification.title, {
-            description: notification.content,
-            duration: 4000,
-            icon: '💬',
-          });
-        } else {
-          toast.success(notification.title, {
-            description: notification.content,
-            duration: 3000,
-          });
-        }
+        // Show toast notifications for different types
+        const toastMessages = {
+          // Task notifications
+          task_created: `✅ Tạo nhiệm vụ thành công: "${notification.content}"`,
+          task_assigned: `📋 Bạn được giao nhiệm vụ mới: "${notification.content}"`,
+          task_assignment_confirmed: `✅ ${notification.content}`,
+          task_unassigned: `❌ ${notification.content}`,
+          task_unassignment_confirmed: `✅ ${notification.content}`,
+          task_updated: `📝 ${notification.content}`,
+          task_deleted: `🗑️ ${notification.content}`,
+          task_progress_updated: `📊 ${notification.content}`,
 
-        // Nếu là thông báo cập nhật sự kiện, trigger refresh calendar
-        if (notification.type === 'event_update') {
-          window.dispatchEvent(
-            new CustomEvent('eventUpdated', {
-              detail: { eventId: notification.eventId },
-            })
-          );
-        }
-      };
+          // List notifications
+          list_created: `✅ ${notification.content}`,
+          list_updated: `📝 ${notification.content}`,
+          list_deleted: `🗑️ ${notification.content}`,
 
-      // Xử lý cập nhật thông báo
-      const handleNotificationUpdate = ({ notificationId, isRead }) => {
-        setNotifications((prev) => {
-          const updated = prev.map((n) =>
-            n.notificationId === notificationId
-              ? {
-                  ...n,
-                  isRead,
-                  readAt: isRead ? formatDateAMPMForVN(new Date()) : null,
-                }
-              : n
-          );
-          localStorage.setItem('notifications', JSON.stringify(updated));
-          return updated;
+          // Event notifications
+          event_invitation: `📅 Lời mời sự kiện: ${notification.content}`,
+          event_updated: `📝 Sự kiện được cập nhật: ${notification.content}`,
+          event_cancelled: `❌ Sự kiện bị hủy: ${notification.content}`,
+          event_reminder: `⏰ Nhắc nhở sự kiện: ${notification.content}`,
+
+          // Message notifications
+          new_message: `💬 Tin nhắn mới: ${notification.content}`,
+
+          // File notifications
+          file_shared: `📎 ${notification.content}`,
+          task_document_added: `📎 ${notification.content}`,
+          task_document_removed: `🗑️ ${notification.content}`,
+
+          // Board/Workspace notifications
+          board_invite: `📋 ${notification.content}`,
+          workspace_invite: `🏢 ${notification.content}`,
+
+          // Google integrations
+          google_auth: `🔗 ${notification.content}`,
+          google_link_success: `✅ ${notification.content}`,
+          google_unlink_success: `❌ ${notification.content}`,
+
+          // Default fallback
+          default: notification.content,
+        };
+
+        const toastMessage =
+          toastMessages[notification.type] || toastMessages.default;
+
+        toast.success(toastMessage, {
+          position: 'top-right',
+          autoClose: 4000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
         });
       };
 
-      // Listen for actual socket connection events
-      socket.on('connect', () => {
-        console.log('🔗 Socket connected event received');
-        setSocketConnected(true);
-      });
-
-      socket.on('disconnect', () => {
-        console.log('❌ Socket disconnected event received');
-        setSocketConnected(false);
-      });
-
-      // Test pong listener để verify connection
-      socket.on('test_pong', (data) => {
-        console.log('🏓 Received test pong from backend:', data);
-        // Đảm bảo connection status được update khi nhận được pong
-        setSocketConnected(true);
-      });
-
-      // Đăng ký listeners
       socket.on('new_notification', handleNewNotification);
-      socket.on('notification_updated', handleNotificationUpdate);
 
-      // Event messaging listeners
-      socket.on('new_event_message', (data) => {
-        console.log('📨 New event message received:', data);
-        // Emit custom event for Calendar component to handle
-        window.dispatchEvent(
-          new CustomEvent('new_event_message', {
-            detail: data,
-          })
+      const handleNotificationUpdate = ({ notificationId, isRead }) => {
+        console.log('📨 Notification update received:', {
+          notificationId,
+          isRead,
+        });
+        setNotifications((prev) =>
+          prev.map((notif) =>
+            notif.notificationId === notificationId
+              ? { ...notif, isRead }
+              : notif
+          )
         );
-      });
 
-      socket.on('edit_event_message', (data) => {
-        console.log('✏️ Event message edited:', data);
-        // Emit custom event for Calendar component to handle
-        window.dispatchEvent(
-          new CustomEvent('edit_event_message', {
-            detail: data,
-          })
-        );
-      });
+        if (isRead) {
+          setNotificationCount((prev) => Math.max(0, prev - 1));
+        }
+      };
 
-      socket.on('delete_event_message', (data) => {
-        console.log('🗑️ Event message deleted:', data);
-        // Emit custom event for Calendar component to handle
-        window.dispatchEvent(
-          new CustomEvent('delete_event_message', {
-            detail: data,
-          })
-        );
-      });
+      socket.on('notification_update', handleNotificationUpdate);
+    }
 
-      // Activity log listeners
-      socket.on('new_activity', (data) => {
-        console.log('📊 New activity log received:', data);
-        // Emit custom event for BoardActivityLog component to handle
-        window.dispatchEvent(
-          new CustomEvent('new_activity_log', {
-            detail: data,
-          })
-        );
-      });
+    // Handle activity logs
+    const handleNewActivity = (activityLog) => {
+      console.log('📊 New activity log received:', activityLog);
 
-      socket.on('admin_activity', (data) => {
-        console.log('👑 Admin activity log received:', data);
-        // Emit custom event for BoardActivityLog component to handle
-        window.dispatchEvent(
-          new CustomEvent('admin_activity_log', {
-            detail: data,
-          })
-        );
-      });
+      // Show toast notifications for different activity types
+      if (activityLog.action.startsWith('task_')) {
+        const actionMessages = {
+          task_created: '✅ Nhiệm vụ mới được tạo',
+          task_updated: '📝 Nhiệm vụ được cập nhật',
+          task_assigned: '👤 Nhiệm vụ được giao',
+          task_unassigned: '👥 Hủy giao nhiệm vụ',
+          task_checklist_updated: '☑️ Checklist được cập nhật',
+          task_checklist_item_completed: '✅ Hoàn thành nhiệm vụ con',
+          task_checklist_item_uncompleted: '❌ Bỏ hoàn thành nhiệm vụ con',
+          task_document_added: '📎 Thêm tài liệu vào nhiệm vụ',
+          task_document_shared: '🔗 Chia sẻ tài liệu nhiệm vụ',
+          task_document_renamed: '✏️ Đổi tên tài liệu',
+          task_document_removed: '🗑️ Xóa tài liệu khỏi nhiệm vụ',
+          task_deleted: '🗑️ Xóa nhiệm vụ',
+        };
 
-      // Activity log listeners
-      socket.on('new_activity', (data) => {
-        console.log('📊 New activity log received:', data);
-        // Emit custom event for BoardActivityLog component to handle
-        window.dispatchEvent(
-          new CustomEvent('new_activity_log', {
-            detail: data,
-          })
-        );
-      });
+        const message =
+          actionMessages[activityLog.action] || '📄 Hoạt động mới';
+        // toast.info(`${message} bởi ${activityLog.userName}`, {
+        //   position: 'top-right',
+        //   autoClose: 3000,
+        //   hideProgressBar: false,
+        // });
+      } else if (activityLog.action.startsWith('list_')) {
+        const actionMessages = {
+          list_created: '📋 Danh sách mới được tạo',
+          list_updated: '✏️ Danh sách được cập nhật',
+          list_deleted: '🗑️ Danh sách được xóa',
+          list_task_moved: '🔄 Nhiệm vụ được di chuyển',
+        };
 
-      socket.on('admin_activity', (data) => {
-        console.log('👑 Admin activity log received:', data);
-        // Emit custom event for BoardActivityLog component to handle
-        window.dispatchEvent(
-          new CustomEvent('admin_activity_log', {
-            detail: data,
-          })
-        );
-      });
-
-      // Check if socket is already connected
-      if (socket.connected) {
-        console.log('🔗 Socket already connected during setup');
-        setSocketConnected(true);
+        const message =
+          actionMessages[activityLog.action] || '📄 Hoạt động mới';
+        toast.info(`${message} bởi ${activityLog.userName}`, {
+          position: 'top-right',
+          autoClose: 3000,
+          hideProgressBar: false,
+        });
       }
 
-      // Test ping để verify connection
-      socket.emit('test_ping', {
-        message: 'Hello from frontend',
-        userId: userId,
-      });
+      // This will be handled by BoardActivityLog component
+      window.dispatchEvent(
+        new CustomEvent('new_board_activity', {
+          detail: activityLog,
+        })
+      );
+    };
 
-      console.log('✅ Socket listeners registered successfully');
-    } catch (error) {
-      console.error('❌ Error setting up socket listeners:', error);
-      setSocketConnected(false);
-    }
+    const handleTaskActivity = (activityLog) => {
+      console.log('📋 New task activity received:', activityLog);
+
+      // Handle sensitive task activities with more discrete notifications
+      if (
+        activityLog.action === 'task_assigned' ||
+        activityLog.action === 'task_unassigned'
+      ) {
+        const message =
+          activityLog.action === 'task_assigned'
+            ? '🔒 Có cập nhật giao nhiệm vụ'
+            : '🔒 Có cập nhật hủy giao nhiệm vụ';
+        toast.info(message, {
+          position: 'top-right',
+          autoClose: 2000,
+          hideProgressBar: false,
+        });
+      }
+
+      // Handle sensitive task activity logs
+      window.dispatchEvent(
+        new CustomEvent('new_task_activity', {
+          detail: activityLog,
+        })
+      );
+    };
+
+    const handleAdminActivity = (activityLog) => {
+      console.log('👑 New admin activity received:', activityLog);
+      // Handle admin-only activity logs
+      window.dispatchEvent(
+        new CustomEvent('new_admin_activity', {
+          detail: activityLog,
+        })
+      );
+    };
+
+    socket.on('new_activity', handleNewActivity);
+    socket.on('task_activity', handleTaskActivity);
+    socket.on('admin_activity', handleAdminActivity);
+
+    // Store listeners for cleanup
+    return () => {
+      if (socket) {
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('connect_error');
+        socket.off('new_notification');
+        socket.off('notification_update');
+        socket.off('new_activity', handleNewActivity);
+        socket.off('task_activity', handleTaskActivity);
+        socket.off('admin_activity', handleAdminActivity);
+      }
+    };
   };
 
   //Create a personal calendar for user (if needed)
@@ -2376,6 +2426,8 @@ export const Common = ({ children }) => {
         setIsLinkingGoogle,
         isAuthenticated,
         notifications,
+        notificationCount,
+        setNotificationCount,
         fetchNotifications,
         markNotificationAsRead,
         respondToEventInvitation,

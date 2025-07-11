@@ -35,8 +35,8 @@ const BoardInviteResponse = () => {
       );
       setStatus(res.data.status); // 'accepted' hoặc 'declined'
       toast.success(res.data.message);
-      // Sau 2s quay về list boards
-      setTimeout(() => navigate(`/workspace`), 2000);
+      // Sau 2s quay về trang chủ
+      setTimeout(() => navigate(`/`), 2000);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Lỗi server');

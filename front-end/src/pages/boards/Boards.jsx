@@ -228,13 +228,6 @@ const Boards = () => {
             </Alert>
           )}
 
-          {/* Empty State */}
-          {boards.length === 0 && (
-            <Alert variant='info' className='boards-empty-alert'>
-              Chưa có board nào trong workspace này.
-            </Alert>
-          )}
-
           {/* Boards Grid */}
           <Row xs={1} md={2} lg={3} className='g-4'>
             {boards.map((board) => {

@@ -168,11 +168,12 @@ function Login() {
                 fontSize: 12,
                 color: '#00B894',
                 opacity: isLoading ? 0.7 : 1,
+                marginBottom: 30,
               }}
               className='text-center'
               onClick={() => !isLoading && navigate('/forgot-password')}
             >
-              Forgot Password?
+              {/* Forgot Password? */}
             </p>
 
             <button

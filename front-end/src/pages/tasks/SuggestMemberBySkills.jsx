@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import Select from "react-select";
-import axios from "axios";
-import { useCommon } from "../../contexts/CommonContext";
+import React, { useState, useEffect } from 'react';
+import Select from 'react-select';
+import axios from 'axios';
+import { useCommon } from '../../contexts/CommonContext';
 
 export default function SuggestMemberBySkills({
   workspaceId,
@@ -16,7 +16,7 @@ export default function SuggestMemberBySkills({
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   // 1) Load toàn bộ kỹ năng
   useEffect(() => {
@@ -32,42 +32,42 @@ export default function SuggestMemberBySkills({
           }))
         );
       })
-      .catch((err) => console.error("Không thể lấy skills:", err));
+      .catch((err) => console.error('Không thể lấy skills:', err));
   }, [apiBaseUrl, accessToken]);
 
   // format ngày VN
   const formatDateVN = (iso) => {
-    if (!iso) return "";
+    if (!iso) return '';
     const date = new Date(iso);
-    const time = date.toLocaleTimeString("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
+    const time = date.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
       hour12: false,
     });
-    const day = date.toLocaleDateString("vi-VN");
+    const day = date.toLocaleDateString('vi-VN');
     return `${time}, ${day}`;
   };
 
   // 2) Gợi ý khi nhấn nút
   const fetchSuggestions = async () => {
-    setError("");
+    setError('');
     // validate ngày
     if (!startDate || !endDate) {
-      setError("Task chưa có ngày bắt đầu hoặc kết thúc.");
+      setError('Task chưa có ngày bắt đầu hoặc kết thúc.');
       return;
     }
     if (new Date(startDate) > new Date(endDate)) {
-      setError("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.");
+      setError('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.');
       return;
     }
     if (selectedSkills.length === 0) {
-      setError("Vui lòng chọn ít nhất 1 kỹ năng.");
+      setError('Vui lòng chọn ít nhất 1 kỹ năng.');
       return;
     }
 
     setLoading(true);
     try {
-      const skillsParam = selectedSkills.map((s) => s.value).join(",");
+      const skillsParam = selectedSkills.map((s) => s.value).join(',');
 
       const res = await axios.get(
         `${apiBaseUrl}/workspace/${workspaceId}/board/${boardId}/suggest-members`,
@@ -83,12 +83,12 @@ export default function SuggestMemberBySkills({
 
       const users = res.data.users || [];
       if (users.length === 0) {
-        setError("Không tìm thấy thành viên phù hợp.");
+        setError('Không tìm thấy thành viên phù hợp.');
       }
       setSuggestions(users);
     } catch (err) {
-      console.error("Gợi ý thất bại:", err);
-      setError("Có lỗi xảy ra, vui lòng thử lại.");
+      console.error('Gợi ý thất bại:', err);
+      setError('Có lỗi xảy ra, vui lòng thử lại.');
       setSuggestions([]);
     } finally {
       setLoading(false);
@@ -98,52 +98,54 @@ export default function SuggestMemberBySkills({
   return (
     <div>
       {/* Hiển thị ngày của Task */}
-      <div className="mb-3">
-        <strong>Thời gian của nhiệm vụ này:</strong>{" "}
-        <p>Ngày bắt đầu : {formatDateVN(startDate)}</p>
-        <p>Ngày kết thúc : {formatDateVN(endDate)} </p>
+      <div className='mb-3'>
+        <strong>Thời gian của nhiệm vụ này:</strong>{' '}
+        <div className='d-flex gap-5'>
+          <p className='mb-0'>Ngày bắt đầu : {formatDateVN(startDate)}</p>
+          <p className='mb-0'>Ngày kết thúc : {formatDateVN(endDate)} </p>
+        </div>
       </div>
 
       {/* Chọn kỹ năng */}
-      <div className="mb-3">
-        <label className="form-label">Chọn kỹ năng</label>
+      <div className='mb-3'>
+        <label className='form-label'>Chọn kỹ năng</label>
         <Select
           isMulti
           options={allSkills}
           value={selectedSkills}
           onChange={setSelectedSkills}
-          placeholder="Chọn kỹ năng..."
+          placeholder='Chọn kỹ năng...'
         />
       </div>
 
       {/* Nút Gợi ý */}
-      <div className="mb-3">
+      <div className='mb-3'>
         <button
-          className="btn btn-primary"
+          className='btn btn-primary'
           onClick={fetchSuggestions}
           disabled={loading}
         >
-          {loading ? "Đang gợi ý…" : "Gợi ý thành viên"}
+          {loading ? 'Đang gợi ý…' : 'Gợi ý thành viên'}
         </button>
       </div>
 
       {/* Thông báo lỗi */}
-      {error && <div className="text-danger mb-3">{error}</div>}
+      {error && <div className='text-danger mb-3'>{error}</div>}
 
       {/* Danh sách gợi ý */}
       {suggestions.length > 0 && (
-        <ul className="list-group">
+        <ul className='list-group'>
           {suggestions.map((u) => (
             <li
               key={u._id}
-              className="list-group-item d-flex justify-content-between align-items-center"
+              className='list-group-item d-flex justify-content-between align-items-center'
             >
-              <div className="d-flex align-items-center">
+              <div className='d-flex align-items-center'>
                 {u.avatar && (
                   <img
                     src={u.avatar}
-                    alt=""
-                    className="rounded-circle me-2"
+                    alt=''
+                    className='rounded-circle me-2'
                     width={30}
                     height={30}
                   />
@@ -151,11 +153,11 @@ export default function SuggestMemberBySkills({
                 <div>
                   <strong>{u.username}</strong>
                   <br />
-                  <small className="text-muted">{u.email}</small>
+                  <small className='text-muted'>{u.email}</small>
                 </div>
               </div>
               <button
-                className="btn btn-sm btn-success"
+                className='btn btn-sm btn-success'
                 onClick={() => onAssignSuccess(u)}
               >
                 Giao nhiệm vụ

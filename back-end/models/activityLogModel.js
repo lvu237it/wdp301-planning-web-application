@@ -25,9 +25,12 @@ const activityLogSchema = new mongoose.Schema({
       'task_assigned',
       'task_unassigned',
       'task_checklist_updated',
+      'task_checklist_item_completed',
+      'task_checklist_item_uncompleted',
       'task_document_added',
       'task_document_removed',
       'task_document_renamed',
+      'task_document_shared',
       // Message-related actions
       'message_sent',
       'message_updated',

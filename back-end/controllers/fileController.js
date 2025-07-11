@@ -15,6 +15,9 @@ const {
 const NotificationService = require('../services/NotificationService');
 const { getAdminId } = require('../utils/admin');
 const { createContentDispositionHeader } = require('../utils/fileUtils');
+const ActivityLog = require('../models/activityLogModel');
+const { formatDateToTimeZone } = require('../utils/dateUtils');
+const { emitToBoard, emitToUser } = require('../utils/socket');
 
 const SERVICE_SCOPES = {
   drive: [
@@ -436,6 +439,48 @@ exports.uploadFileToTask = async (req, res, next) => {
     task.documents.push(fileDoc._id);
     await task.save();
 
+    // Ghi activity log
+    try {
+      const log = await ActivityLog.create({
+        boardId: task.boardId,
+        userId: userId,
+        action: 'task_document_added',
+        targetId: task._id,
+        targetType: 'task',
+        details: `File "${data.name}" uploaded to task "${task.title}"`,
+        isVisible: true,
+      });
+
+      // Emit to board members
+      const formattedLog = {
+        logId: log._id,
+        boardId: log.boardId,
+        userId: log.userId,
+        userName: req.user.fullname || 'Unknown User',
+        action: log.action,
+        details: log.details,
+        isVisible: log.isVisible,
+        createdAt: formatDateToTimeZone(log.createdAt),
+      };
+
+      emitToBoard(task.boardId.toString(), 'new_activity', formattedLog);
+
+      // Send notification to assigned user if different from uploader
+      if (task.assignedTo && !task.assignedTo.equals(userId)) {
+        await NotificationService.createPersonalNotification({
+          title: 'File mới được thêm vào nhiệm vụ',
+          content: `File "${data.name}" đã được thêm vào nhiệm vụ "${task.title}"`,
+          type: 'task_document_added',
+          targetUserId: task.assignedTo,
+          targetWorkspaceId: task.workspaceId,
+          createdBy: userId,
+          taskId: task._id,
+        });
+      }
+    } catch (logError) {
+      console.error('Error creating activity log for file upload:', logError);
+    }
+
     // Xóa file tạm trên server
     await fsPromises.unlink(file.path);
 
@@ -608,6 +653,50 @@ exports.shareFileWithTaskUsers = async (req, res, next) => {
       }
     }
 
+    // Ghi activity log
+    try {
+      const log = await ActivityLog.create({
+        boardId: task.boardId,
+        userId: userId,
+        action: 'task_document_shared',
+        targetId: task._id,
+        targetType: 'task',
+        details: `File "${fileDoc.name}" shared with task members for task "${task.title}"`,
+        isVisible: true,
+      });
+
+      // Emit to board members
+      const formattedLog = {
+        logId: log._id,
+        boardId: log.boardId,
+        userId: log.userId,
+        userName: req.user.fullname || 'Unknown User',
+        action: log.action,
+        details: log.details,
+        isVisible: log.isVisible,
+        createdAt: formatDateToTimeZone(log.createdAt),
+      };
+
+      emitToBoard(task.boardId.toString(), 'new_activity', formattedLog);
+
+      // Send notification to shared users
+      for (const user of users) {
+        if (!user._id.equals(userId)) {
+          await NotificationService.createPersonalNotification({
+            title: 'File được chia sẻ với bạn',
+            content: `File "${fileDoc.name}" trong nhiệm vụ "${task.title}" đã được chia sẻ với bạn`,
+            type: 'file_shared',
+            targetUserId: user._id,
+            targetWorkspaceId: task.workspaceId,
+            createdBy: userId,
+            taskId: task._id,
+          });
+        }
+      }
+    } catch (logError) {
+      console.error('Error creating activity log for file sharing:', logError);
+    }
+
     res.status(200).json({
       status: 'success',
       message: 'Đã chia sẻ file với người dùng trong task',
@@ -625,13 +714,15 @@ exports.updateFile = async (req, res, next) => {
     const { fileDocId, newName } = req.body; // Sử dụng fileDocId từ model File
 
     // Kiểm tra file trong model File
-    const fileDoc = await File.findById(fileDocId);
+    const fileDoc = await File.findById(fileDocId).populate('taskId');
     if (!fileDoc || fileDoc.isDeleted) {
       return next(new AppError('Không tìm thấy file hoặc file đã bị xóa', 404));
     }
     if (!fileDoc.uploadedBy.equals(userId)) {
       return next(new AppError('Bạn không có quyền sửa file này', 403));
     }
+
+    const oldName = fileDoc.name;
 
     // Cập nhật trên Google Drive
     const auth = await authorize(userId, 'drive', DRIVE_SCOPES);
@@ -647,6 +738,38 @@ exports.updateFile = async (req, res, next) => {
     fileDoc.name = data.name;
     fileDoc.url = data.webViewLink;
     await fileDoc.save();
+
+    // Ghi activity log nếu file thuộc về task
+    if (fileDoc.taskId) {
+      try {
+        const task = fileDoc.taskId;
+        const log = await ActivityLog.create({
+          boardId: task.boardId,
+          userId: userId,
+          action: 'task_document_renamed',
+          targetId: task._id,
+          targetType: 'task',
+          details: `File renamed from "${oldName}" to "${data.name}" in task "${task.title}"`,
+          isVisible: true,
+        });
+
+        // Emit to board members
+        const formattedLog = {
+          logId: log._id,
+          boardId: log.boardId,
+          userId: log.userId,
+          userName: req.user.fullname || 'Unknown User',
+          action: log.action,
+          details: log.details,
+          isVisible: log.isVisible,
+          createdAt: formatDateToTimeZone(log.createdAt),
+        };
+
+        emitToBoard(task.boardId.toString(), 'new_activity', formattedLog);
+      } catch (logError) {
+        console.error('Error creating activity log for file rename:', logError);
+      }
+    }
 
     res.status(200).json({
       status: 'success',
@@ -670,13 +793,16 @@ exports.deleteFile = async (req, res, next) => {
     const { fileDocId } = req.body; // ID của document trong model File
 
     // Kiểm tra file trong model File
-    const fileDoc = await File.findById(fileDocId);
+    const fileDoc = await File.findById(fileDocId).populate('taskId');
     if (!fileDoc || fileDoc.isDeleted) {
       return next(new AppError('Không tìm thấy file hoặc file đã bị xóa', 404));
     }
     if (!fileDoc.uploadedBy.equals(userId)) {
       return next(new AppError('Bạn không có quyền xóa file này', 403));
     }
+
+    const fileName = fileDoc.name;
+    const task = fileDoc.taskId;
 
     try {
       // Thu hồi quyền chia sẻ trên Google Drive
@@ -701,6 +827,74 @@ exports.deleteFile = async (req, res, next) => {
       { documents: fileDocId },
       { $pull: { documents: fileDocId } }
     );
+
+    // Ghi activity log nếu file thuộc về task
+    if (task) {
+      try {
+        const log = await ActivityLog.create({
+          boardId: task.boardId,
+          userId: userId,
+          action: 'task_document_removed',
+          targetId: task._id,
+          targetType: 'task',
+          details: `File "${fileName}" removed from task "${task.title}"`,
+          isVisible: false, // Sensitive - only show to relevant users
+        });
+
+        // Emit to relevant users only (assignee, assigner, admins)
+        const formattedLog = {
+          logId: log._id,
+          boardId: log.boardId,
+          userId: log.userId,
+          userName: req.user.fullname || 'Unknown User',
+          action: log.action,
+          details: log.details,
+          isVisible: log.isVisible,
+          createdAt: formatDateToTimeZone(log.createdAt),
+        };
+
+        // Get relevant users
+        const relevantUsers = [];
+        if (task.assignedTo) relevantUsers.push(task.assignedTo.toString());
+        if (task.assignedBy) relevantUsers.push(task.assignedBy.toString());
+
+        // Add board admins
+        const BoardMembership = require('../models/boardMembershipModel');
+        const admins = await BoardMembership.find({
+          boardId: task.boardId,
+          role: 'admin',
+          isDeleted: false,
+        }).select('userId');
+
+        admins.forEach((admin) => {
+          relevantUsers.push(admin.userId.toString());
+        });
+
+        // Remove duplicates and emit to each relevant user
+        const uniqueUsers = [...new Set(relevantUsers)];
+        uniqueUsers.forEach((userId) => {
+          emitToUser(userId, 'task_activity', formattedLog);
+        });
+
+        // Send notification to assigned user if different from deleter
+        if (task.assignedTo && !task.assignedTo.equals(userId)) {
+          await NotificationService.createPersonalNotification({
+            title: 'File đã bị xóa khỏi nhiệm vụ',
+            content: `File "${fileName}" đã bị xóa khỏi nhiệm vụ "${task.title}"`,
+            type: 'task_document_removed',
+            targetUserId: task.assignedTo,
+            targetWorkspaceId: task.workspaceId,
+            createdBy: userId,
+            taskId: task._id,
+          });
+        }
+      } catch (logError) {
+        console.error(
+          'Error creating activity log for file deletion:',
+          logError
+        );
+      }
+    }
 
     res.status(200).json({
       status: 'success',

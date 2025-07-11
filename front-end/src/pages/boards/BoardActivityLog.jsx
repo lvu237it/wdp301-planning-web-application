@@ -131,71 +131,94 @@ function BoardActivityLog() {
 
   // Setup real-time updates via custom events
   useEffect(() => {
+    // Existing socket listeners
     const handleNewActivity = (event) => {
-      const newLog = event.detail;
-      console.log('📊 BoardActivityLog received new_activity_log:', newLog);
+      const activityLog = event.detail;
+      console.log('🎯 New activity received in component:', activityLog);
 
-      // Only add if it's for current board
-      if (newLog.boardId === boardId) {
-        console.log('✅ Adding new activity log to UI:', newLog.action);
-        setLogs((prev) => [newLog, ...prev]);
-        // Add animation class for new items
-        setTimeout(() => {
-          const element = document.querySelector('.activity-item');
-          if (element) {
-            element.classList.add('new-activity');
-          }
-        }, 100);
-      } else {
-        console.log(
-          '❌ Activity log not for current board:',
-          newLog.boardId,
-          'vs',
-          boardId
-        );
-      }
-    };
+      if (activityLog.boardId === boardId) {
+        // Add to logs with animation
+        setLogs((prevLogs) => {
+          const newLogs = [{ ...activityLog, isNew: true }, ...prevLogs];
 
-    const handleAdminActivity = (event) => {
-      const newLog = event.detail;
-      console.log('👑 BoardActivityLog received admin_activity_log:', newLog);
+          // Remove animation class after 3 seconds
+          setTimeout(() => {
+            setLogs((currentLogs) =>
+              currentLogs.map((log) =>
+                log.logId === activityLog.logId ? { ...log, isNew: false } : log
+              )
+            );
+          }, 3000);
 
-      // Only add if user is admin and it's for current board
-      if (userRole === 'admin' && newLog.boardId === boardId) {
-        console.log('✅ Adding admin activity log to UI:', newLog.action);
-        setLogs((prev) => [newLog, ...prev]);
-        // Add animation class for new items
-        setTimeout(() => {
-          const element = document.querySelector('.activity-item');
-          if (element) {
-            element.classList.add('new-activity');
-          }
-        }, 100);
-      } else {
-        console.log('❌ Admin activity log not applicable:', {
-          userRole,
-          boardMatch: newLog.boardId === boardId,
+          return newLogs;
         });
       }
     };
 
-    console.log(
-      '🎧 Setting up activity log listeners for board:',
-      boardId,
-      'userRole:',
-      userRole
-    );
+    const handleTaskActivity = (event) => {
+      const activityLog = event.detail;
+      console.log('📋 New task activity received in component:', activityLog);
 
-    // Listen to custom events from CommonContext
-    window.addEventListener('new_activity_log', handleNewActivity);
-    window.addEventListener('admin_activity_log', handleAdminActivity);
+      if (activityLog.boardId === boardId) {
+        // Add to logs with animation
+        setLogs((prevLogs) => {
+          const newLogs = [
+            { ...activityLog, isNew: true, isTaskActivity: true },
+            ...prevLogs,
+          ];
 
-    return () => {
-      console.log('🔇 Cleaning up activity log listeners');
-      window.removeEventListener('new_activity_log', handleNewActivity);
-      window.removeEventListener('admin_activity_log', handleAdminActivity);
+          // Remove animation class after 3 seconds
+          setTimeout(() => {
+            setLogs((currentLogs) =>
+              currentLogs.map((log) =>
+                log.logId === activityLog.logId ? { ...log, isNew: false } : log
+              )
+            );
+          }, 3000);
+
+          return newLogs;
+        });
+      }
     };
-  }, [userRole, boardId]);
+
+    const handleAdminActivity = (event) => {
+      const activityLog = event.detail;
+      console.log('👑 New admin activity received in component:', activityLog);
+
+      if (activityLog.boardId === boardId && userRole === 'admin') {
+        // Add to logs with animation
+        setLogs((prevLogs) => {
+          const newLogs = [
+            { ...activityLog, isNew: true, isAdminOnly: true },
+            ...prevLogs,
+          ];
+
+          // Remove animation class after 3 seconds
+          setTimeout(() => {
+            setLogs((currentLogs) =>
+              currentLogs.map((log) =>
+                log.logId === activityLog.logId ? { ...log, isNew: false } : log
+              )
+            );
+          }, 3000);
+
+          return newLogs;
+        });
+      }
+    };
+
+    // Listen for activity log events
+    window.addEventListener('new_board_activity', handleNewActivity);
+    window.addEventListener('new_task_activity', handleTaskActivity);
+    window.addEventListener('new_admin_activity', handleAdminActivity);
+
+    // Cleanup listeners
+    return () => {
+      window.removeEventListener('new_board_activity', handleNewActivity);
+      window.removeEventListener('new_task_activity', handleTaskActivity);
+      window.removeEventListener('new_admin_activity', handleAdminActivity);
+    };
+  }, [boardId, userRole]);
 
   // Initial load
   useEffect(() => {
@@ -217,40 +240,94 @@ function BoardActivityLog() {
     }
   }, [filter]);
 
-  // Get action icon
   const getActionIcon = (action) => {
-    if (action.includes('list')) return '📝';
-    if (action.includes('task')) return '📋';
-    if (action.includes('message')) return '💬';
-    return '📊';
-  };
-
-  // Get action color
-  const getActionColor = (action) => {
-    if (action.includes('created')) return 'success';
-    if (action.includes('updated')) return 'info';
-    if (action.includes('deleted')) return 'danger';
-    if (action.includes('moved')) return 'warning';
-    return 'default';
-  };
-
-  // Format action text
-  const formatActionText = (action) => {
-    const actionMap = {
-      task_created: 'created a task',
-      task_updated: 'updated a task',
-      task_deleted: 'deleted a task',
-      task_assigned: 'assigned a task',
-      task_unassigned: 'unassigned a task',
-      list_created: 'created a list',
-      list_updated: 'updated a list',
-      list_deleted: 'deleted a list',
-      list_task_moved: 'moved a task between lists',
-      message_sent: 'sent a message',
-      message_updated: 'updated a message',
-      message_deleted: 'deleted a message',
+    const iconMap = {
+      // Task actions
+      task_created: 'fa-plus-circle',
+      task_updated: 'fa-edit',
+      task_deleted: 'fa-trash',
+      task_assigned: 'fa-user-plus',
+      task_unassigned: 'fa-user-minus',
+      task_checklist_updated: 'fa-check-square',
+      task_checklist_item_completed: 'fa-check',
+      task_checklist_item_uncompleted: 'fa-times',
+      task_document_added: 'fa-file-plus',
+      task_document_removed: 'fa-file-minus',
+      task_document_renamed: 'fa-file-signature',
+      task_document_shared: 'fa-share',
+      // List actions
+      list_created: 'fa-list',
+      list_updated: 'fa-list-alt',
+      list_deleted: 'fa-list-ol',
+      list_task_moved: 'fa-arrows-alt',
+      // Message actions
+      message_sent: 'fa-comment',
+      message_updated: 'fa-comment-dots',
+      message_deleted: 'fa-comment-slash',
+      message_pinned: 'fa-thumbtack',
+      message_unpinned: 'fa-thumbtack',
     };
-    return actionMap[action] || action.replace(/_/g, ' ');
+    return iconMap[action] || 'fa-circle';
+  };
+
+  const getActionColor = (action) => {
+    const colorMap = {
+      // Task actions - various colors
+      task_created: 'success',
+      task_updated: 'info',
+      task_deleted: 'danger',
+      task_assigned: 'primary',
+      task_unassigned: 'warning',
+      task_checklist_updated: 'secondary',
+      task_checklist_item_completed: 'success',
+      task_checklist_item_uncompleted: 'warning',
+      task_document_added: 'info',
+      task_document_removed: 'danger',
+      task_document_renamed: 'secondary',
+      task_document_shared: 'primary',
+      // List actions - blue shades
+      list_created: 'success',
+      list_updated: 'info',
+      list_deleted: 'danger',
+      list_task_moved: 'secondary',
+      // Message actions - purple shades
+      message_sent: 'primary',
+      message_updated: 'info',
+      message_deleted: 'danger',
+      message_pinned: 'warning',
+      message_unpinned: 'secondary',
+    };
+    return colorMap[action] || 'default';
+  };
+
+  const formatActionText = (action) => {
+    const actionTextMap = {
+      // Task actions
+      task_created: 'Tạo nhiệm vụ',
+      task_updated: 'Cập nhật nhiệm vụ',
+      task_deleted: 'Xóa nhiệm vụ',
+      task_assigned: 'Giao nhiệm vụ',
+      task_unassigned: 'Hủy giao nhiệm vụ',
+      task_checklist_updated: 'Cập nhật checklist',
+      task_checklist_item_completed: 'Hoàn thành nhiệm vụ con',
+      task_checklist_item_uncompleted: 'Bỏ hoàn thành nhiệm vụ con',
+      task_document_added: 'Thêm tài liệu',
+      task_document_removed: 'Xóa tài liệu',
+      task_document_renamed: 'Đổi tên tài liệu',
+      task_document_shared: 'Chia sẻ tài liệu',
+      // List actions
+      list_created: 'Tạo danh sách',
+      list_updated: 'Cập nhật danh sách',
+      list_deleted: 'Xóa danh sách',
+      list_task_moved: 'Di chuyển nhiệm vụ',
+      // Message actions
+      message_sent: 'Gửi tin nhắn',
+      message_updated: 'Sửa tin nhắn',
+      message_deleted: 'Xóa tin nhắn',
+      message_pinned: 'Ghim tin nhắn',
+      message_unpinned: 'Bỏ ghim tin nhắn',
+    };
+    return actionTextMap[action] || action;
   };
 
   if (loading) {
@@ -274,7 +351,7 @@ function BoardActivityLog() {
               navigate(`/workspace/${workspaceId}/boards/${boardId}`)
             }
           >
-            ← Back to Board
+            ← Back to List
           </button>
           <h1>Activity Log</h1>
         </div>
@@ -307,7 +384,7 @@ function BoardActivityLog() {
               navigate(`/workspace/${workspaceId}/boards/${boardId}`)
             }
           >
-            ← Back to Board
+            ← Back to List
           </button>
           <h1>Activity Log</h1>
         </div>
@@ -344,7 +421,7 @@ function BoardActivityLog() {
             navigate(`/workspace/${workspaceId}/boards/${boardId}`)
           }
         >
-          ← Back to Board
+          ← Back to List
         </button>
         <div className='header-content'>
           <h1>Activity Log</h1>
@@ -391,12 +468,12 @@ function BoardActivityLog() {
           <span className='total-logs me-2'>
             {filteredLogs.length} activities
           </span>
-          {socketConnected && (
+          {/* {socketConnected && (
             <div className='real-time-indicator'>
               <div className='real-time-dot'></div>
               Live Updates
             </div>
-          )}
+          )} */}
         </div>
       </div>
 
@@ -411,7 +488,9 @@ function BoardActivityLog() {
           <div className='activity-list'>
             {filteredLogs.map((log, index) => (
               <div key={`${log.logId}-${index}`} className='activity-item'>
-                <div className='activity-icon'>{getActionIcon(log.action)}</div>
+                <div className='activity-icon'>
+                  <i className={`fas ${getActionIcon(log.action)}`}></i>
+                </div>
                 <div className='activity-content'>
                   <div className='activity-header'>
                     <span className='user-name'>{log.userName}</span>
@@ -420,11 +499,38 @@ function BoardActivityLog() {
                     >
                       {formatActionText(log.action)}
                     </span>
+                    {log.action && log.action.startsWith('task_') && (
+                      <span className='badge badge-task'>Task</span>
+                    )}
+                    {log.action && log.action.startsWith('list_') && (
+                      <span className='badge badge-list'>List</span>
+                    )}
                     {!log.isVisible && userRole === 'admin' && (
-                      <span className='admin-only-badge'>👑 Admin Only</span>
+                      <span className='badge badge-sensitive'>Sensitive</span>
                     )}
                   </div>
-                  <div className='activity-details'>{log.details}</div>
+                  <div className='activity-details'>
+                    {log.details}
+                    {/* Show assignee info for task logs in admin view */}
+                    {userRole === 'admin' && log.taskAssignedTo && (
+                      <div className='assignee-info'>
+                        <small className='text-muted'>
+                          → Được giao cho:{' '}
+                          <strong>{log.taskAssignedTo.name}</strong>
+                        </small>
+                      </div>
+                    )}
+                    {userRole === 'admin' &&
+                      log.taskAssignedBy &&
+                      !log.taskAssignedTo && (
+                        <div className='assigner-info'>
+                          <small className='text-muted'>
+                            → Được giao bởi:{' '}
+                            <strong>{log.taskAssignedBy.name}</strong>
+                          </small>
+                        </div>
+                      )}
+                  </div>
                   <div className='activity-time'>{log.createdAt}</div>
                 </div>
               </div>

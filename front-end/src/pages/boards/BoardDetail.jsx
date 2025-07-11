@@ -71,12 +71,12 @@ const BoardDetail = () => {
             }}
             onClick={() => navigate(`/workspace/${workspaceId}/boards`)}
           >
-            ← Back to Workspace
+            ← Back to Project Boards
           </button>
         </div>
         <div className='container d-flex justify-content-between'>
           <Col className='board-title'>
-            <h2>List of boards</h2>
+            <h2>Lists in {currentBoard?.name}</h2>
           </Col>
 
           <Col className='d-flex align-items-center justify-content-end'>

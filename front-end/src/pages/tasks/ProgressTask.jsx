@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { useCommon } from "../../contexts/CommonContext";
-import { Button } from "react-bootstrap";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useCommon } from '../../contexts/CommonContext';
+import { Button } from 'react-bootstrap';
 
 const ProgressTask = ({
   task,
@@ -25,7 +25,28 @@ const ProgressTask = ({
     ? Math.round((doneCount / totalItems) * 100)
     : 0;
 
-  // gọi API cập nhật checklist
+  // gọi API cập nhật checklist item cụ thể
+  const updateChecklistItem = async (itemIndex, completed) => {
+    try {
+      const res = await axios.put(
+        `${apiBaseUrl}/task/${task._id}/checklist`,
+        {
+          itemIndex: itemIndex,
+          completed: completed,
+        },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      await refreshTaskData();
+    } catch (err) {
+      console.error('Cập nhật tiến độ thất bại:', err);
+      alert(
+        'Cập nhật tiến độ thất bại: ' +
+          (err.response?.data?.message || err.message)
+      );
+    }
+  };
+
+  // gọi API cập nhật checklist (cho xóa item)
   const updateChecklist = async (newList) => {
     try {
       const res = await axios.put(
@@ -33,55 +54,53 @@ const ProgressTask = ({
         { checklist: newList },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      // onUpdate(mergeTask(res.data.data));
       await refreshTaskData();
-
     } catch (err) {
-      console.error("Cập nhật tiến độ thất bại:", err);
+      console.error('Cập nhật tiến độ thất bại:', err);
       alert(
-        "Cập nhật tiến độ thất bại: " +
+        'Cập nhật tiến độ thất bại: ' +
           (err.response?.data?.message || err.message)
       );
     }
   };
 
   const handleToggle = (item) => {
-    const updated = checklist.map((i) =>
-      i._id === item._id ? { ...i, completed: !i.completed } : i
-    );
-    updateChecklist(updated);
+    const itemIndex = checklist.findIndex((i) => i._id === item._id);
+    if (itemIndex !== -1) {
+      updateChecklistItem(itemIndex, !item.completed);
+    }
   };
 
   const handleDelete = (item) => {
-    if (window.confirm("Xác nhận xóa mục checklist này?")) {
+    if (window.confirm('Xác nhận xóa mục checklist này?')) {
       const updated = checklist.filter((i) => i._id !== item._id);
       updateChecklist(updated);
     }
   };
 
   return (
-    <div className="task-modal-section">
-      <label className="section-label">Tiến độ công việc : </label>
+    <div className='task-modal-section'>
+      <label className='section-label'>Tiến độ công việc : </label>
       {totalItems ? (
         <>
-          <div className="checklist-progress d-flex align-items-center mb-2">
-            <div className="progress flex-grow-1">
+          <div className='checklist-progress d-flex align-items-center mb-2'>
+            <div className='progress flex-grow-1'>
               <div
-                className="progress-bar"
-                role="progressbar"
+                className='progress-bar'
+                role='progressbar'
                 style={{ width: `${percentDone}%` }}
               />
             </div>
-            <span className="ms-2">{percentDone}%</span>
+            <span className='ms-2'>{percentDone}%</span>
           </div>
-          <div style={{ maxHeight: "200px", overflowY: "auto" }}>
-            <ul className="checklist-list">
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            <ul className='checklist-list'>
               {checklist.map((item) => (
-                <li key={item._id} className="d-flex align-items-center mb-1">
+                <li key={item._id} className='d-flex align-items-center mb-1'>
                   {!isViewer && (
                     <input
-                      type="checkbox"
-                      className="form-check-input me-2"
+                      type='checkbox'
+                      className='form-check-input me-2'
                       checked={item.completed}
                       onChange={() => handleToggle(item)}
                     />
@@ -89,16 +108,16 @@ const ProgressTask = ({
                   <span
                     style={{
                       flexGrow: 1,
-                      textDecoration: item.completed ? "line-through" : "none",
+                      textDecoration: item.completed ? 'line-through' : 'none',
                     }}
                   >
                     {item.title}
                   </span>
                   {(isAssignee || isAssigner) && (
                     <Button
-                      variant="link"
-                      size="sm"
-                      className="text-danger ms-2"
+                      variant='link'
+                      size='sm'
+                      className='text-danger ms-2'
                       onClick={() => handleDelete(item)}
                     >
                       Xóa
@@ -110,7 +129,7 @@ const ProgressTask = ({
           </div>
         </>
       ) : (
-        <p className="text-muted-progressTask">Chưa có công việc nào.</p>
+        <p className='text-muted-progressTask'>Chưa có công việc nào.</p>
       )}
     </div>
   );
