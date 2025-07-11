@@ -1787,6 +1787,15 @@ exports.getParticipatedEvents = async (req, res) => {
       (event) => event.calendarId?.ownerId.toString() !== userId.toString()
     );
 
+    participatedEvents.forEach((event) => {
+      event.participants.forEach((e) => {
+        console.log(
+          'e.participants in getParticipatedEvents in eventController',
+          e
+        );
+      });
+    });
+
     // Format cho FullCalendar
     const fullCalendarEvents = participatedEvents.map((event) => {
       // Tìm organizer info

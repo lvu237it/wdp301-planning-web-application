@@ -415,6 +415,15 @@ exports.getCalendarEvents = async (req, res) => {
       .populate('boardId', 'name')
       .select('-isDeleted -deletedAt');
 
+    events.forEach((event) => {
+      event.participants.forEach((e) => {
+        console.log(
+          'e.participants in getCalendarEvents in calendarController',
+          e
+        );
+      });
+    });
+
     // Format for FullCalendar
     const fullCalendarEvents = events.map((event) => ({
       id: event._id.toString(),
@@ -439,9 +448,9 @@ exports.getCalendarEvents = async (req, res) => {
           email: event.organizer.email,
         },
         participants: event.participants.map((p) => ({
-          userId: p.userId._id,
-          name: p.userId.name || p.userId.username,
-          email: p.userId.email,
+          userId: p.userId?._id || p.userId?.id,
+          name: p.userId?.name || p.userId?.username,
+          email: p.userId?.email,
           status: p.status,
         })),
         calendar: {
