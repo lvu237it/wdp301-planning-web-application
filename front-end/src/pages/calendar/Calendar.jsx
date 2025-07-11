@@ -2429,12 +2429,14 @@ const Calendar = () => {
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.5 }}
                         >
-                          <FaCalendarAlt size={48} className='mb-3' />
+                          <span className='d-flex justify-content-center'>
+                            <FaCalendarAlt size={48} className='mb-3' />
+                          </span>
                           <p>Không có sự kiện nào trong ngày này</p>
                           <Button
                             variant='outline-light'
                             onClick={handleCreateClick}
-                            className='mt-2'
+                            className='mt-2 d-flex w-100 justify-content-center align-items-center'
                           >
                             <FaPlus className='me-2' />
                             Create new event
@@ -2669,14 +2671,18 @@ const Calendar = () => {
                               >
                                 {isLoadingMessages ? (
                                   <div className='text-center p-3'>
-                                    <Spinner animation='border' size='sm' />
+                                    <span className='d-flex justify-content-center'>
+                                      <Spinner animation='border' size='sm' />
+                                    </span>
                                     <div className='mt-2 text-muted'>
                                       Đang tải tin nhắn...
                                     </div>
                                   </div>
                                 ) : messages.length === 0 ? (
                                   <div className='text-center p-3'>
-                                    <FaComments size={24} className='mb-2' />
+                                    <span className='d-flex justify-content-center'>
+                                      <FaComments size={24} className='mb-2' />
+                                    </span>
                                     <div>
                                       Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò
                                       chuyện!
@@ -3018,6 +3024,7 @@ const Calendar = () => {
                           variant='outline-light'
                           onClick={handleEditClick}
                           disabled={isUpdatingEvent}
+                          className='d-flex justify-content-center align-items-center'
                         >
                           <FaEdit className='me-2' />
                           Chỉnh sửa
@@ -3028,6 +3035,7 @@ const Calendar = () => {
                           variant='outline-danger'
                           onClick={() => setShowDeleteModal(true)}
                           disabled={isUpdatingEvent}
+                          className='d-flex justify-content-center align-items-center'
                         >
                           <FaTrash className='me-2' />
                           Xóa
@@ -3283,10 +3291,7 @@ const Calendar = () => {
                         Creating...
                       </>
                     ) : (
-                      <>
-                        <FaPlus className='me-2' />
-                        Create
-                      </>
+                      <>Create</>
                     )}
                   </Button>
                 </div>
@@ -3534,10 +3539,7 @@ const Calendar = () => {
                         Updating...
                       </>
                     ) : (
-                      <>
-                        <FaEdit className='me-2' />
-                        Update
-                      </>
+                      <>Update</>
                     )}
                   </Button>
                 </div>
