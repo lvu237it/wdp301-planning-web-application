@@ -45,10 +45,13 @@ const List = ({ boardId }) => {
 
         const board = js.board || {};
         const members = board.members || [];
-        const currentUserId = currentUser?._id?.toString();
+        const currentUserId =
+          currentUser?._id?.toString() || currentUser?.id?.toString();
 
+        console.log('board.creator', board.creator);
         // 1) Check if current user is creator
         const creatorId = board.creator?._id?.toString();
+        console.log('creatorId', creatorId);
         if (currentUserId && creatorId && currentUserId === creatorId) {
           setIsBoardAdmin(true);
           return;
