@@ -36,7 +36,7 @@ const BoardInviteResponse = () => {
       setStatus(res.data.status); // 'accepted' hoặc 'declined'
       toast.success(res.data.message);
       // Sau 2s quay về list boards
-      setTimeout(() => navigate(`/workspace/${workspaceId}/boards`), 2000);
+      setTimeout(() => navigate(`/workspace`), 2000);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Lỗi server');
@@ -47,19 +47,20 @@ const BoardInviteResponse = () => {
 
   if (error) {
     return (
-      <Container className="py-5">
-        <Alert variant="danger">{error}</Alert>
+      <Container className='py-5'>
+        <Alert variant='danger'>{error}</Alert>
       </Container>
     );
   }
 
   if (status) {
     return (
-      <Container className="py-5">
-        <Card className="text-center p-4">
+      <Container className='py-5'>
+        <Card className='text-center p-4'>
           <Card.Body>
             <Card.Title>
-              Lời mời đã {status === 'accepted' ? 'được chấp nhận' : 'bị từ chối'}!
+              Lời mời đã{' '}
+              {status === 'accepted' ? 'được chấp nhận' : 'bị từ chối'}!
             </Card.Title>
             <Card.Text>
               Bạn sẽ được chuyển về trang Boards trong giây lát…
@@ -71,28 +72,26 @@ const BoardInviteResponse = () => {
   }
 
   return (
-    <Container className="py-5 d-flex justify-content-center">
+    <Container className='py-5 d-flex justify-content-center'>
       <Card style={{ width: '100%', maxWidth: 500 }}>
-        <Card.Body className="text-center">
+        <Card.Body className='text-center'>
           <Card.Title>Bạn có muốn tham gia Board này?</Card.Title>
           <Card.Text>
-            Nhấn “Accept” để tham gia với quyền read-only, hoặc “Decline” để từ chối.
+            Nhấn “Accept” để tham gia với quyền read-only, hoặc “Decline” để từ
+            chối.
           </Card.Text>
           {loading ? (
-            <Spinner animation="border" />
+            <Spinner animation='border' />
           ) : (
             <>
               <Button
-                variant="success"
-                className="me-2"
+                variant='success'
+                className='me-2'
                 onClick={() => handleAction('accept')}
               >
                 Accept
               </Button>
-              <Button
-                variant="danger"
-                onClick={() => handleAction('decline')}
-              >
+              <Button variant='danger' onClick={() => handleAction('decline')}>
                 Decline
               </Button>
             </>
