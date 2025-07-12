@@ -1084,9 +1084,45 @@ export const Common = ({ children }) => {
       );
     };
 
+    // Handle real-time event message events
+    const handleNewEventMessage = (data) => {
+      console.log('💬 New event message received via socket:', data);
+      // Bridge socket event to window custom event
+      window.dispatchEvent(
+        new CustomEvent('new_event_message', {
+          detail: data,
+        })
+      );
+    };
+
+    const handleEditEventMessage = (data) => {
+      console.log('✏️ Edit event message received via socket:', data);
+      // Bridge socket event to window custom event
+      window.dispatchEvent(
+        new CustomEvent('edit_event_message', {
+          detail: data,
+        })
+      );
+    };
+
+    const handleDeleteEventMessage = (data) => {
+      console.log('🗑️ Delete event message received via socket:', data);
+      // Bridge socket event to window custom event
+      window.dispatchEvent(
+        new CustomEvent('delete_event_message', {
+          detail: data,
+        })
+      );
+    };
+
     socket.on('new_activity', handleNewActivity);
     socket.on('task_activity', handleTaskActivity);
     socket.on('admin_activity', handleAdminActivity);
+
+    // Add message event listeners
+    socket.on('new_event_message', handleNewEventMessage);
+    socket.on('edit_event_message', handleEditEventMessage);
+    socket.on('delete_event_message', handleDeleteEventMessage);
 
     // Store listeners for cleanup
     return () => {
@@ -1099,6 +1135,9 @@ export const Common = ({ children }) => {
         socket.off('new_activity', handleNewActivity);
         socket.off('task_activity', handleTaskActivity);
         socket.off('admin_activity', handleAdminActivity);
+        socket.off('new_event_message', handleNewEventMessage);
+        socket.off('edit_event_message', handleEditEventMessage);
+        socket.off('delete_event_message', handleDeleteEventMessage);
       }
     };
   };

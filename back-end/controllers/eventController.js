@@ -800,13 +800,13 @@ const findAvailableTimeSlots = async (
       );
 
       if (!hasAllDayEvent) {
-        // Buổi sáng: 4:00 - 12:00
-        let morningStart = currentDay.clone().set({ hour: 4, minute: 0 });
+        // Buổi sáng: 1:00 - 12:00
+        let morningStart = currentDay.clone().set({ hour: 1, minute: 0 });
         const morningEnd = currentDay.clone().set({ hour: 12, minute: 0 });
 
-        // Buổi chiều: 13:00 - 21:00
+        // Buổi chiều: 13:00 - 23:59
         let afternoonStart = currentDay.clone().set({ hour: 13, minute: 0 });
-        const afternoonEnd = currentDay.clone().set({ hour: 21, minute: 0 });
+        const afternoonEnd = currentDay.clone().set({ hour: 23, minute: 59 });
 
         // Kiểm tra slots buổi sáng
         while (
