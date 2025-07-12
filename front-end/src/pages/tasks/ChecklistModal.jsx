@@ -66,14 +66,13 @@ const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
 
       <Modal show={isOpen} onHide={onClose} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Thêm danh sách công việc</Modal.Title>
+          <Modal.Title>Create new Assignment</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form.Group controlId="checklistTitle">
-            <Form.Label>Tiêu đề</Form.Label>
             <Form.Control
               type="text"
-              placeholder="Việc cần làm"
+              placeholder="Type your name assignment"
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -81,7 +80,7 @@ const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="primary" onClick={handleAdd}>
-            Thêm
+            Add
           </Button>
         </Modal.Footer>
       </Modal>

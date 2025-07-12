@@ -3,72 +3,50 @@ import axios from 'axios';
 import { useCommon } from '../../contexts/CommonContext';
 import { Button } from 'react-bootstrap';
 
-const ProgressTask = ({
-  task,
-  // mergeTask,
-  // onUpdate,
-  refreshTaskData,
-  isAssignee,
-  isAssigner,
-}) => {
+const ProgressTask = ({ task, refreshTaskData, isAssignee, isAssigner }) => {
   const { accessToken, apiBaseUrl } = useCommon();
   const [checklist, setChecklist] = useState(task.checklist || []);
   const isViewer = !isAssignee && !isAssigner;
-  // đồng bộ checklist khi task thay đổi
+
   useEffect(() => {
     setChecklist(task.checklist || []);
   }, [task.checklist]);
 
   const totalItems = checklist.length;
   const doneCount = checklist.filter((i) => i.completed).length;
-  const percentDone = totalItems
-    ? Math.round((doneCount / totalItems) * 100)
-    : 0;
+  const percentDone = totalItems ? Math.round((doneCount / totalItems) * 100) : 0;
 
-  // gọi API cập nhật checklist item cụ thể
-  const updateChecklistItem = async (itemIndex, completed) => {
+  const updateChecklist = async (newList) => {
     try {
-      const res = await axios.put(
-        `${apiBaseUrl}/task/${task._id}/checklist`,
-        {
-          itemIndex: itemIndex,
-          completed: completed,
-        },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      const res = await axios.put(`${apiBaseUrl}/task/updateTask/${task._id}`, { checklist: newList }, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setChecklist(newList); 
       await refreshTaskData();
     } catch (err) {
-      console.error('Cập nhật tiến độ thất bại:', err);
-      alert(
-        'Cập nhật tiến độ thất bại: ' +
-          (err.response?.data?.message || err.message)
-      );
+      console.error('Cập nhật checklist thất bại:', err);
+      alert('Cập nhật checklist thất bại: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  // gọi API cập nhật checklist (cho xóa item)
-  const updateChecklist = async (newList) => {
+  const updateChecklistItem = async (itemIndex, completed) => {
     try {
-      const res = await axios.put(
-        `${apiBaseUrl}/task/updateTask/${task._id}`,
-        { checklist: newList },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      await axios.put(`${apiBaseUrl}/task/${task._id}/checklist`, { itemIndex, completed }, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const updatedList = [...checklist];
+      updatedList[itemIndex].completed = completed;
+      setChecklist(updatedList); 
       await refreshTaskData();
     } catch (err) {
-      console.error('Cập nhật tiến độ thất bại:', err);
-      alert(
-        'Cập nhật tiến độ thất bại: ' +
-          (err.response?.data?.message || err.message)
-      );
+      console.error('Cập nhật checklist item thất bại:', err);
+      alert('Cập nhật checklist item thất bại: ' + (err.response?.data?.message || err.message));
     }
   };
 
   const handleToggle = (item) => {
     const itemIndex = checklist.findIndex((i) => i._id === item._id);
-    if (itemIndex !== -1) {
-      updateChecklistItem(itemIndex, !item.completed);
-    }
+    if (itemIndex !== -1) updateChecklistItem(itemIndex, !item.completed);
   };
 
   const handleDelete = (item) => {
@@ -78,20 +56,27 @@ const ProgressTask = ({
     }
   };
 
+  const handleClearAll = () => {
+    if (window.confirm('Do you wanna remove all assignment?')) {
+      updateChecklist([]);
+    }
+  };
+
   return (
     <div className='task-modal-section'>
-      <label className='section-label'>Tiến độ công việc : </label>
+      <label className='section-label'>Progress Task :</label>
       {totalItems ? (
         <>
           <div className='checklist-progress d-flex align-items-center mb-2'>
             <div className='progress flex-grow-1'>
-              <div
-                className='progress-bar'
-                role='progressbar'
-                style={{ width: `${percentDone}%` }}
-              />
+              <div className='progress-bar' role='progressbar' style={{ width: `${percentDone}%` }} />
             </div>
             <span className='ms-2'>{percentDone}%</span>
+            {(isAssignee || isAssigner) && (
+              <Button variant='outline-danger' size='sm' className='ms-2' onClick={handleClearAll}>
+                Clear All
+              </Button>
+            )}
           </div>
           <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
             <ul className='checklist-list'>
@@ -105,22 +90,12 @@ const ProgressTask = ({
                       onChange={() => handleToggle(item)}
                     />
                   )}
-                  <span
-                    style={{
-                      flexGrow: 1,
-                      textDecoration: item.completed ? 'line-through' : 'none',
-                    }}
-                  >
+                  <span style={{ flexGrow: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>
                     {item.title}
                   </span>
                   {(isAssignee || isAssigner) && (
-                    <Button
-                      variant='link'
-                      size='sm'
-                      className='text-danger ms-2'
-                      onClick={() => handleDelete(item)}
-                    >
-                      Xóa
+                    <Button variant='link' size='sm' className='text-danger ms-2' onClick={() => handleDelete(item)}>
+                      Delete
                     </Button>
                   )}
                 </li>
@@ -129,7 +104,7 @@ const ProgressTask = ({
           </div>
         </>
       ) : (
-        <p className='text-muted-progressTask'>Chưa có công việc nào.</p>
+        <p className='text-muted-progressTask'>No Assignment.</p>
       )}
     </div>
   );

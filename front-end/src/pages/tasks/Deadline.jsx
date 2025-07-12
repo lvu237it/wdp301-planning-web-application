@@ -117,13 +117,13 @@ const Deadline = ({
 
       <Modal show={show} centered onHide={onClose}>
         <Modal.Header closeButton>
-          <Modal.Title>Chọn ngày</Modal.Title>
+          <Modal.Title>Select deadline</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {!allDay ? (
             <>
               <Form.Group className="mb-3">
-                <Form.Label>Ngày bắt đầu</Form.Label>
+                <Form.Label>Start Date</Form.Label>
                 <Form.Control
                   type="datetime-local"
                   value={startInput}
@@ -133,7 +133,7 @@ const Deadline = ({
                 />
               </Form.Group>
               <Form.Group className="mb-3">
-                <Form.Label>Ngày kết thúc</Form.Label>
+                <Form.Label>End Date</Form.Label>
                 <Form.Control
                   type="datetime-local"
                   value={endInput}
@@ -145,7 +145,7 @@ const Deadline = ({
             </>
           ) : (
             <Form.Group className="mb-3">
-              <Form.Label>Chọn ngày (Cả ngày)</Form.Label>
+              <Form.Label>All Day</Form.Label>
               <Form.Control
                 type="date"
                 value={dateInput}
@@ -158,17 +158,17 @@ const Deadline = ({
           <Form.Check
             className="mt-2"
             type="checkbox"
-            label="Cả ngày"
+            label="All Day"
             checked={allDay}
             onChange={(e) => setAllDay(e.target.checked)}
           />
         </Modal.Body>
         <Modal.Footer>
           <Button variant="primary" onClick={handleSaveDates}>
-            Lưu
+            Save
           </Button>
           <Button variant="secondary" onClick={onClose}>
-            Hủy
+            Cancel
           </Button>
         </Modal.Footer>
       </Modal>

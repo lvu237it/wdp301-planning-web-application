@@ -141,6 +141,10 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
   // ===== SAVE TITLE =====
   const handleSaveTitle = async () => {
     try {
+      if (!editedTitle.trim()) {
+        alert("Tiêu đề không được để trống!");
+        return;
+      }
       const res = await axios.put(
         `${apiBaseUrl}/task/updateTask/${task._id}`,
         { title: editedTitle.trim() },
@@ -256,7 +260,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         size="lg"
       >
         <Modal.Header closeButton>
-          <Modal.Title>Gợi ý & Mời thành viên</Modal.Title>
+          <Modal.Title>Suggest & Invite member</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <SuggestMembersBySkills
@@ -269,7 +273,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowInviteModal(false)}>
-            Đóng
+            Cancel
           </Button>
         </Modal.Footer>
       </Modal>
@@ -327,9 +331,10 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
                     style={{ flexGrow: 1 }}
+                    required
                   />
                   <Button variant="success" size="sm" onClick={handleSaveTitle}>
-                    Lưu
+                    Save
                   </Button>
                   <Button
                     variant="secondary"
@@ -339,7 +344,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       setEditedTitle(task.title);
                     }}
                   >
-                    Hủy
+                    Cancel
                   </Button>
                 </>
               ) : (
@@ -370,7 +375,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       className="btn-action"
                       onClick={() => setShowInviteModal(true)}
                     >
-                      <i className="fas fa-person" /> Thêm Member
+                      <i className="fas fa-person" /> Invite Member
                     </Button>
                   )}
                   <Button
@@ -378,7 +383,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                     className="btn-action"
                     onClick={() => setShowFileManager(true)}
                   >
-                    <i className="fas fa-file" /> Tệp đính kèm
+                    <i className="fas fa-file" /> Attachments
                   </Button>
                 </div>
               )}
@@ -418,7 +423,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   mergeTask={mergeTask}
                   minDate={boardWorkStart}
                   maxDate={boardWorkEnd}
-                   refreshTaskData={refreshTaskData}
+                  refreshTaskData={refreshTaskData}
                 />
               )}
 
@@ -433,7 +438,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       setShowChecklistModal(true);
                     }}
                   >
-                    <i className="fas fa-list" /> Nhiệm vụ
+                    <i className="fas fa-list" /> Assignment
                   </Button>
                   <ChecklistModal
                     isOpen={showChecklistModal}
@@ -453,10 +458,10 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
             </div>
             {/* DESCRIPTION */}
             <div className="task-modal-section">
-              <label className="section-label">Mô tả</label>
+              <label className="section-label">Description</label>
               {isAssignee ? (
                 <div className="desc-view">
-                  <p>{task.description || "Chưa có mô tả."}</p>
+                  <p>{task.description || "No description."}</p>
                 </div>
               ) : isEditingDesc ? (
                 <>
@@ -467,7 +472,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   />
                   <div className="edit-actions">
                     <Button variant="success" onClick={handleSaveDesc}>
-                      Lưu
+                      Save
                     </Button>
                     <Button
                       variant="danger"
@@ -477,14 +482,14 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       }}
                       style={{ marginLeft: 8 }}
                     >
-                      Hủy
+                      Cancel
                     </Button>
                   </div>
                 </>
               ) : (
                 <div className="desc-view1">
                   <div className="desc-view">
-                    <p>{task.description || "Chưa có mô tả."}</p>
+                    <p>{task.description || "No description."}</p>
                   </div>
                   {canEdit && (
                     <Button
@@ -495,7 +500,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                         setIsEditingDesc(true);
                       }}
                     >
-                      Chỉnh sửa
+                      Edit
                     </Button>
                   )}
                 </div>
@@ -504,7 +509,7 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
 
             {/* Người đc giao trong task */}
             <div className="task-modal-section assigned-info mb-3">
-              <strong>Người được giao:</strong>
+              <strong>Member:</strong>
               {task.assignedTo ? (
                 <div className="d-flex align-items-center mt-1">
                   {task.assignedTo.avatar && (
@@ -530,29 +535,19 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                       className="ms-3"
                       onClick={handleUnassign}
                     >
-                      <i className="fas fa-user-times" /> Xóa
+                      <i className="fas fa-user-times" /> Remove
                     </Button>
                   )}
                 </div>
               ) : (
-                <div className="text-muted-nguoidcgiao">Chưa có</div>
+                <div className="text-muted-nguoidcgiao">No result</div>
               )}
             </div>
 
             {/* ATTACHMENTS */}
             <div className="task-modal-section">
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <label className="section-label mb-0">Các tệp đính kèm</label>
-
-                {/* {task.assignedBy._id === currentUser._id && (
-                  <Button
-                    variant='outline-primary'
-                    size='sm'
-                    onClick={() => setShowFileManager(true)}
-                  >
-                    <i className='fas fa-cog'></i> Quản lý
-                  </Button>
-                )} */}
+                <label className="section-label mb-0">Attachments:</label>
               </div>
 
               {task.documents?.length ? (
@@ -589,9 +584,9 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
                   ))}
                 </div>
               ) : (
-                <div className='text-center py-4 text-muted'>
-                  <i className='fas fa-file-plus fa-2x mb-2 d-block'></i>
-                  <p className='mb-2'>Chưa có tệp đính kèm.</p>
+                <div className="text-center py-4 text-muted">
+                  <i className="fas fa-file-plus fa-2x mb-2 d-block"></i>
+                  <p style={{color :"red", fontWeight:"bold"}} className="mb-2">No result.</p>
                   {task?.assignedBy?._id === currentUser._id && (
                     <Button
                       variant="outline-primary"

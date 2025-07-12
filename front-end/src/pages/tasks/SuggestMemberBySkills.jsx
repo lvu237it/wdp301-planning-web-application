@@ -83,7 +83,7 @@ export default function SuggestMemberBySkills({
 
       const users = res.data.users || [];
       if (users.length === 0) {
-        setError('Không tìm thấy thành viên phù hợp.');
+        setError('No result.');
       }
       setSuggestions(users);
     } catch (err) {
@@ -99,22 +99,22 @@ export default function SuggestMemberBySkills({
     <div>
       {/* Hiển thị ngày của Task */}
       <div className='mb-3'>
-        <strong>Thời gian của nhiệm vụ này:</strong>{' '}
+        <strong>The time of this task:</strong>{' '}
         <div className='d-flex gap-5'>
-          <p className='mb-0'>Ngày bắt đầu : {formatDateVN(startDate)}</p>
-          <p className='mb-0'>Ngày kết thúc : {formatDateVN(endDate)} </p>
+          <p className='mb-0'>Start Date : {formatDateVN(startDate)}</p>
+          <p className='mb-0'>End Date : {formatDateVN(endDate)} </p>
         </div>
       </div>
 
       {/* Chọn kỹ năng */}
       <div className='mb-3'>
-        <label className='form-label'>Chọn kỹ năng</label>
+        <label className='form-label'>Select Skills</label>
         <Select
           isMulti
           options={allSkills}
           value={selectedSkills}
           onChange={setSelectedSkills}
-          placeholder='Chọn kỹ năng...'
+          placeholder='Select skills...'
         />
       </div>
 
@@ -125,7 +125,7 @@ export default function SuggestMemberBySkills({
           onClick={fetchSuggestions}
           disabled={loading}
         >
-          {loading ? 'Đang gợi ý…' : 'Gợi ý thành viên'}
+          {loading ? 'Đang gợi ý…' : 'Suggest Members'}
         </button>
       </div>
 
@@ -160,7 +160,7 @@ export default function SuggestMemberBySkills({
                 className='btn btn-sm btn-success'
                 onClick={() => onAssignSuccess(u)}
               >
-                Giao nhiệm vụ
+                Assign task
               </button>
             </li>
           ))}

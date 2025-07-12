@@ -388,13 +388,13 @@ const List = ({ boardId }) => {
                             setMenuOpenId(null);
                           }}
                         >
-                          Sửa List
+                          Edit List Title
                         </li>
                         <li
                           className='delete'
                           onClick={() => deleteList(list._id)}
                         >
-                          Xóa List
+                          Delete List
                         </li>
                         <li
                           onClick={() => {
@@ -403,7 +403,7 @@ const List = ({ boardId }) => {
                             setMenuOpenId(null);
                           }}
                         >
-                          Tạo Task
+                          Create Task
                         </li>
                       </ul>
                     )}
@@ -494,7 +494,7 @@ const List = ({ boardId }) => {
                                     <small className='ms-2'>{percent}%</small>
                                   </div>
                                   <div className='mt-2'>
-                                    <strong>Người được giao :</strong>{' '}
+                                    <strong>Member :</strong>{' '}
                                     {task.assignedTo ? (
                                       <div className='assigned-info d-flex align-items-center'>
                                         {task.assignedTo.avatar && (
@@ -513,7 +513,7 @@ const List = ({ boardId }) => {
                                       </div>
                                     ) : (
                                       <span className='text-danger'>
-                                        Chưa có
+                                        No result
                                       </span>
                                     )}
                                   </div>
@@ -559,7 +559,7 @@ const List = ({ boardId }) => {
                           className='btn-add'
                           onClick={() => createTask(list._id)}
                         >
-                          Thêm
+                          Create new Task
                         </button>
                         <button
                           className='btn-cancel'
@@ -596,7 +596,7 @@ const List = ({ boardId }) => {
                     className='btn-add'
                     onClick={() => createList(addingListAt)}
                   >
-                    Thêm danh sách
+                    Create new List
                   </button>
                   <button
                     className='btn-cancel'
@@ -614,7 +614,7 @@ const List = ({ boardId }) => {
                   setNewListTitle('');
                 }}
               >
-                <i className='fas fa-plus' /> Thêm danh sách khác
+                <i className='fas fa-plus' /> Create list
               </div>
             )}
           </div>
