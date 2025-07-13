@@ -62,7 +62,6 @@ const notificationSchema = new mongoose.Schema(
       ref: 'Message',
       default: null,
     },
-    // isRead: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },
