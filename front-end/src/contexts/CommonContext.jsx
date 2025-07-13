@@ -77,9 +77,9 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  // const apiBaseUrl =
-  //   import.meta.env.VITE_API_BASE_URL_DEVELOPMENT || 'http://localhost:5000';
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  const apiBaseUrl =
+    import.meta.env.VITE_API_BASE_URL_DEVELOPMENT || 'http://localhost:5000';
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [calendarBoard, setCalendarBoard] = useState(null);
@@ -1087,12 +1087,26 @@ export const Common = ({ children }) => {
     // Handle real-time event message events
     const handleNewEventMessage = (data) => {
       console.log('💬 New event message received via socket:', data);
-      // Bridge socket event to window custom event
-      window.dispatchEvent(
-        new CustomEvent('new_event_message', {
-          detail: data,
-        })
-      );
+
+      const { eventId, message } = data;
+
+      // Emit custom event với đầy đủ dữ liệu để Calendar.jsx có thể handle
+      const customEvent = new CustomEvent('new_event_message', {
+        detail: {
+          eventId,
+          message: {
+            _id: message._id,
+            content: message.content,
+            userId: message.userId,
+            createdAt: message.createdAt,
+            isEdited: message.isEdited || false,
+            editedAt: message.editedAt || null,
+            isSystemMessage: message.isSystemMessage || false, // Thêm field isSystemMessage
+          },
+        },
+      });
+
+      window.dispatchEvent(customEvent);
     };
 
     const handleEditEventMessage = (data) => {

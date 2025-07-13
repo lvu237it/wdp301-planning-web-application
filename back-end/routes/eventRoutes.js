@@ -52,7 +52,6 @@ router.patch(
   eventController.cancelAnInvitationWhenAcceptBefore
 );
 
-router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',
   auth.protect,

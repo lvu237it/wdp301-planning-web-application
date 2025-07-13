@@ -20,6 +20,7 @@ const messageSchema = new mongoose.Schema(
     deletedAt: { type: Date },
     isEdited: { type: Boolean, default: false },
     editedAt: { type: Date },
+    isSystemMessage: { type: Boolean, default: false }, // Đánh dấu tin nhắn hệ thống
   },
   {
     timestamps: true,

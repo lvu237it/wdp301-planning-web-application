@@ -2770,7 +2770,69 @@ const Calendar = () => {
                                       const canEditOrDelete =
                                         message.userId._id === currentUserId &&
                                         canSendNewMessage(selectedEvent); // Chỉ người gửi mới có thể edit/delete và sự kiện chưa kết thúc
+                                      const isSystemMessage =
+                                        message.isSystemMessage;
 
+                                      // System messages - special rendering
+                                      if (isSystemMessage) {
+                                        return (
+                                          <div
+                                            key={message._id}
+                                            className='messenger-message messenger-system'
+                                            style={{
+                                              justifyContent: 'center',
+                                              marginBottom: '16px',
+                                            }}
+                                          >
+                                            <div
+                                              className='messenger-system-bubble'
+                                              style={{
+                                                backgroundColor: '#fff3cd',
+                                                border: '1px solid #ffeaa7',
+                                                borderRadius: '16px',
+                                                padding: '12px 16px',
+                                                maxWidth: '80%',
+                                                textAlign: 'center',
+                                                color: '#856404',
+                                                fontSize: '0.9rem',
+                                                boxShadow:
+                                                  '0 2px 4px rgba(0,0,0,0.1)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                              }}
+                                            >
+                                              <span
+                                                style={{ fontSize: '1.1rem' }}
+                                              >
+                                                🔔
+                                              </span>
+                                              <span>{message.content}</span>
+                                            </div>
+                                            <div
+                                              className='messenger-time'
+                                              style={{
+                                                textAlign: 'center',
+                                                marginTop: '4px',
+                                                fontSize: '0.8rem',
+                                                color: '#6c757d',
+                                              }}
+                                            >
+                                              {new Date(
+                                                message.createdAt
+                                              ).toLocaleString('vi-VN', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
+                                      // Regular messages
                                       return (
                                         <div
                                           key={message._id}
@@ -2850,18 +2912,18 @@ const Calendar = () => {
                                                   />
                                                   <div className='messenger-edit-actions'>
                                                     <button
+                                                      className='messenger-edit-save'
                                                       onClick={() =>
                                                         submitMessageEdit(
                                                           message._id
                                                         )
                                                       }
-                                                      className='messenger-edit-save'
                                                     >
                                                       ✓
                                                     </button>
                                                     <button
-                                                      onClick={cancelEditing}
                                                       className='messenger-edit-cancel'
+                                                      onClick={cancelEditing}
                                                     >
                                                       ✕
                                                     </button>
