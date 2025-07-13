@@ -1,6 +1,5 @@
 const Event = require('../models/eventModel');
 const Notification = require('../models/notificationModel');
-const Email = require('../models/emailModel');
 const File = require('../models/fileModel');
 const Message = require('../models/messageModel');
 const Calendar = require('../models/calendarModel');
@@ -2842,71 +2841,6 @@ exports.cancelAnInvitationWhenAcceptBefore = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi khi hủy tham gia sự kiện:', error);
-    res.status(500).json({
-      message: 'Lỗi máy chủ',
-      status: 500,
-      error: error.message,
-    });
-  }
-};
-
-exports.sendEventReminder = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const event = await Event.findById(id).populate('participants.userId');
-    if (!event) {
-      return res.status(404).json({
-        message: 'Sự kiện không tồn tại hoặc đã bị xoá',
-        status: 404,
-      });
-    }
-
-    for (const reminder of event.reminderSettings) {
-      if (reminder.method === 'email') {
-        const recipients = event.participants.map((p) => ({
-          userId: p.userId._id,
-          email: p.userId.email,
-          status: 'pending',
-        }));
-
-        const email = await Email.create({
-          sender: {
-            email: 'no-reply@web-plan-pro.com',
-            name: 'Ứng dụng web quản lý kế hoạch',
-          },
-          recipients,
-          subject: `Lời nhắc: ${event.title}`,
-          body: {
-            text: `Lời nhắc cho sự kiện "${event.title}" vào ${event.startDate}`,
-            html: `<p>Lời nhắc cho sự kiện <strong>${event.title}</strong> vào ${event.startDate}</p>`,
-          },
-          eventId: event._id,
-        });
-
-        await sendMail({
-          email: recipients.map((r) => r.email),
-          subject: email.subject,
-          html: email.body.html,
-        });
-      } else if (reminder.method === 'popup') {
-        const notifications = event.participants.map((p) => ({
-          userId: p.userId._id,
-          type: 'event_reminder',
-          notificationType: 'system',
-          content: `Lời nhắc: Sự kiện "${event.title}" sắp bắt đầu`,
-          eventId: event._id,
-        }));
-        await Notification.insertMany(notifications);
-      }
-    }
-
-    res.status(200).json({
-      message: 'Gửi lời nhắc thành công',
-      status: 200,
-    });
-  } catch (error) {
-    console.error('Lỗi khi gửi lời nhắc:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,
