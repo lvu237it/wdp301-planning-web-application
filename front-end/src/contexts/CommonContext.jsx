@@ -79,6 +79,7 @@ export const Common = ({ children }) => {
   // và build lại để chạy server frontend trên môi trường dev hoặc production
   // const apiBaseUrl =
   //   import.meta.env.VITE_API_BASE_URL_DEVELOPMENT || 'http://localhost:5000';
+
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
