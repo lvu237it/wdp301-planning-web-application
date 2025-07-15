@@ -708,7 +708,8 @@ exports.linkGoogleAccount = async (req, res, next) => {
                 scopes,
                 accessToken: googleUser.accessToken || null,
                 refreshToken: googleUser.refreshToken || null,
-                expiryDate: googleUser.expiry_date || Date.now() + 3600 * 1000,
+                expiryDate:
+                  googleUser.expiry_date || Date.now() + 3600 * 1000 * 24,
                 refreshTokenExpiryDate: Date.now() + 180 * 24 * 3600 * 1000,
                 status: 'active',
                 lastRefreshed: Date.now(),
