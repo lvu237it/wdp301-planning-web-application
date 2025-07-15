@@ -28,6 +28,18 @@ const activityLogRouter = require('./routes/activityLogRoutes');
 
 const fileController = require('./controllers/fileController');
 
+const fs = require('fs');
+const path = require('path');
+
+// Tạo thư mục uploads nếu chưa tồn tại
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+  console.log('Folder uploads đã được tạo:', uploadDir);
+} else {
+  console.log('Folder uploads đã tồn tại, không cần tạo mới:', uploadDir);
+}
+
 require('./configs/passport-config'); //Import passport configuration
 
 // các middleware

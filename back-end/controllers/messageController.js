@@ -196,7 +196,7 @@ exports.getEventMessages = async (req, res, next) => {
       .populate('userId', 'fullname username avatar')
       .sort({ createdAt: -1 }) // Sort descending để lấy newest trước
       .limit(parseInt(limit))
-      .select('content userId createdAt isEdited editedAt')
+      .select('content userId createdAt isEdited editedAt isSystemMessage')
       .lean();
 
     // Reverse để có oldest first cho frontend

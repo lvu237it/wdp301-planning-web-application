@@ -44,7 +44,6 @@ router.post(
   auth.protect,
   eventController.inviteToBecomeParticipant
 ); //ok
-router.post('/:id/reminders', auth.protect, eventController.sendEventReminder);
 
 router.patch(
   '/:id/cancel-invitation-and-give-reason',
@@ -52,7 +51,6 @@ router.patch(
   eventController.cancelAnInvitationWhenAcceptBefore
 );
 
-router.get('/:id/history', auth.protect, eventController.getEventHistory); //ok
 router.patch(
   '/:id/participants/:userId/update-status',
   auth.protect,

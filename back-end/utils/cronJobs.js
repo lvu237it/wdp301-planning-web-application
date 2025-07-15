@@ -1,6 +1,5 @@
 const cron = require('node-cron');
 const Event = require('../models/eventModel');
-const EventHistory = require('../models/eventHistoryModel');
 const ActivityLog = require('../models/activityLogModel');
 
 // Helper function để xác định trạng thái sự kiện dựa trên thời gian
@@ -55,7 +54,6 @@ const updateAllEventsStatus = async () => {
 
     const now = new Date();
     const eventUpdates = [];
-    const historyRecords = [];
     const eventsChanged = [];
 
     // Phân loại và chuẩn bị bulk update
@@ -86,16 +84,6 @@ const updateAllEventsStatus = async () => {
             },
           },
         });
-
-        // Tạo history record
-        historyRecords.push({
-          eventId: event._id,
-          action: 'scheduled_auto_update_status',
-          participants: event.participants.map((p) => ({
-            userId: p.userId,
-            status: p.status,
-          })),
-        });
       }
     }
 
@@ -108,11 +96,6 @@ const updateAllEventsStatus = async () => {
           ordered: false,
         });
         updatedCount = bulkResult.modifiedCount;
-
-        // Batch insert event history
-        if (historyRecords.length > 0) {
-          await EventHistory.insertMany(historyRecords);
-        }
 
         // Gửi thông báo real-time cho các users liên quan
         try {

@@ -436,107 +436,169 @@ export const EventDetailModal = ({
                         }}
                       >
                         {messages.length > 0 ? (
-                          messages.map((message) => (
-                            <div
-                              key={message._id}
-                              className={`messenger-message ${
-                                message.sender._id === currentUserId
-                                  ? 'messenger-own'
-                                  : ''
-                              }`}
-                            >
-                              {message.sender._id !== currentUserId && (
-                                <div className='messenger-avatar'>
-                                  <img
-                                    src={
-                                      message.sender.avatar ||
-                                      '/images/user-avatar-default.png'
-                                    }
-                                    alt={message.sender.username}
-                                  />
-                                </div>
-                              )}
-                              <div className='messenger-content'>
-                                {message.sender._id !== currentUserId && (
-                                  <div className='messenger-sender'>
-                                    {message.sender.username}
-                                  </div>
-                                )}
-                                {editingMessageId === message._id ? (
-                                  <div className='messenger-edit-form'>
-                                    <Form.Control
-                                      type='text'
-                                      value={editingContent}
-                                      onChange={(e) =>
-                                        setEditingContent(e.target.value)
-                                      }
-                                      onKeyPress={(e) => {
-                                        if (e.key === 'Enter') {
-                                          submitMessageEdit(message._id);
-                                        }
-                                      }}
-                                      className='messenger-edit-input'
-                                    />
-                                    <div className='messenger-edit-actions'>
-                                      <Button
-                                        size='sm'
-                                        variant='success'
-                                        onClick={() =>
-                                          submitMessageEdit(message._id)
-                                        }
-                                        className='messenger-edit-save'
-                                      >
-                                        <FaCheck />
-                                      </Button>
-                                      <Button
-                                        size='sm'
-                                        variant='secondary'
-                                        onClick={cancelEditing}
-                                        className='messenger-edit-cancel'
-                                      >
-                                        <FaTimes />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
+                          messages.map((message) => {
+                            const isSystemMessage = message.isSystemMessage;
+
+                            // System messages - special rendering
+                            if (isSystemMessage) {
+                              return (
+                                <div
+                                  key={message._id}
+                                  className='messenger-message messenger-system'
+                                  style={{
+                                    justifyContent: 'center',
+                                    marginBottom: '16px',
+                                  }}
+                                >
                                   <div
-                                    className={`messenger-bubble ${
-                                      message.sender._id === currentUserId
-                                        ? 'messenger-bubble-own'
-                                        : 'messenger-bubble-other'
-                                    }`}
-                                    onContextMenu={(e) => {
-                                      if (
-                                        message.sender._id === currentUserId
-                                      ) {
-                                        e.preventDefault();
-                                        setContextMenu({
-                                          x: e.clientX,
-                                          y: e.clientY,
-                                          message,
-                                        });
-                                      }
+                                    className='messenger-system-bubble'
+                                    style={{
+                                      backgroundColor: '#fff3cd',
+                                      border: '1px solid #ffeaa7',
+                                      borderRadius: '16px',
+                                      padding: '12px 16px',
+                                      maxWidth: '80%',
+                                      textAlign: 'center',
+                                      color: '#856404',
+                                      fontSize: '0.9rem',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '8px',
                                     }}
                                   >
-                                    {message.content}
-                                    <div className='messenger-time'>
-                                      {new Date(
-                                        message.createdAt
-                                      ).toLocaleTimeString('vi-VN', {
+                                    <span style={{ fontSize: '1.1rem' }}>
+                                      🔔
+                                    </span>
+                                    <span>{message.content}</span>
+                                  </div>
+                                  <div
+                                    className='messenger-time'
+                                    style={{
+                                      textAlign: 'center',
+                                      marginTop: '4px',
+                                      fontSize: '0.8rem',
+                                      color: '#6c757d',
+                                    }}
+                                  >
+                                    {new Date(message.createdAt).toLocaleString(
+                                      'vi-VN',
+                                      {
                                         hour: '2-digit',
                                         minute: '2-digit',
-                                      })}
-                                      {message.isEdited && (
-                                        <span className='messenger-edited'>
-                                          (đã chỉnh sửa)
-                                        </span>
-                                      )}
-                                    </div>
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                      }
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Regular messages
+                            return (
+                              <div
+                                key={message._id}
+                                className={`messenger-message ${
+                                  message.sender._id === currentUserId
+                                    ? 'messenger-own'
+                                    : ''
+                                }`}
+                              >
+                                {message.sender._id !== currentUserId && (
+                                  <div className='messenger-avatar'>
+                                    <img
+                                      src={
+                                        message.sender.avatar ||
+                                        '/images/user-avatar-default.png'
+                                      }
+                                      alt={message.sender.username}
+                                    />
                                   </div>
                                 )}
+                                <div className='messenger-content'>
+                                  {message.sender._id !== currentUserId && (
+                                    <div className='messenger-sender'>
+                                      {message.sender.username}
+                                    </div>
+                                  )}
+                                  {editingMessageId === message._id ? (
+                                    <div className='messenger-edit-form'>
+                                      <Form.Control
+                                        type='text'
+                                        value={editingContent}
+                                        onChange={(e) =>
+                                          setEditingContent(e.target.value)
+                                        }
+                                        onKeyPress={(e) => {
+                                          if (e.key === 'Enter') {
+                                            submitMessageEdit(message._id);
+                                          }
+                                        }}
+                                        className='messenger-edit-input'
+                                      />
+                                      <div className='messenger-edit-actions'>
+                                        <Button
+                                          size='sm'
+                                          variant='success'
+                                          onClick={() =>
+                                            submitMessageEdit(message._id)
+                                          }
+                                          className='messenger-edit-save'
+                                        >
+                                          <FaCheck />
+                                        </Button>
+                                        <Button
+                                          size='sm'
+                                          variant='secondary'
+                                          onClick={cancelEditing}
+                                          className='messenger-edit-cancel'
+                                        >
+                                          <FaTimes />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className={`messenger-bubble ${
+                                        message.sender._id === currentUserId
+                                          ? 'messenger-bubble-own'
+                                          : 'messenger-bubble-other'
+                                      }`}
+                                      onContextMenu={(e) => {
+                                        if (
+                                          message.sender._id === currentUserId
+                                        ) {
+                                          e.preventDefault();
+                                          setContextMenu({
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            message,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      {message.content}
+                                      <div className='messenger-time'>
+                                        {new Date(
+                                          message.createdAt
+                                        ).toLocaleTimeString('vi-VN', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}
+                                        {message.isEdited && (
+                                          <span className='messenger-edited'>
+                                            (đã chỉnh sửa)
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         ) : (
                           <div className='text-center text-muted'>
                             Chưa có tin nhắn nào
