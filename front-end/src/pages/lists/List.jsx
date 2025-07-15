@@ -398,9 +398,19 @@ const List = ({ boardId }) => {
             padding: "16px",
           }}
         >
+          <strong
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontSize: "14px",
+                color: "#555",
+              }}
+            >
+              Search by name task:
+            </strong>
           <input
             type="text"
-            placeholder="Tìm theo tên task..."
+            placeholder="Search name task..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -422,16 +432,9 @@ const List = ({ boardId }) => {
                 color: "#555",
               }}
             >
-              Thành viên
+             Filter by Members:
             </strong>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
+           
               <select
                 value={selectedMemberFilter}
                 onChange={(e) => setSelectedMemberFilter(e.target.value)}
@@ -441,32 +444,31 @@ const List = ({ boardId }) => {
                   border: "1px solid #ccc",
                 }}
               >
-                <option value="">Tất cả</option>
+                <option value="">All Members</option>
                 {boardMembers.map((m) => (
                   <option key={m._id} value={m._id}>
                     {m.username || m.email}
                   </option>
                 ))}
               </select>
-              <label style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", marginTop:"5px" }}>
                 <input
                   type="checkbox"
                   checked={filterHasMember}
                   onChange={(e) => setFilterHasMember(e.target.checked)}
                   style={{ marginRight: "6px" }}
                 />
-                Có thành viên
-              </label>
-              <label style={{ display: "flex", alignItems: "center" }}>
+                Members
+              </div>
+              <div style={{ display: "flex", alignItems: "center", marginTop:"5px" }}>
                 <input
                   type="checkbox"
                   checked={filterNoMember}
                   onChange={(e) => setFilterNoMember(e.target.checked)}
                   style={{ marginRight: "6px" }}
                 />
-                Chưa có thành viên
-              </label>
-            </div>
+                No Members
+              </div>
           </div>
 
           {/* Card status */}
@@ -479,7 +481,7 @@ const List = ({ boardId }) => {
                 color: "#555",
               }}
             >
-              Card status
+              Task progress:
             </strong>
             <div
               style={{
@@ -494,7 +496,7 @@ const List = ({ boardId }) => {
                 onChange={(e) => setFilterCompleted(e.target.checked)}
                 style={{ marginRight: "6px" }}
               />
-              Hoàn thành
+              Completed
             </div>
             <div style={{ display: "flex", alignItems: "center" }}>
               <input
@@ -503,7 +505,7 @@ const List = ({ boardId }) => {
                 onChange={(e) => setFilterNotCompleted(e.target.checked)}
                 style={{ marginRight: "6px" }}
               />
-              Chưa hoàn thành
+              Uncompleted
             </div>
           </div>
 
@@ -517,7 +519,7 @@ const List = ({ boardId }) => {
                 color: "#555",
               }}
             >
-              Ngày hết hạn
+              Deadline for the task:
             </strong>
             <div
               style={{
@@ -532,7 +534,7 @@ const List = ({ boardId }) => {
                 onChange={(e) => setFilterOverdue(e.target.checked)}
                 style={{ marginRight: "6px" }}
               />
-              Quá hạn
+              Overdue
             </div>
             <div
               style={{
@@ -547,7 +549,7 @@ const List = ({ boardId }) => {
                 onChange={(e) => setFilterDueTomorrow(e.target.checked)}
                 style={{ marginRight: "6px" }}
               />
-              Hết hạn ngày mai
+              Deadline tomorrow
             </div>
             <div style={{ display: "flex", alignItems: "center" }}>
               <input
@@ -556,7 +558,7 @@ const List = ({ boardId }) => {
                 onChange={(e) => setFilterDueIn3Days(e.target.checked)}
                 style={{ marginRight: "6px" }}
               />
-              Sắp hết hạn 3 ngày tới
+              Deadline in 3 days
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
