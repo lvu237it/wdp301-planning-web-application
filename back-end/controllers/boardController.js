@@ -831,10 +831,10 @@ exports.suggestMembers = async (req, res) => {
       "username email avatar skills expectedWorkDuration"
     );
 
-    console.log("🎯 Số người dùng được gợi ý:", users.length);
+    console.log("Số người dùng được gợi ý:", users.length);
     return res.status(200).json({ users });
   } catch (err) {
-    console.error("❌ Lỗi suggestMembers:", err);
+    console.error("Lỗi suggestMembers:", err);
     return res.status(500).json({
       message: "Server lỗi khi lọc thành viên",
       error: err.message,
