@@ -131,7 +131,7 @@ function Login() {
           </div>
           <h5 className='text-center'>Welcome Back!</h5>
           <div className='text-center mb-4'>Please login to your account</div>
-          <Form onSubmit={handleSubmit}>
+          {/* <Form onSubmit={handleSubmit}>
             <Form.Group className='mb-3'>
               <Form.Label>
                 <i style={{ color: '#00B894' }} className='fas fa-envelope'></i>
@@ -160,9 +160,9 @@ function Login() {
                 placeholder='Enter your password'
                 disabled={isLoading}
               />
-            </Form.Group>
+            </Form.Group> */}
 
-            <p
+          {/* <p
               style={{
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 fontSize: 12,
@@ -172,11 +172,11 @@ function Login() {
               }}
               className='text-center'
               onClick={() => !isLoading && navigate('/forgot-password')}
-            >
-              {/* Forgot Password? */}
-            </p>
+            > */}
+          {/* Forgot Password? */}
+          {/* </p> */}
 
-            <button
+          {/* <button
               type='submit'
               className='w-100 button-login border-0 mb-2 d-flex align-items-center justify-content-center'
               style={{
@@ -188,8 +188,8 @@ function Login() {
                 height: '38px',
               }}
               disabled={isLoading}
-            >
-              {/* {isLoading ? (
+            > */}
+          {/* {isLoading ? (
                 <div className='d-flex align-items-center'>
                   <Spinner
                     as='span'
@@ -202,11 +202,11 @@ function Login() {
                   {loadingMessage || 'Đang xử lý...'}
                 </div>
               ) : ( */}
-              Login
-              {/* )} */}
-            </button>
-          </Form>
-          <div className='d-flex justify-content-between align-items-center'>
+          {/* Login */}
+          {/* )} */}
+          {/* </button> */}
+          {/* </Form> */}
+          {/* <div className='d-flex justify-content-between align-items-center'>
             <hr className='' style={{ width: '100%' }} />{' '}
             <div
               className='text-center mb-2'
@@ -215,7 +215,7 @@ function Login() {
               or
             </div>{' '}
             <hr className='' style={{ width: '100%' }} />
-          </div>
+          </div> */}
           <div
             onClick={() => handleGoogleLogin()}
             className='button-google-login d-flex justify-content-center align-items-center border rounded-2 mb-3'
@@ -230,7 +230,7 @@ function Login() {
               title='Login with Google'
             />
           </div>
-          <div style={{ fontSize: 12 }} className='text-center'>
+          {/* <div style={{ fontSize: 12 }} className='text-center'>
             Don't have an account?{' '}
             <span
               onClick={() => !isLoading && navigate('/register')}
@@ -243,7 +243,7 @@ function Login() {
             >
               Sign up
             </span>
-          </div>
+          </div> */}
         </div>
       </div>
     </Container>
