@@ -41,14 +41,18 @@ exports.assignTask = async (req, res, next) => {
     const subject = `Bạn đã được giao task: "${task.title}"`;
     const deadlineText = task.endDate
       ? new Date(task.endDate).toLocaleString("vi-VN")
-      : "Chưa có hạn chót";
+      : "Chưa có ngày kết thúc";
+      const startdeadline = task.startDate
+      ? new Date(task.startDate).toLocaleString("vi-VN")
+      : "Chưa có ngày bắt đầu";
     const html = `
       <h2>Chào ${user.name || user.email},</h2>
       <p>Bạn vừa được giao một công việc mới trên WebPlanPro:</p>
       <ul>
         <li><strong>Tiêu đề:</strong> ${task.title}</li>
         <li><strong>Mô tả:</strong> ${task.description || "Không có mô tả"}</li>
-        <li><strong>Hạn chót:</strong> ${deadlineText}</li>
+        <li><strong>Ngày bắt đầu:</strong> ${startdeadline}</li>
+        <li><strong>Ngày kết thúc:</strong> ${deadlineText}</li>
       </ul>
       <p>Vui lòng đăng nhập để xem chi tiết và cập nhật tiến độ.</p>
       <p>Trân trọng,</p>
@@ -457,6 +461,7 @@ exports.createTask = async (req, res) => {
     session.endSession();
   }
 };
+
 // update task
 exports.updateTask = async (req, res) => {
   try {
@@ -477,19 +482,16 @@ exports.updateTask = async (req, res) => {
     const userId = req.user._id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res
-        .status(400)
-        .json({ status: "fail", message: "ID không hợp lệ" });
+      return res.status(400).json({ status: "fail", message: "ID không hợp lệ" });
     }
 
     const task = await Task.findOne({ _id: id, isDeleted: false });
     if (!task) {
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Không tìm thấy task" });
+      return res.status(404).json({ status: "fail", message: "Không tìm thấy task" });
     }
 
     // Store old values for comparison
+    const oldStartDate = task.startDate;
     const oldEndDate = task.endDate;
     const oldTitle = task.title;
     const oldDescription = task.description;
@@ -502,8 +504,7 @@ exports.updateTask = async (req, res) => {
     if (endDate !== undefined) task.endDate = new Date(endDate);
     if (allDay !== undefined) task.allDay = allDay;
     if (recurrence !== undefined) task.recurrence = recurrence;
-    if (Array.isArray(reminderSettings))
-      task.reminderSettings = reminderSettings;
+    if (Array.isArray(reminderSettings)) task.reminderSettings = reminderSettings;
     if (Array.isArray(checklist)) task.checklist = checklist;
     if (Array.isArray(documents)) task.documents = documents;
     if (typeof progress === "number") task.progress = progress;
@@ -534,25 +535,34 @@ exports.updateTask = async (req, res) => {
       changeDetails.push("tiến độ");
     }
 
-    // Check for deadline change
+    // Check for startDate change (compare by millisecond)
     if (
-      endDate &&
-      oldEndDate?.toISOString() !== new Date(endDate).toISOString()
+      startDate &&
+      oldStartDate &&
+      new Date(oldStartDate).getTime() !== new Date(startDate).getTime()
     ) {
       hasSignificantChanges = true;
-      changeDetails.push("hạn chót");
+      changeDetails.push("ngày bắt đầu");
+    }
+
+    // Check for endDate change (compare by millisecond)
+    if (
+      endDate &&
+      oldEndDate &&
+      new Date(oldEndDate).getTime() !== new Date(endDate).getTime()
+    ) {
+      hasSignificantChanges = true;
+      changeDetails.push("ngày kết thúc");
     }
 
     // Send notifications if there are significant changes and task is assigned
     if (hasSignificantChanges && task.assignedTo) {
-      // Send notification to assignee (if not the person making the change)
+      // Send notification to assignee
       if (task.assignedTo.toString() !== userId.toString()) {
         try {
           await NotificationService.createPersonalNotification({
             title: "Cập nhật nhiệm vụ",
-            content: `Nhiệm vụ "${
-              task.title
-            }" đã được cập nhật (${changeDetails.join(", ")})`,
+            content: `Nhiệm vụ "${task.title}" đã được cập nhật (${changeDetails.join(", ")})`,
             type: "task_updated",
             targetUserId: task.assignedTo,
             targetWorkspaceId: task.workspaceId,
@@ -560,14 +570,11 @@ exports.updateTask = async (req, res) => {
             taskId: task._id,
           });
         } catch (notificationError) {
-          console.warn(
-            "Failed to send task update notification to assignee:",
-            notificationError
-          );
+          console.warn("Failed to send task update notification to assignee:", notificationError);
         }
       }
 
-      // Send notification to assigner (if different from updater and assignee)
+      // Send notification to assigner
       if (
         task.assignedBy &&
         task.assignedBy.toString() !== userId.toString() &&
@@ -576,9 +583,7 @@ exports.updateTask = async (req, res) => {
         try {
           await NotificationService.createPersonalNotification({
             title: "Cập nhật nhiệm vụ đã giao",
-            content: `Nhiệm vụ "${
-              task.title
-            }" mà bạn đã giao đã được cập nhật (${changeDetails.join(", ")})`,
+            content: `Nhiệm vụ "${task.title}" mà bạn đã giao đã được cập nhật (${changeDetails.join(", ")})`,
             type: "task_updated",
             targetUserId: task.assignedBy,
             targetWorkspaceId: task.workspaceId,
@@ -586,40 +591,39 @@ exports.updateTask = async (req, res) => {
             taskId: task._id,
           });
         } catch (notificationError) {
-          console.warn(
-            "Failed to send task update notification to assigner:",
-            notificationError
-          );
+          console.warn("Failed to send task update notification to assigner:", notificationError);
         }
       }
 
-      // Send email if deadline changed
-      if (changeDetails.includes("hạn chót")) {
-        const assignedUser = await User.findById(task.assignedTo).select(
-          "email name"
-        );
-        if (assignedUser?.email) {
-          const deadlineText = new Date(task.endDate).toLocaleString("vi-VN");
-          const html = `
-            <h2>Chào ${assignedUser.name || assignedUser.email},</h2>
-            <p>Hạn chót của task bạn đang nhận <strong>"${
-              task.title
-            }"</strong> đã được thay đổi.</p>
-            <ul>
-              <li><strong>Mô tả:</strong> ${
-                task.description || "Không có mô tả"
-              }</li>
-              <li><strong>Hạn chót mới:</strong> ${deadlineText}</li>
-            </ul>
-            <p>Vui lòng kiểm tra lại hệ thống để nắm thông tin mới nhất.</p>
-            <p>Trân trọng,<br/>Đội ngũ WebPlanPro</p>
-          `;
-          await sendEmail(
-            assignedUser.email,
-            `Cập nhật deadline cho task "${task.title}"`,
-            html
-          );
-          console.log(`Gửi mail deadline mới cho: ${assignedUser.email}`);
+      // Send email if startDate or endDate changed
+      if (changeDetails.includes("ngày bắt đầu") || changeDetails.includes("ngày kết thúc")) {
+        try {
+          const assignedUser = await User.findById(task.assignedTo).select("email name");
+          if (assignedUser?.email) {
+            const startText = new Date(task.startDate).toLocaleString("vi-VN");
+            const endText = new Date(task.endDate).toLocaleString("vi-VN");
+            const html = `
+              <h2>Chào ${assignedUser.name || assignedUser.email},</h2>
+              <p>Thời gian của task bạn đang nhận <strong>"${task.title}"</strong> đã được thay đổi.</p>
+              <ul>
+                <li><strong>Mô tả:</strong> ${task.description || "Không có mô tả"}</li>
+                <li><strong>Ngày bắt đầu:</strong> ${startText}</li>
+                <li><strong>Ngày kết thúc:</strong> ${endText}</li>
+              </ul>
+              <p>Vui lòng kiểm tra lại hệ thống để nắm thông tin mới nhất.</p>
+              <p>Trân trọng,<br/>Đội ngũ WebPlanPro</p>
+            `;
+            await sendEmail(
+              assignedUser.email,
+              `Cập nhật thời gian cho task "${task.title}"`,
+              html
+            );
+            console.log(`Gửi mail thay đổi thời gian cho: ${assignedUser.email}`);
+          } else {
+            console.warn("Không tìm thấy email của assignedUser, bỏ qua gửi mail");
+          }
+        } catch (mailError) {
+          console.error("Lỗi khi gửi email thay đổi thời gian:", mailError);
         }
       }
     }
@@ -627,9 +631,7 @@ exports.updateTask = async (req, res) => {
     res.status(200).json({ status: "success", data: updatedTask });
   } catch (error) {
     console.error("Error while updating task:", error);
-    res
-      .status(500)
-      .json({ status: "error", message: "Có lỗi xảy ra khi cập nhật task" });
+    res.status(500).json({ status: "error", message: "Có lỗi xảy ra khi cập nhật task" });
   }
 };
 
@@ -835,3 +837,34 @@ exports.reorderTasks = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getTasksByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        status: "fail",
+        message: "userId không hợp lệ",
+      });
+    }
+
+    const tasks = await Task.find({
+      assignedTo: userId,
+      isDeleted: false,
+    }).select("title startDate endDate assignedTo");
+
+    res.status(200).json({
+      status: "success",
+      results: tasks.length,
+      tasks,
+    });
+  } catch (err) {
+    console.error("Error in getTasksByUser:", err);
+    res.status(500).json({
+      status: "error",
+      message: "Có lỗi xảy ra khi lấy danh sách task theo user",
+    });
+  }
+};
+
