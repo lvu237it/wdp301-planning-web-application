@@ -27,9 +27,7 @@ const Deadline = ({
   show,
   onClose,
   task,
-  // mergeTask,
-  // onUpdate,
-  refreshTaskData, 
+  refreshTaskData,
   minDate,
   maxDate,
 }) => {
@@ -44,7 +42,8 @@ const Deadline = ({
   useEffect(() => {
     if (!show || !task) return;
     setAllDay(!!task.allDay);
-    if (task.startDate) setStartInput(toDateTimeLocal(new Date(task.startDate)));
+    if (task.startDate)
+      setStartInput(toDateTimeLocal(new Date(task.startDate)));
     if (task.endDate) setEndInput(toDateTimeLocal(new Date(task.endDate)));
     if (task.allDay && task.startDate)
       setDateInput(toDateLocal(new Date(task.startDate)));
@@ -58,14 +57,13 @@ const Deadline = ({
       const [Y, M, D] = dateInput.split("-").map(Number);
       startDate = new Date(Y, M - 1, D, 0, 0);
       endDate = new Date(Y, M - 1, D, 23, 59);
-      payload.startDate = startDate.toISOString();
-      payload.endDate = endDate.toISOString();
     } else {
       if (startInput) startDate = new Date(startInput);
       if (endInput) endDate = new Date(endInput);
-      if (startDate) payload.startDate = startDate.toISOString();
-      if (endDate) payload.endDate = endDate.toISOString();
     }
+
+    if (startDate) payload.startDate = startDate.toISOString();
+    if (endDate) payload.endDate = endDate.toISOString();
 
     if (startDate && endDate && startDate > endDate) {
       setToastMsg("Ngày bắt đầu không được sau ngày kết thúc");
@@ -74,21 +72,48 @@ const Deadline = ({
     }
 
     try {
-      const res = await axios.put(
-        `${apiBaseUrl}/task/updateTask/${task._id}`,
-        payload,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      // const updated = res.data.data;
-      // onUpdate(mergeTask(updated));
+      const assignedToId =
+        task.assignedTo?._id || task.assignedTo?.id || task.assignedTo;
+
+      if (assignedToId) {
+        const res = await axios.get(`${apiBaseUrl}/task/user/${assignedToId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        const otherTasks = res.data.tasks.filter((t) => t._id !== task._id);
+
+        const isOverlap = otherTasks.some((t) => {
+          if (!t.startDate || !t.endDate) {
+            return false;
+          }
+          const tStart = new Date(t.startDate);
+          const tEnd = new Date(t.endDate);
+          if (isNaN(tStart) || isNaN(tEnd)) {
+            return false;
+          }
+          console.log();
+          return startDate <= tEnd && endDate >= tStart;
+        });
+        if (isOverlap) {
+          setToastMsg(
+            "Lịch mới bị trùng với nhiệm vụ khác của thành viên này."
+          );
+          setShowToast(true);
+          return;
+        }
+      } else {
+        setShowToast(true);
+      }
+
+      await axios.put(`${apiBaseUrl}/task/updateTask/${task._id}`, payload, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       await refreshTaskData();
 
-      setToastMsg("Cập nhật ngày thành công");
+      setToastMsg(" Cập nhật thành công");
       setShowToast(true);
       onClose();
     } catch (err) {
-      console.error(err);
-      setToastMsg("Cập nhật ngày thất bại");
       setShowToast(true);
     }
   };
@@ -99,7 +124,7 @@ const Deadline = ({
         show={showToast}
         bg="success"
         autohide
-        delay={3000}
+        delay={5000}
         onClose={() => setShowToast(false)}
         style={{
           position: "fixed",
@@ -107,12 +132,10 @@ const Deadline = ({
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 2000,
-          minWidth: "240px"
+          minWidth: "280px",
         }}
       >
-        <Toast.Body className="text-white text-center">
-          {toastMsg}
-        </Toast.Body>
+        <Toast.Body className="text-white text-center">{toastMsg}</Toast.Body>
       </Toast>
 
       <Modal show={show} centered onHide={onClose}>

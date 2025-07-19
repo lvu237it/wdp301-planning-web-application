@@ -12,5 +12,6 @@ router.delete('/deleteTask/:id', protect, taskController.deleteTask);
 router.post('/:id/assign', protect, taskController.assignTask);
 router.delete('/:id/assign', protect, taskController.unassignTask);
 router.put('/reorder', protect, taskController.reorderTasks);
+router.get('/user/:userId', protect, taskController.getTasksByUser);
 
 module.exports = router;
