@@ -32,7 +32,7 @@ export default function SuggestMemberBySkills({
           }))
         );
       })
-      .catch((err) => console.error('Không thể lấy skills:', err));
+      .catch((err) => console.error('Failed to fetch skills:', err));
   }, [apiBaseUrl, accessToken]);
 
   // format ngày VN
@@ -53,15 +53,15 @@ export default function SuggestMemberBySkills({
     setError('');
     // validate ngày
     if (!startDate || !endDate) {
-      setError('Task chưa có ngày bắt đầu hoặc kết thúc.');
+      setError('Task does not have a start or end date.');
       return;
     }
     if (new Date(startDate) > new Date(endDate)) {
-      setError('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.');
+      setError('Start date must be before or equal to end date.');
       return;
     }
     if (selectedSkills.length === 0) {
-      setError('Vui lòng chọn ít nhất 1 kỹ năng.');
+      setError('Please select at least one skill.');
       return;
     }
 
@@ -87,8 +87,8 @@ export default function SuggestMemberBySkills({
       }
       setSuggestions(users);
     } catch (err) {
-      console.error('Gợi ý thất bại:', err);
-      setError('Có lỗi xảy ra, vui lòng thử lại.');
+      console.error('Suggestion failed:', err);
+      setError('An error occurred, please try again.');
       setSuggestions([]);
     } finally {
       setLoading(false);
@@ -125,7 +125,7 @@ export default function SuggestMemberBySkills({
           onClick={fetchSuggestions}
           disabled={loading}
         >
-          {loading ? 'Đang gợi ý…' : 'Suggest Members'}
+          {loading ? 'Suggesting…' : 'Suggest Members'}
         </button>
       </div>
 

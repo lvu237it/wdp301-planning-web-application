@@ -46,7 +46,7 @@ const InviteMemberModal = ({ show, onHide, workspaceId }) => {
         { email }, // nếu bạn muốn cho chọn role: thêm role field
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      toast.success('Đã gửi lời mời thành công');
+      toast.success('Invitation sent successfully');
       onHide();
       setEmail('');
     } catch (err) {
@@ -67,7 +67,7 @@ const InviteMemberModal = ({ show, onHide, workspaceId }) => {
             <Form.Label>Email</Form.Label>
             <Form.Control
               type='email'
-              placeholder='Nhập email...'
+              placeholder='Enter email...'
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               list='invite-suggestions'

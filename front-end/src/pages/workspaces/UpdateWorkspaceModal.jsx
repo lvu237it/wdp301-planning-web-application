@@ -21,10 +21,10 @@ const UpdateWorkspaceModal = ({ show, onHide, workspace }) => {
     setLoading(true);
     try {
       await updateWorkspace(workspace._id, { name, description });
-      toast.success('Cập nhật workspace thành công!');
+      toast.success('Workspace updated successfully!');
       onHide();
     } catch (err) {
-      toast.error(err.message || 'Cập nhật thất bại');
+      toast.error(err.message || 'Failed to update workspace');
     } finally {
       setLoading(false);
     }

@@ -34,9 +34,9 @@ export const formatDateForNotification = (date) => {
     if (diffHours < 24 && diffHours >= 0) {
       if (diffHours < 1) {
         const diffMinutes = Math.floor(diffMs / (1000 * 60));
-        return diffMinutes <= 0 ? 'Vừa xong' : `${diffMinutes} phút trước`;
+        return diffMinutes <= 0 ? 'Just now' : `${diffMinutes} minutes ago`;
       }
-      return `${Math.floor(diffHours)} giờ trước`;
+      return `${Math.floor(diffHours)} hours ago`;
     }
 
     // Nếu quá 24 giờ hoặc trong tương lai, hiển thị ngày-tháng-năm hh:mm:ss AM/PM

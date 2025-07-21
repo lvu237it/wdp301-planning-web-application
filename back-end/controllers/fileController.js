@@ -59,8 +59,8 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
       data: { authUrl: urlWithState.toString() },
     });
   } catch (error) {
-    console.error('Lỗi khi tạo URL xác thực:', error.message);
-    next(new AppError('Không thể tạo URL xác thực: ' + error.message, 500));
+    console.error('Error getting Google auth URL:', error.message);
+    next(new AppError('Error getting Google auth URL: ' + error.message, 500));
   }
 };
 
@@ -248,7 +248,7 @@ exports.checkGoogleAuth = async (req, res, next) => {
     }
   } catch (error) {
     console.error('❌ Error checking Google auth:', error.message);
-    next(new AppError('Lỗi khi kiểm tra xác thực: ' + error.message, 500));
+    next(new AppError('Error checking Google auth: ' + error.message, 500));
   }
 };
 
@@ -299,9 +299,10 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
 
     //Gửi thông báo cho user sau khi xác thực thành công
     await NotificationService.createPersonalNotification({
-      title: 'Xác thực Google thành công',
+      title: 'Google Authentication Successful',
       content:
-        'Bạn đã xác thực thành công tài khoản Google. Giờ đây bạn có thể tiếp tục sử dụng dịch vụ của chúng tôi.',
+        // 'Bạn đã xác thực thành công tài khoản Google. Giờ đây bạn có thể tiếp tục sử dụng dịch vụ của chúng tôi.',
+        'You have successfully authenticated your Google account. You can now continue using our services.',
       type: 'google_auth',
       targetUserId: userId,
       targetWorkspaceId: null,
@@ -314,10 +315,10 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
 
     res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
   } catch (error) {
-    console.error('Lỗi trong handleGoogleAuthCallback:', error.message);
+    console.error('Error handling Google auth callback:', error.message);
     const errorMessage = req.query.error
       ? decodeURIComponent(req.query.error)
-      : 'Lỗi xác thực Google không xác định';
+      : 'Error handling Google auth callback: ' + error.message;
     res.status(400).json({
       status: 'error',
       message: errorMessage,
@@ -365,8 +366,8 @@ exports.uploadFile = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Lỗi khi tải file lên:', error.message);
-    next(new AppError('Tải file thất bại: ' + error.message, 500));
+    console.error('Error uploading file:', error.message);
+    next(new AppError('Error uploading file: ' + error.message, 500));
   }
 };
 
@@ -468,8 +469,8 @@ exports.uploadFileToTask = async (req, res, next) => {
       // Send notification to assigned user if different from uploader
       if (task.assignedTo && !task.assignedTo.equals(userId)) {
         await NotificationService.createPersonalNotification({
-          title: 'File mới được thêm vào nhiệm vụ',
-          content: `File "${data.name}" đã được thêm vào nhiệm vụ "${task.title}"`,
+          title: 'New file is added to task',
+          content: `File "${data.name}" is added to task "${task.title}"`,
           type: 'task_document_added',
           targetUserId: task.assignedTo,
           targetWorkspaceId: task.workspaceId,
@@ -494,8 +495,8 @@ exports.uploadFileToTask = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Lỗi khi tải file lên task:', error.message);
-    next(new AppError('Tải file thất bại: ' + error.message, 500));
+    console.error('Error uploading file:', error.message);
+    next(new AppError('Error uploading file: ' + error.message, 500));
   }
 };
 
@@ -570,8 +571,8 @@ exports.listFiles = async (req, res, next) => {
       data: files,
     });
   } catch (error) {
-    console.error('Lỗi khi liệt kê file:', error.message);
-    next(new AppError('Liệt kê file thất bại: ' + error.message, 500));
+    console.error('Error listing files:', error.message);
+    next(new AppError('Error listing files: ' + error.message, 500));
   }
 };
 
@@ -611,8 +612,8 @@ exports.getFile = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Lỗi khi lấy file:', error.message);
-    next(new AppError('Lấy file thất bại: ' + error.message, 500));
+    console.error('Error getting file:', error.message);
+    next(new AppError('Error getting file: ' + error.message, 500));
   }
 };
 
@@ -683,8 +684,8 @@ exports.shareFileWithTaskUsers = async (req, res, next) => {
       for (const user of users) {
         if (!user._id.equals(userId)) {
           await NotificationService.createPersonalNotification({
-            title: 'File được chia sẻ với bạn',
-            content: `File "${fileDoc.name}" trong nhiệm vụ "${task.title}" đã được chia sẻ với bạn`,
+            title: 'File is shared with you',
+            content: `File "${fileDoc.name}" in task "${task.title}" is shared with you.`,
             type: 'file_shared',
             targetUserId: user._id,
             targetWorkspaceId: task.workspaceId,
@@ -699,11 +700,11 @@ exports.shareFileWithTaskUsers = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      message: 'Đã chia sẻ file với người dùng trong task',
+      message: 'Share file successfully with task users',
     });
   } catch (error) {
-    console.error('Lỗi khi chia sẻ file:', error.message);
-    next(new AppError('Chia sẻ file thất bại: ' + error.message, 500));
+    console.error('Error sharing file:', error.message);
+    next(new AppError('Error sharing file: ' + error.message, 500));
   }
 };
 
@@ -780,8 +781,8 @@ exports.updateFile = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Lỗi khi cập nhật file:', error.message);
-    next(new AppError('Cập nhật file thất bại: ' + error.message, 500));
+    console.error('Error updating file:', error.message);
+    next(new AppError('Error updating file: ' + error.message, 500));
   }
 };
 
@@ -879,8 +880,8 @@ exports.deleteFile = async (req, res, next) => {
         // Send notification to assigned user if different from deleter
         if (task.assignedTo && !task.assignedTo.equals(userId)) {
           await NotificationService.createPersonalNotification({
-            title: 'File đã bị xóa khỏi nhiệm vụ',
-            content: `File "${fileName}" đã bị xóa khỏi nhiệm vụ "${task.title}"`,
+            title: 'File is removed from task',
+            content: `File "${fileName}" is removed from task "${task.title}"`,
             type: 'task_document_removed',
             targetUserId: task.assignedTo,
             targetWorkspaceId: task.workspaceId,
@@ -898,11 +899,11 @@ exports.deleteFile = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      message: 'Xóa file thành công',
+      message: 'Delete file successfully',
     });
   } catch (error) {
-    console.error('Lỗi khi xóa file:', error.message);
-    next(new AppError('Xóa file thất bại: ' + error.message, 500));
+    console.error('Error deleting file:', error.message);
+    next(new AppError('Error deleting file: ' + error.message, 500));
   }
 };
 

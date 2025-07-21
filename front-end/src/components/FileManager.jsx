@@ -111,7 +111,12 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
   };
 
   const handleDelete = async (fileId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa file này?')) return;
+    if (
+      !window.confirm(
+        'Do you want to delete this file? It will be removed from your Google Drive.'
+      )
+    )
+      return;
 
     try {
       const result = await deleteFile(fileId);
@@ -193,7 +198,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
     <div className='file-manager-overlay'>
       <div className='file-manager-modal'>
         <div className='file-manager-header'>
-          <h3>Quản lý tệp đính kèm</h3>
+          <h3>Manage attachments</h3>
           <button className='close-btn' onClick={onClose}>
             <i className='fas fa-times'></i>
           </button>
@@ -214,7 +219,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                 />
                 <label htmlFor='file-upload' className='upload-btn'>
                   <i className='fas fa-upload'></i>
-                  {uploading ? 'Đang upload...' : 'Chọn file để upload'}
+                  {uploading ? 'Uploading...' : 'Choose a file to upload'}
                 </label>
                 {uploading && (
                   <div className='upload-progress'>Đang upload file...</div>
@@ -234,9 +239,9 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
           {/* Files list */}
           <div className='files-list'>
             {loading ? (
-              <div className='loading'>Đang tải danh sách file...</div>
+              <div className='loading'>Loading files...</div>
             ) : files.length === 0 ? (
-              <div className='no-files'>Chưa có file nào được upload</div>
+              <div className='no-files'>There is no uploaded file</div>
             ) : (
               <div className='files-grid'>
                 {files.map((file) => (
@@ -292,7 +297,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                       <button
                         className='action-btn download-btn'
                         onClick={() => handleDownload(file)}
-                        title='Tải xuống'
+                        title='Download file'
                       >
                         <i className='fas fa-download'></i>
                       </button>
@@ -300,7 +305,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                       <button
                         className='action-btn view-btn'
                         onClick={() => window.open(file.url, '_blank')}
-                        title='Xem trên Google Drive'
+                        title='View on Google Drive'
                       >
                         <i className='fas fa-external-link-alt'></i>
                       </button>
@@ -308,7 +313,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                       <button
                         className='action-btn share-btn'
                         onClick={() => handleShare(file._id)}
-                        title='Chia sẻ với thành viên task'
+                        title='Share with assigned users'
                       >
                         <i className='fas fa-share'></i>
                       </button>
@@ -316,7 +321,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                       <button
                         className='action-btn rename-btn'
                         onClick={() => startEditing(file)}
-                        title='Đổi tên'
+                        title='Rename'
                       >
                         <i className='fas fa-edit'></i>
                       </button>
@@ -324,7 +329,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                       <button
                         className='action-btn delete-btn'
                         onClick={() => handleDelete(file._id)}
-                        title='Xóa'
+                        title='Remove'
                       >
                         <i className='fas fa-trash'></i>
                       </button>

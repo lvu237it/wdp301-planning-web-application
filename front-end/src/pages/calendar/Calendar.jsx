@@ -226,13 +226,13 @@ const Calendar = () => {
         label: 'Online',
         color: '#2196F3',
         icon: '🌐',
-        description: 'Sự kiện diễn ra trực tuyến',
+        description: 'Online event',
       },
       offline: {
         label: 'Offline',
         color: '#4CAF50',
         icon: '📍',
-        description: 'Sự kiện tại địa điểm cụ thể',
+        description: 'Event at a specific location',
       },
     }),
     []
@@ -241,11 +241,11 @@ const Calendar = () => {
   // Định nghĩa statusOptions
   const statusOptions = useMemo(
     () => [
-      { value: 'draft', label: 'Nháp' },
-      { value: 'scheduled', label: 'Chưa diễn ra' },
-      { value: 'in-progress', label: 'Đang diễn ra' },
-      { value: 'completed', label: 'Đã xong' },
-      { value: 'cancelled', label: 'Đã hủy' },
+      { value: 'draft', label: 'Draft' },
+      { value: 'scheduled', label: 'Not started' },
+      { value: 'in-progress', label: 'In progress' },
+      { value: 'completed', label: 'Completed' },
+      { value: 'cancelled', label: 'Cancelled' },
     ],
     []
   );
@@ -253,11 +253,11 @@ const Calendar = () => {
   // Định nghĩa recurrenceOptions
   const recurrenceOptions = useMemo(
     () => [
-      { value: 'custom', label: 'Không lặp lại' },
-      { value: 'daily', label: 'Hàng ngày' },
-      { value: 'weekly', label: 'Hàng tuần' },
-      { value: 'monthly', label: 'Hàng tháng' },
-      { value: 'yearly', label: 'Hàng năm' },
+      { value: 'custom', label: 'No repeat' },
+      { value: 'daily', label: 'Daily' },
+      { value: 'weekly', label: 'Weekly' },
+      { value: 'monthly', label: 'Monthly' },
+      { value: 'yearly', label: 'Yearly' },
     ],
     []
   );
@@ -293,7 +293,7 @@ const Calendar = () => {
   const formatConflictEventTime = useCallback(
     (event) => {
       if (event.allDay) {
-        return `Cả ngày ${formatAllDayEventDate(new Date(event.startDate))}`;
+        return `All day ${formatAllDayEventDate(new Date(event.startDate))}`;
       } else {
         return `${formatEventDate(
           new Date(event.startDate)
@@ -402,7 +402,7 @@ const Calendar = () => {
           'Lỗi lấy sự kiện:',
           error.response?.data || error.message
         );
-        toast.error(error.response?.data?.message || 'Không thể tải sự kiện');
+        toast.error(error.response?.data?.message || 'Failed to load event');
         setEvents([]);
         setFilteredEvents([]);
       } finally {
@@ -836,7 +836,7 @@ const Calendar = () => {
         (eventStatus !== 'draft' && eventStatus !== 'scheduled')
       ) {
         dropInfo.revert();
-        toast.error('Không thể di chuyển sự kiện này do trạng thái hiện tại');
+        toast.error('Cannot move this event due to its current status');
         return;
       }
 
@@ -850,14 +850,12 @@ const Calendar = () => {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (response.data.status === 200) {
-          toast.success('Cập nhật thời gian sự kiện thành công');
+          toast.success('Event time updated successfully');
           debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
         }
       } catch (error) {
         dropInfo.revert();
-        toast.error(
-          error.response?.data?.message || 'Không thể cập nhật sự kiện'
-        );
+        toast.error(error.response?.data?.message || 'Failed to update event');
       }
     },
     [
@@ -944,7 +942,7 @@ const Calendar = () => {
     async (e, forceCreate = false) => {
       e.preventDefault();
       if (!formData.title.trim()) {
-        toast.error('Vui lòng nhập tiêu đề sự kiện');
+        toast.error('Please enter event title');
         return;
       }
 
@@ -954,19 +952,19 @@ const Calendar = () => {
 
       // Kiểm tra startDate không được trong quá khứ (theo múi giờ Việt Nam)
       if (!formData.allDay && startDate < vietnamNow) {
-        toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+        toast.error('Start time cannot be in the past');
         return;
       }
 
       // Kiểm tra endDate không được trong quá khứ (theo múi giờ Việt Nam)
       if (!formData.allDay && endDate < vietnamNow) {
-        toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+        toast.error('End time cannot be in the past');
         return;
       }
 
       // Chỉ validate date khi không phải sự kiện cả ngày
       if (!formData.allDay && startDate > endDate) {
-        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+        toast.error('End time must be after start time');
         return;
       }
 
@@ -1004,7 +1002,7 @@ const Calendar = () => {
         );
 
         if (response.data.status === 201) {
-          toast.success('Thêm sự kiện thành công');
+          toast.success('Event added successfully');
           setShowCreateModal(false);
           setShowCreateConflictModal(false); // Đóng conflict modal nếu đang mở
           setCreateConflictData(null); // Clear conflict data
@@ -1041,7 +1039,7 @@ const Calendar = () => {
           return; // Don't show error toast, show conflict modal instead
         }
 
-        toast.error(error.response?.data?.message || 'Không thể thêm sự kiện');
+        toast.error(error.response?.data?.message || 'Failed to add event');
       } finally {
         setIsCreatingEvent(false);
       }
@@ -1064,7 +1062,7 @@ const Calendar = () => {
     async (e) => {
       e.preventDefault();
       if (!editFormData.title?.trim()) {
-        toast.error('Vui lòng nhập tiêu đề sự kiện');
+        toast.error('Please enter event title');
         return;
       }
 
@@ -1074,19 +1072,19 @@ const Calendar = () => {
 
       // Kiểm tra startDate không được trong quá khứ (theo múi giờ Việt Nam)
       if (startDate < vietnamNow) {
-        toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+        toast.error('Start time cannot be in the past');
         return;
       }
 
       // Kiểm tra endDate không được trong quá khứ (theo múi giờ Việt Nam)
       if (endDate < vietnamNow) {
-        toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+        toast.error('End time cannot be in the past');
         return;
       }
 
       // Chỉ validate date khi không phải sự kiện cả ngày
       if (!editFormData.allDay && startDate > endDate) {
-        toast.error('Thời gian kết thúc phải sau thời gian bắt đầu');
+        toast.error('End time must be after start time');
         return;
       }
 
@@ -1132,7 +1130,7 @@ const Calendar = () => {
         );
 
         if (response.data.status === 200) {
-          toast.success('Cập nhật sự kiện thành công');
+          toast.success('Event updated successfully');
           setShowEditModal(false);
           debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
         }
@@ -1141,9 +1139,7 @@ const Calendar = () => {
           'Lỗi cập nhật sự kiện:',
           error.response?.data || error.message
         );
-        toast.error(
-          error.response?.data?.message || 'Không thể cập nhật sự kiện'
-        );
+        toast.error(error.response?.data?.message || 'Failed to update event');
       } finally {
         setIsUpdatingEvent(false);
       }
@@ -1169,14 +1165,14 @@ const Calendar = () => {
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       if (response.data.status === 200) {
-        toast.success('Xóa sự kiện thành công');
+        toast.success('Event deleted successfully');
         setShowEventModal(false);
         setShowDeleteModal(false);
         debouncedFetchEvents(dateRange.start, dateRange.end, searchTerm);
       }
     } catch (error) {
       console.error('Lỗi xóa sự kiện:', error.response?.data || error.message);
-      toast.error(error.response?.data?.message || 'Không thể xóa sự kiện');
+      toast.error(error.response?.data?.message || 'Failed to delete event');
     }
   }, [
     selectedEvent,
@@ -1545,15 +1541,15 @@ const Calendar = () => {
       },
     },
     buttonText: {
-      today: 'Hôm nay',
-      month: 'Tháng',
-      week: 'Tuần',
-      day: 'Ngày',
+      today: 'Today',
+      month: 'Month',
+      week: 'Week',
+      day: 'Day',
     },
     locale: 'vi',
     firstDay: 1,
     weekNumbers: !isMobile,
-    weekNumberTitle: 'Tuần',
+    weekNumberTitle: 'Week',
     weekNumberCalculation: 'ISO',
     // timeZone: 'Asia/Ho_Chi_Minh', // Đảm bảo múi giờ
     nowIndicator: true,
@@ -1569,7 +1565,7 @@ const Calendar = () => {
     datesSet: handleDatesSet,
     customButtons: {
       today: {
-        text: 'Hôm nay',
+        text: 'Today',
         click: handleTodayClick,
       },
     },
@@ -1630,7 +1626,7 @@ const Calendar = () => {
   // Handler for submitting cancellation
   const handleSubmitCancellation = async () => {
     if (!selectedEventForCancel || !cancelReason.trim()) {
-      toast.error('Vui lòng nhập lý do hủy tham gia');
+      toast.error('Please enter a reason for cancellation');
       return;
     }
 
@@ -1673,7 +1669,7 @@ const Calendar = () => {
       }
     } catch (error) {
       console.error('Error accepting event with conflict:', error);
-      toast.error('Không thể chấp nhận lời mời');
+      toast.error('Cannot accept invitation');
     } finally {
       setIsSubmitting(false);
     }
@@ -1698,12 +1694,12 @@ const Calendar = () => {
     const endDate = new Date(createConflictData.formData.endDate);
 
     if (startDate < vietnamNow) {
-      toast.error('Thời gian bắt đầu không được chọn trong quá khứ');
+      toast.error('Start time cannot be in the past');
       return;
     }
 
     if (endDate < vietnamNow) {
-      toast.error('Thời gian kết thúc không được chọn trong quá khứ');
+      toast.error('End time cannot be in the past');
       return;
     }
 
@@ -1741,7 +1737,7 @@ const Calendar = () => {
       );
 
       if (response.data.status === 201) {
-        toast.success('Thêm sự kiện thành công');
+        toast.success('Event added successfully');
         setShowCreateModal(false);
         setShowCreateConflictModal(false);
         setCreateConflictData(null);
@@ -1761,7 +1757,7 @@ const Calendar = () => {
       }
     } catch (error) {
       console.error('Lỗi tạo sự kiện với xung đột:', error);
-      toast.error('Không thể tạo sự kiện');
+      toast.error('Failed to create event');
     } finally {
       setIsCreatingEvent(false);
     }
@@ -1833,14 +1829,14 @@ const Calendar = () => {
       if (result.success) {
         setAvailableTimeSlots(result.data || []);
         if (result.data.length === 0) {
-          toast.info('Không tìm thấy khoảng thời gian trống phù hợp');
+          toast.info('No suitable free time slot found');
         }
       } else {
-        throw new Error(result.error || 'Failed to fetch time slots');
+        throw new Error(result.error || 'Failed to get time suggestions');
       }
     } catch (error) {
       console.error('Error fetching time suggestions:', error);
-      toast.error('Không thể lấy gợi ý thời gian');
+      toast.error('Failed to get time suggestions');
       setAvailableTimeSlots([]);
     } finally {
       setLoadingSuggestions(false);
@@ -1928,7 +1924,7 @@ const Calendar = () => {
                       Cả ngày
                     </span>
                   )}
-                  <span className='badge bg-primary'>Mới</span>
+                  <span className='badge bg-primary'>New</span>
                 </div>
               </div>
             </div>
@@ -2588,7 +2584,7 @@ const Calendar = () => {
                           Người tham gia:{' '}
                           {selectedEvent.participants
                             .filter((p) => p.status === 'accepted')
-                            .map((p) => p.email || p.name || 'Người dùng')
+                            .map((p) => p.email || p.name || 'User')
                             .join(', ')}
                         </p>
                       )}

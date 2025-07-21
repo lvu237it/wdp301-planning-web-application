@@ -903,8 +903,8 @@ exports.createEventForCalendar = async (req, res) => {
 
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
-            title: 'Lời mời tham gia sự kiện',
-            content: `Bạn được mời tham gia sự kiện "${savedEvent.title}" bởi ${organizerUser.username}.`,
+            title: 'Invitation to join event',
+            content: `You have been invited to join the event "${savedEvent.title}" by ${organizerUser.username}.`,
             type: 'event_invitation',
             targetUserId: participant.userId,
             createdBy: organizer,
@@ -1834,10 +1834,10 @@ exports.updateEvent = async (req, res) => {
 
             // Gửi thông báo cho từng participant
             for (const participantId of notificationTargetIds) {
-              const notificationContent = `Bạn được mời tham gia sự kiện "${event.title}" bởi ${organizerUser.username}.`;
+              const notificationContent = `You have been invited to join event "${event.title}" by ${organizerUser.username}.`;
 
               await NotificationService.createPersonalNotification({
-                title: 'Lời mời tham gia sự kiện',
+                title: 'Invitation to join event',
                 content: notificationContent,
                 type: 'event_invitation',
                 targetUserId: participantId,
@@ -1900,8 +1900,8 @@ exports.updateEvent = async (req, res) => {
       if (participantsToNotify.length > 0) {
         for (const participant of participantsToNotify) {
           await NotificationService.createPersonalNotification({
-            title: 'Sự kiện đã được cập nhật',
-            content: `Sự kiện "${event.title}" đã được cập nhật bởi ${organizerUser.username}.`,
+            title: 'The event has been updated',
+            content: `Your event "${event.title}" has been updated by ${organizerUser.username}.`,
             type: 'event_update',
             targetUserId: participant.userId,
             createdBy: req.user._id,
@@ -2115,10 +2115,10 @@ exports.inviteToBecomeParticipant = async (req, res) => {
         );
 
         await NotificationService.createPersonalNotification({
-          title: 'Lời mời tham gia sự kiện',
-          content: `Bạn được mời tham gia sự kiện "${event.title}" bởi ${
-            organizerUser.username || organizerUser.email
-          }.`,
+          title: 'Invitation to join event',
+          content: `You have been invited to join the event "${
+            event.title
+          }" by ${organizerUser.username || organizerUser.email}.`,
           type: 'event_invitation',
           targetUserId: invitedUser._id,
           createdBy: req.user._id,
@@ -2492,22 +2492,22 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
           // statusText = forceAccept
           //   ? 'đã chấp nhận (dù có xung đột thời gian)'
           //   : 'đã chấp nhận';
-          statusText = 'đã chấp nhận';
+          statusText = 'accepted the invitation';
 
           break;
         case 'declined':
-          statusText = 'đã từ chối';
+          statusText = 'declined the invitation';
           break;
         case 'pending':
-          statusText = 'đang chờ xem xét';
+          statusText = 'has considering to join';
           break;
         default:
-          statusText = 'đã cập nhật trạng thái';
+          statusText = 'has updated event';
       }
 
       await NotificationService.createPersonalNotification({
-        title: 'Phản hồi lời mời tham gia sự kiện',
-        content: `${participantUser.username} ${statusText} tham gia sự kiện "${event.title}".`,
+        title: 'Response to event invitation',
+        content: `${participantUser.username} ${statusText} "${event.title}".`,
         type: 'event_status_update',
         targetUserId: event.organizer,
         createdBy: req.user._id,
@@ -2519,20 +2519,17 @@ exports.acceptOrDeclineParticipantStatus = async (req, res) => {
         `Đã gửi thông báo cập nhật trạng thái sự kiện cho organizer ${event.organizer}`
       );
     } catch (notificationError) {
-      console.error(
-        'Lỗi khi gửi thông báo cập nhật trạng thái sự kiện:',
-        notificationError
-      );
+      console.error('Error when sending notification:', notificationError);
       // Không làm gián đoạn quá trình cập nhật trạng thái
     }
 
     res.status(200).json({
-      message: 'Cập nhật trạng thái người tham gia thành công',
+      message: 'Updated participant status successfully',
       status: 200,
       data: event,
     });
   } catch (error) {
-    console.error('Lỗi khi cập nhật trạng thái người tham gia:', error);
+    console.error('Error when updating participant status:', error);
     res.status(500).json({
       message: 'Lỗi máy chủ',
       status: 500,

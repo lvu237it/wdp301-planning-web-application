@@ -14,13 +14,13 @@ const CreateWorkspaceModal = ({ show, onHide }) => {
     setLoading(true);
     try {
       await createWorkspace({ name, description });
-      toast.success('Tạo workspace thành công!');
+      toast.success('Workspace created successfully!');
       onHide();
       // reset form
       setName('');
       setDescription('');
     } catch (err) {
-      toast.error(err.message || 'Tạo workspace thất bại');
+      toast.error(err.message || 'Failed to create workspace');
     } finally {
       setLoading(false);
     }

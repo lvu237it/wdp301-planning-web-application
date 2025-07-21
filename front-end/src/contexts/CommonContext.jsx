@@ -573,18 +573,14 @@ export const Common = ({ children }) => {
         const skillsData = response.data.data?.skills || [];
         setSkillsList(skillsData);
       } else {
-        throw new Error(
-          response.data.message || 'Không thể tải danh sách kỹ năng'
-        );
+        throw new Error(response.data.message || 'Failed to fetch skills list');
       }
     } catch (error) {
-      console.error('Lỗi khi lấy danh sách kỹ năng:', error);
+      console.error('Error fetching skills:', error);
       setSkillsError(
-        error.response?.data?.message || 'Không thể tải danh sách kỹ năng'
+        error.response?.data?.message || 'Cannot fetch skills list'
       );
-      toast.error(
-        error.response?.data?.message || 'Không thể tải danh sách kỹ năng'
-      );
+      toast.error(error.response?.data?.message || 'Cannot fetch skills list');
       setSkillsList([]); // Ensure skillsList is an empty array on error
     } finally {
       setLoadingSkills(false);
@@ -638,7 +634,9 @@ export const Common = ({ children }) => {
         localStorage.removeItem('notifications');
       }
       setNotificationPagination((prev) => ({ ...prev, loading: false }));
-      // toast.error(error.response?.data?.message || 'Lỗi khi tải thông báo');
+      toast.error(
+        error.response?.data?.message || 'Failed to load notifications'
+      );
     }
   };
 
@@ -682,7 +680,7 @@ export const Common = ({ children }) => {
     } catch (error) {
       console.error('Error loading more notifications:', error);
       setNotificationPagination((prev) => ({ ...prev, loading: false }));
-      toast.error('Không thể tải thêm thông báo');
+      toast.error('Failed to load more notifications');
     }
   };
 
@@ -802,8 +800,7 @@ export const Common = ({ children }) => {
       }
 
       toast.error(
-        error.response?.data?.message ||
-          'Không thể phản hồi lời mời tham gia sự kiện'
+        error.response?.data?.message || 'Failed to respond to event invitation'
       );
       return { success: false };
     }
@@ -916,8 +913,8 @@ export const Common = ({ children }) => {
         // Show toast notifications for different types
         const toastMessages = {
           // Task notifications
-          task_created: `✅ Tạo nhiệm vụ thành công: "${notification.content}"`,
-          task_assigned: `📋 Bạn được giao nhiệm vụ mới: "${notification.content}"`,
+          task_created: `✅ Task created successfully: "${notification.content}"`,
+          task_assigned: `📋 You have been assigned a new task: "${notification.content}"`,
           task_assignment_confirmed: `✅ ${notification.content}`,
           task_unassigned: `❌ ${notification.content}`,
           task_unassignment_confirmed: `✅ ${notification.content}`,
@@ -931,13 +928,13 @@ export const Common = ({ children }) => {
           list_deleted: `🗑️ ${notification.content}`,
 
           // Event notifications
-          event_invitation: `📅 Lời mời sự kiện: ${notification.content}`,
-          event_updated: `📝 Sự kiện được cập nhật: ${notification.content}`,
-          event_cancelled: `❌ Sự kiện bị hủy: ${notification.content}`,
-          event_reminder: `⏰ Nhắc nhở sự kiện: ${notification.content}`,
+          event_invitation: `📅 Event invitation: ${notification.content}`,
+          event_updated: `📝 Event updated: ${notification.content}`,
+          event_cancelled: `❌ Event cancelled: ${notification.content}`,
+          event_reminder: `⏰ Event reminder: ${notification.content}`,
 
           // Message notifications
-          new_message: `💬 Tin nhắn mới: ${notification.content}`,
+          new_message: `💬 New message: ${notification.content}`,
 
           // File notifications
           file_shared: `📎 ${notification.content}`,
@@ -1000,22 +997,23 @@ export const Common = ({ children }) => {
       // Show toast notifications for different activity types
       if (activityLog.action.startsWith('task_')) {
         const actionMessages = {
-          task_created: '✅ Nhiệm vụ mới được tạo',
-          task_updated: '📝 Nhiệm vụ được cập nhật',
-          task_assigned: '👤 Nhiệm vụ được giao',
-          task_unassigned: '👥 Hủy giao nhiệm vụ',
-          task_checklist_updated: '☑️ Checklist được cập nhật',
-          task_checklist_item_completed: '✅ Hoàn thành nhiệm vụ con',
-          task_checklist_item_uncompleted: '❌ Bỏ hoàn thành nhiệm vụ con',
-          task_document_added: '📎 Thêm tài liệu vào nhiệm vụ',
-          task_document_shared: '🔗 Chia sẻ tài liệu nhiệm vụ',
-          task_document_renamed: '✏️ Đổi tên tài liệu',
-          task_document_removed: '🗑️ Xóa tài liệu khỏi nhiệm vụ',
-          task_deleted: '🗑️ Xóa nhiệm vụ',
+          task_created: '✅ New task is created',
+          task_updated: '📝 New task is updated',
+          task_assigned: '👤 Task is assigned',
+          task_unassigned: '👥 Unssigned a task',
+          task_checklist_updated: '☑️ Checklist is updated',
+          task_checklist_item_completed:
+            '✅ Checklist item marked as "completed"',
+          task_checklist_item_uncompleted:
+            '❌ Checklist item marked as "incompleted"',
+          task_document_added: '📎 Document is added to task',
+          task_document_shared: '🔗 Document is shared in task',
+          task_document_renamed: '✏️ Document is renamed',
+          task_document_removed: '🗑️ Document is removed',
+          task_deleted: '🗑️ Task is removed',
         };
 
-        const message =
-          actionMessages[activityLog.action] || '📄 Hoạt động mới';
+        const message = actionMessages[activityLog.action] || '📄 New activity';
         // toast.info(`${message} bởi ${activityLog.userName}`, {
         //   position: 'top-right',
         //   autoClose: 3000,
@@ -1023,15 +1021,14 @@ export const Common = ({ children }) => {
         // });
       } else if (activityLog.action.startsWith('list_')) {
         const actionMessages = {
-          list_created: '📋 Danh sách mới được tạo',
-          list_updated: '✏️ Danh sách được cập nhật',
-          list_deleted: '🗑️ Danh sách được xóa',
-          list_task_moved: '🔄 Nhiệm vụ được di chuyển',
+          list_created: '📋 New list created',
+          list_updated: '✏️ List updated',
+          list_deleted: '🗑️ List deleted',
+          list_task_moved: '🔄 Task is moved',
         };
 
-        const message =
-          actionMessages[activityLog.action] || '📄 Hoạt động mới';
-        toast.info(`${message} bởi ${activityLog.userName}`, {
+        const message = actionMessages[activityLog.action] || '📄 New activity';
+        toast.info(`${message} by ${activityLog.userName}`, {
           position: 'top-right',
           autoClose: 3000,
           hideProgressBar: false,
@@ -1056,8 +1053,8 @@ export const Common = ({ children }) => {
       ) {
         const message =
           activityLog.action === 'task_assigned'
-            ? '🔒 Có cập nhật giao nhiệm vụ'
-            : '🔒 Có cập nhật hủy giao nhiệm vụ';
+            ? '🔒 Updated about task assignment'
+            : '🔒 Updated about cancelling task assignment';
         toast.info(message, {
           position: 'top-right',
           autoClose: 2000,
@@ -1866,7 +1863,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error sending event message:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi gửi tin nhắn');
+      toast.error(error.response?.data?.message || 'Failed to send message');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1955,9 +1952,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error editing event message:', error);
-      toast.error(
-        error.response?.data?.message || 'Lỗi khi chỉnh sửa tin nhắn'
-      );
+      toast.error(error.response?.data?.message || 'Failed to edit message');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -1975,12 +1970,12 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Tin nhắn đã được xóa');
+        toast.success('Message deleted successfully');
         return { success: true };
       }
     } catch (error) {
       console.error('Error deleting event message:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa tin nhắn');
+      toast.error(error.response?.data?.message || 'Failed to delete message');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2040,7 +2035,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error creating task from calendar:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi tạo task');
+      toast.error(error.response?.data?.message || 'Failed to create task');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2067,7 +2062,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error updating task:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật task');
+      toast.error(error.response?.data?.message || 'Failed to update task');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2090,7 +2085,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error deleting task:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa task');
+      toast.error(error.response?.data?.message || 'Failed to delete task');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2225,7 +2220,7 @@ export const Common = ({ children }) => {
         }
       }
 
-      toast.error(error.response?.data?.message || 'Lỗi khi upload file');
+      toast.error(error.response?.data?.message || 'Failed to upload file');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2305,7 +2300,7 @@ export const Common = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Error downloading file:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi tải file');
+      toast.error(error.response?.data?.message || 'Failed to download file');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2327,7 +2322,7 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error deleting file:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa file');
+      toast.error(error.response?.data?.message || 'Failed to delete file');
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2348,7 +2343,7 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Cập nhật tên file thành công');
+        toast.success('Rename file successfully');
         return {
           success: true,
           data: response.data.data,
@@ -2356,7 +2351,9 @@ export const Common = ({ children }) => {
       }
     } catch (error) {
       console.error('Error updating file name:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật tên file');
+      toast.error(
+        error.response?.data?.message || 'Error while updating file name'
+      );
       return { success: false, error: error.response?.data?.message };
     }
   };
@@ -2376,12 +2373,12 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Chia sẻ file thành công');
+        toast.success('Share file successfully');
         return { success: true };
       }
     } catch (error) {
       console.error('Error sharing file:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi chia sẻ file');
+      toast.error(error.response?.data?.message || 'Error while sharing file');
       return { success: false, error: error.response?.data?.message };
     }
   };

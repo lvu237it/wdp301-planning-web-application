@@ -18,7 +18,7 @@ const InviteResponse = () => {
 
   const handleAction = async (action) => {
     if (!token) {
-      setError('Token không hợp lệ');
+      setError('Invalid token');
       return;
     }
     setLoading(true);

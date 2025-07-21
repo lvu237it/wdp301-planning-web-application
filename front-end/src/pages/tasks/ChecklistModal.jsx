@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { Modal, Button, Form, Toast } from "react-bootstrap";
-import { useCommon } from "../../contexts/CommonContext";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Modal, Button, Form, Toast } from 'react-bootstrap';
+import { useCommon } from '../../contexts/CommonContext';
 
 const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
   const { accessToken, apiBaseUrl } = useCommon();
-  const [text, setText] = useState("");
+  const [text, setText] = useState('');
   const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
-    if (isOpen) setText("");
+    if (isOpen) setText('');
   }, [isOpen]);
 
   const handleAdd = async () => {
@@ -30,13 +30,13 @@ const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
         }
       );
       onAdd(res.data.data);
-      setText("");
+      setText('');
       setShowToast(true);
       onClose();
     } catch (err) {
       console.error(err);
       alert(
-        "Lỗi khi thêm checklist: " +
+        'Error adding checklist: ' +
           (err.response?.data?.message || err.message)
       );
     }
@@ -46,21 +46,21 @@ const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
     <>
       <Toast
         show={showToast}
-        bg="success"
+        bg='success'
         autohide
         delay={3000}
         onClose={() => setShowToast(false)}
         style={{
-          position: "fixed",
-          top: "20px",
-          left: "50%",
-          transform: "translateX(-50%)",
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
           zIndex: 2000,
-          minWidth: "200px",
+          minWidth: '200px',
         }}
       >
-        <Toast.Body className="text-white text-center">
-          Thêm công việc thành công
+        <Toast.Body className='text-white text-center'>
+          Add checklist successfully
         </Toast.Body>
       </Toast>
 
@@ -69,17 +69,17 @@ const ChecklistModal = ({ isOpen, onClose, task, onAdd }) => {
           <Modal.Title>Create new Assignment</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group controlId="checklistTitle">
+          <Form.Group controlId='checklistTitle'>
             <Form.Control
-              type="text"
-              placeholder="Type your name assignment"
+              type='text'
+              placeholder='Type your name assignment'
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="primary" onClick={handleAdd}>
+          <Button variant='primary' onClick={handleAdd}>
             Add
           </Button>
         </Modal.Footer>

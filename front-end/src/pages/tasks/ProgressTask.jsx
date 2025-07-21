@@ -14,33 +14,49 @@ const ProgressTask = ({ task, refreshTaskData, isAssignee, isAssigner }) => {
 
   const totalItems = checklist.length;
   const doneCount = checklist.filter((i) => i.completed).length;
-  const percentDone = totalItems ? Math.round((doneCount / totalItems) * 100) : 0;
+  const percentDone = totalItems
+    ? Math.round((doneCount / totalItems) * 100)
+    : 0;
 
   const updateChecklist = async (newList) => {
     try {
-      const res = await axios.put(`${apiBaseUrl}/task/updateTask/${task._id}`, { checklist: newList }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      setChecklist(newList); 
+      const res = await axios.put(
+        `${apiBaseUrl}/task/updateTask/${task._id}`,
+        { checklist: newList },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      setChecklist(newList);
       await refreshTaskData();
     } catch (err) {
-      console.error('Cập nhật checklist thất bại:', err);
-      alert('Cập nhật checklist thất bại: ' + (err.response?.data?.message || err.message));
+      console.error('Failed to update checklist:', err);
+      alert(
+        'Failed to update checklist: ' +
+          (err.response?.data?.message || err.message)
+      );
     }
   };
 
   const updateChecklistItem = async (itemIndex, completed) => {
     try {
-      await axios.put(`${apiBaseUrl}/task/${task._id}/checklist`, { itemIndex, completed }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      await axios.put(
+        `${apiBaseUrl}/task/${task._id}/checklist`,
+        { itemIndex, completed },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
       const updatedList = [...checklist];
       updatedList[itemIndex].completed = completed;
-      setChecklist(updatedList); 
+      setChecklist(updatedList);
       await refreshTaskData();
     } catch (err) {
-      console.error('Cập nhật checklist item thất bại:', err);
-      alert('Cập nhật checklist item thất bại: ' + (err.response?.data?.message || err.message));
+      console.error('Failed to update checklist item:', err);
+      alert(
+        'Failed to update checklist item: ' +
+          (err.response?.data?.message || err.message)
+      );
     }
   };
 
@@ -50,7 +66,9 @@ const ProgressTask = ({ task, refreshTaskData, isAssignee, isAssigner }) => {
   };
 
   const handleDelete = (item) => {
-    if (window.confirm('Xác nhận xóa mục checklist này?')) {
+    if (
+      window.confirm('Are you sure you want to delete this checklist item?')
+    ) {
       const updated = checklist.filter((i) => i._id !== item._id);
       updateChecklist(updated);
     }
@@ -69,11 +87,20 @@ const ProgressTask = ({ task, refreshTaskData, isAssignee, isAssigner }) => {
         <>
           <div className='checklist-progress d-flex align-items-center mb-2'>
             <div className='progress flex-grow-1'>
-              <div className='progress-bar' role='progressbar' style={{ width: `${percentDone}%` }} />
+              <div
+                className='progress-bar'
+                role='progressbar'
+                style={{ width: `${percentDone}%` }}
+              />
             </div>
             <span className='ms-2'>{percentDone}%</span>
             {(isAssignee || isAssigner) && (
-              <Button variant='outline-danger' size='sm' className='ms-2' onClick={handleClearAll}>
+              <Button
+                variant='outline-danger'
+                size='sm'
+                className='ms-2'
+                onClick={handleClearAll}
+              >
                 Clear All
               </Button>
             )}
@@ -90,11 +117,21 @@ const ProgressTask = ({ task, refreshTaskData, isAssignee, isAssigner }) => {
                       onChange={() => handleToggle(item)}
                     />
                   )}
-                  <span style={{ flexGrow: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>
+                  <span
+                    style={{
+                      flexGrow: 1,
+                      textDecoration: item.completed ? 'line-through' : 'none',
+                    }}
+                  >
                     {item.title}
                   </span>
                   {(isAssignee || isAssigner) && (
-                    <Button variant='link' size='sm' className='text-danger ms-2' onClick={() => handleDelete(item)}>
+                    <Button
+                      variant='link'
+                      size='sm'
+                      className='text-danger ms-2'
+                      onClick={() => handleDelete(item)}
+                    >
                       Delete
                     </Button>
                   )}

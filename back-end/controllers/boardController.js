@@ -8,7 +8,7 @@ const WorkspaceMembership = require('../models/memberShipModel');
 const Workspace = require('../models/workspaceModel');
 const List = require('../models/listModel');
 const NotificationService = require('../services/NotificationService');
-const Task = require("../models/taskModel");
+const Task = require('../models/taskModel');
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
   try {
@@ -511,7 +511,11 @@ exports.inviteBoardMembers = async (req, res) => {
     // 5) Kiểm tra overlap
     const overlap = acceptedMems.find((m) => {
       const otherBoard = m.boardId;
-      if (!otherBoard || !otherBoard.criteria || !otherBoard.criteria.workDuration) {
+      if (
+        !otherBoard ||
+        !otherBoard.criteria ||
+        !otherBoard.criteria.workDuration
+      ) {
         return false; // skip nếu board kia thiếu dữ liệu
       }
 
@@ -534,9 +538,15 @@ exports.inviteBoardMembers = async (req, res) => {
       } = overlap.boardId;
       return res.status(400).json({
         message:
-          `User ${users[0].fullname || users[0].username} đang tham gia "${otherName}" ` +
-          `trong giai đoạn ${new Date(wd.startDate).toISOString().slice(0, 10)} → ` +
-          `${new Date(wd.endDate).toISOString().slice(0, 10)}. Vui lòng mời người dùng khác.`,
+          `User ${
+            users[0].fullname || users[0].username
+          } đang tham gia "${otherName}" ` +
+          `trong giai đoạn ${new Date(wd.startDate)
+            .toISOString()
+            .slice(0, 10)} → ` +
+          `${new Date(wd.endDate)
+            .toISOString()
+            .slice(0, 10)}. Vui lòng mời người dùng khác.`,
       });
     }
 
@@ -568,8 +578,8 @@ exports.inviteBoardMembers = async (req, res) => {
         `
       );
       await NotificationService.createPersonalNotification({
-        title: `Lời mời tham gia board`,
-        content: `Bạn được mời tham gia board "${board.name}"`,
+        title: `Invitation to join board`,
+        content: `You were invited to join board "${board.name}"`,
         type: 'board_invite',
         targetUserId: user._id,
         targetWorkspaceId: board.workspaceId,
@@ -577,7 +587,7 @@ exports.inviteBoardMembers = async (req, res) => {
       });
     }
 
-    return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
+    return res.status(200).json({ message: 'Send invitation successfully' });
   } catch (err) {
     console.error('❌ inviteBoardMembers error:', err);
     return res
@@ -585,7 +595,6 @@ exports.inviteBoardMembers = async (req, res) => {
       .json({ message: 'Server error', error: err.message });
   }
 };
-
 
 // phản hồi lời mời Board
 exports.respondToBoardInvite = async (req, res) => {
@@ -737,20 +746,19 @@ exports.getQualifiedUsers = async (req, res) => {
 
 // suggest members by skill and date
 exports.suggestMembers = async (req, res) => {
-  res.set("Cache-Control", "no-store");
+  res.set('Cache-Control', 'no-store');
 
   try {
     const { boardId } = req.params;
     let { skills, startDate, endDate } = req.query;
-	console.log("skill" , skills);
-	console.log("startDate" , startDate);
-	console.log("endDate" , endDate);
-	
+    console.log('skill', skills);
+    console.log('startDate', startDate);
+    console.log('endDate', endDate);
 
     if (!startDate || !endDate) {
       return res.status(400).json({
         message:
-          "Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian",
+          'Cần truyền đủ cả startDate và endDate nếu muốn lọc theo thời gian',
       });
     }
 
@@ -761,15 +769,15 @@ exports.suggestMembers = async (req, res) => {
     // B1. Lấy thành viên đã accepted
     const boardMems = await BoardMembership.find({
       boardId,
-      invitationResponse: "accepted",
+      invitationResponse: 'accepted',
       isDeleted: false,
-    }).select("userId");
+    }).select('userId');
 
     const boardUserIds = boardMems.map((m) => m.userId.toString());
     if (!boardUserIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: "Board chưa có thành viên nào" });
+        .json({ users: [], message: 'Board chưa có thành viên nào' });
     }
 
     // B2. Lấy task có khoảng thời gian giao nhau (overlap) với reqStart - reqEnd
@@ -779,7 +787,7 @@ exports.suggestMembers = async (req, res) => {
       isDeleted: false,
       startDate: { $lt: reqEnd },
       endDate: { $gt: reqStart },
-    }).select("assignedTo startDate endDate");
+    }).select('assignedTo startDate endDate');
     overlappingTasks.forEach((t, i) => {
       console.log(`  🔸 Task ${i + 1}:`, {
         assignedTo: t.assignedTo?.toString(),
@@ -803,7 +811,7 @@ exports.suggestMembers = async (req, res) => {
     if (!availableUserIds.length) {
       return res
         .status(200)
-        .json({ users: [], message: "Không có ai rảnh trong thời gian này" });
+        .json({ users: [], message: 'Không có ai rảnh trong thời gian này' });
     }
 
     // B4. Truy vấn user phù hợp
@@ -811,14 +819,14 @@ exports.suggestMembers = async (req, res) => {
       _id: {
         $in: availableUserIds.map((id) => new mongoose.Types.ObjectId(id)),
       },
-      "expectedWorkDuration.startDate": { $lte: reqStart },
-      "expectedWorkDuration.endDate": { $gte: reqEnd },
+      'expectedWorkDuration.startDate': { $lte: reqStart },
+      'expectedWorkDuration.endDate': { $gte: reqEnd },
     };
 
     // B5. Thêm điều kiện kỹ năng nếu có
-    if (skills && typeof skills === "string") {
+    if (skills && typeof skills === 'string') {
       const skillArr = skills
-        .split(",")
+        .split(',')
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
 
@@ -828,15 +836,15 @@ exports.suggestMembers = async (req, res) => {
     }
 
     const users = await User.find(userQuery).select(
-      "username email avatar skills expectedWorkDuration"
+      'username email avatar skills expectedWorkDuration'
     );
 
-    console.log("Số người dùng được gợi ý:", users.length);
+    console.log('Số người dùng được gợi ý:', users.length);
     return res.status(200).json({ users });
   } catch (err) {
-    console.error("Lỗi suggestMembers:", err);
+    console.error('Lỗi suggestMembers:', err);
     return res.status(500).json({
-      message: "Server lỗi khi lọc thành viên",
+      message: 'Server lỗi khi lọc thành viên',
       error: err.message,
     });
   }

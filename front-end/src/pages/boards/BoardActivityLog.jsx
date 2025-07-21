@@ -53,7 +53,8 @@ function BoardActivityLog() {
 
       // Find user's role in this board
       const currentUser = data.board.members?.find(
-        (member) => member._id === userDataLocal?._id
+        (member) =>
+          member._id === userDataLocal?._id || member._id === userDataLocal?.id
       );
 
       setUserRole(currentUser?.role || 'member');
@@ -303,29 +304,29 @@ function BoardActivityLog() {
   const formatActionText = (action) => {
     const actionTextMap = {
       // Task actions
-      task_created: 'Tạo nhiệm vụ',
-      task_updated: 'Cập nhật nhiệm vụ',
-      task_deleted: 'Xóa nhiệm vụ',
-      task_assigned: 'Giao nhiệm vụ',
-      task_unassigned: 'Hủy giao nhiệm vụ',
-      task_checklist_updated: 'Cập nhật checklist',
-      task_checklist_item_completed: 'Hoàn thành nhiệm vụ con',
-      task_checklist_item_uncompleted: 'Bỏ hoàn thành nhiệm vụ con',
-      task_document_added: 'Thêm tài liệu',
-      task_document_removed: 'Xóa tài liệu',
-      task_document_renamed: 'Đổi tên tài liệu',
-      task_document_shared: 'Chia sẻ tài liệu',
+      task_created: 'Create task',
+      task_updated: 'Update task',
+      task_deleted: 'Delete task',
+      task_assigned: 'Assign task',
+      task_unassigned: 'Unassign task',
+      task_checklist_updated: 'Update checklist',
+      task_checklist_item_completed: 'Complete checklist item',
+      task_checklist_item_uncompleted: 'Uncomplete checklist item',
+      task_document_added: 'Add document',
+      task_document_removed: 'Remove document',
+      task_document_renamed: 'Rename document',
+      task_document_shared: 'Sharing document',
       // List actions
-      list_created: 'Tạo danh sách',
-      list_updated: 'Cập nhật danh sách',
-      list_deleted: 'Xóa danh sách',
-      list_task_moved: 'Di chuyển nhiệm vụ',
+      list_created: 'Create list',
+      list_updated: 'Update list',
+      list_deleted: 'Delete list',
+      list_task_moved: 'Move task',
       // Message actions
-      message_sent: 'Gửi tin nhắn',
-      message_updated: 'Sửa tin nhắn',
-      message_deleted: 'Xóa tin nhắn',
-      message_pinned: 'Ghim tin nhắn',
-      message_unpinned: 'Bỏ ghim tin nhắn',
+      message_sent: 'Send message',
+      message_updated: 'Update message',
+      message_deleted: 'Delete message',
+      message_pinned: 'Pin message',
+      message_unpinned: 'Unpin message',
     };
     return actionTextMap[action] || action;
   };
@@ -515,7 +516,7 @@ function BoardActivityLog() {
                     {userRole === 'admin' && log.taskAssignedTo && (
                       <div className='assignee-info'>
                         <small className='text-muted'>
-                          → Được giao cho:{' '}
+                          → Assigned to:{' '}
                           <strong>{log.taskAssignedTo.name}</strong>
                         </small>
                       </div>
@@ -525,7 +526,7 @@ function BoardActivityLog() {
                       !log.taskAssignedTo && (
                         <div className='assigner-info'>
                           <small className='text-muted'>
-                            → Được giao bởi:{' '}
+                            → Assigned by:{' '}
                             <strong>{log.taskAssignedBy.name}</strong>
                           </small>
                         </div>

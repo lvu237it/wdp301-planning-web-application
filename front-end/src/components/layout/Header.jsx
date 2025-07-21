@@ -217,7 +217,7 @@ const Header = () => {
     if (!notifications || notifications.length === 0) {
       return (
         <Dropdown.Item disabled className='text-center text-muted py-3'>
-          Bạn không có thông báo nào
+          You have no notifications
         </Dropdown.Item>
       );
     }
@@ -418,13 +418,13 @@ const Header = () => {
                       style={{ fontSize: '10px' }}
                     >
                       {notif.responseStatus === 'accepted'
-                        ? '✓ Đã chấp nhận'
+                        ? '✓ Accepted'
                         : notif.responseStatus === 'declined'
-                        ? '✗ Đã từ chối'
+                        ? '✗ Declined'
                         : notif.responseStatus === 'removed'
-                        ? '⚠ Đã bị xoá khỏi sự kiện'
+                        ? '⚠ Removed from event'
                         : notif.responseStatus === 'event_deleted'
-                        ? '❌ Sự kiện đã bị xoá'
+                        ? '❌ Event deleted'
                         : ''}
                     </small>
                   </div>
@@ -616,7 +616,7 @@ const Header = () => {
 
       <Modal show={showNotifModal} onHide={toggleNotifModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Thông báo</Modal.Title>
+          <Modal.Title>Notifications</Modal.Title>
         </Modal.Header>
         <Modal.Body
           ref={modalScrollRef}
@@ -801,13 +801,13 @@ const Header = () => {
                           style={{ fontSize: '10px' }}
                         >
                           {notif.responseStatus === 'accepted'
-                            ? '✓ Đã chấp nhận'
+                            ? '✓ Accepted'
                             : notif.responseStatus === 'declined'
-                            ? '✗ Đã từ chối'
+                            ? '✗ Declined'
                             : notif.responseStatus === 'removed'
-                            ? '⚠ Đã bị xoá khỏi sự kiện'
+                            ? '⚠ Removed from event'
                             : notif.responseStatus === 'event_deleted'
-                            ? '❌ Sự kiện đã bị xoá'
+                            ? '❌ Event deleted'
                             : ''}
                         </small>
                       </div>
@@ -817,7 +817,7 @@ const Header = () => {
             ))
           ) : (
             <div className='text-center text-muted'>
-              Bạn không có thông báo nào
+              You have no notifications
             </div>
           )}
 
@@ -826,7 +826,7 @@ const Header = () => {
             <div className='text-center py-3'>
               <Spinner animation='border' size='sm' variant='primary' />
               <div className='text-muted mt-2' style={{ fontSize: '0.9rem' }}>
-                Đang tải thêm thông báo...
+                Loading more notifications...
               </div>
             </div>
           )}
@@ -835,8 +835,8 @@ const Header = () => {
           {!notificationPagination.hasMore && notifications.length > 0 && (
             <div className='text-center py-3'>
               <small className='text-muted'>
-                Đã hiển thị tất cả thông báo (
-                {notificationPagination.totalCount})
+                All notifications displayed ({notificationPagination.totalCount}
+                )
               </small>
             </div>
           )}
