@@ -52,12 +52,5 @@ router.post(
 );
 router.patch('/update/:fileDocId', auth.protect, fileController.updateFile);
 router.delete('/:fileDocId', auth.protect, fileController.deleteFile);
-// router.post(
-//   '/upload',
-//   auth.protect,
-//   upload.single('file'),
-//   fileController.uploadFile
-// );
-// router.get('/list', auth.protect, fileController.listFiles);
 
 module.exports = router;

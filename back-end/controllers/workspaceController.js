@@ -373,6 +373,34 @@ exports.respondToInvite = async (req, res) => {
       return res.status(400).json({ message: 'Thiếu token xác nhận' });
     }
 
+    //Check xem user có match với token ko - có phải người được mời hay ko
+    const userMatchTokenFound = await Membership.findOne({
+      invitationToken: token,
+    });
+    if (!userMatchTokenFound) {
+      console.log(
+        'WorkspaceController (respondToInvite): Token không hợp lệ hoặc không tìm thấy'
+      );
+      return res.status(400).json({ message: 'Token không hợp lệ' });
+    } else if (
+      req.user._id.toString() !== userMatchTokenFound.userId.toString()
+    ) {
+      console.log(
+        'WorkspaceController (respondToInvite): Người dùng không khớp với token'
+      );
+      return res
+        .status(403)
+        .json({ message: 'Bạn không có quyền xác nhận lời mời này' });
+    } else if (userMatchTokenFound.invitationStatus !== 'pending') {
+      console.log(
+        'WorkspaceController (respondToInvite): Lời mời đã được xử lý trước đó'
+      );
+      return res.status(400).json({
+        message: 'Lời mời đã được xử lý trước đó',
+        status: userMatchTokenFound.invitationStatus,
+      });
+    }
+
     const membership = await Membership.findOne({ invitationToken: token });
     if (!membership) {
       return res
