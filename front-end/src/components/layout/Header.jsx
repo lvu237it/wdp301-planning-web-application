@@ -10,6 +10,7 @@ const Header = () => {
     navigate,
     logout,
     notifications,
+    setNotifications,
     markNotificationAsRead,
     respondToEventInvitation,
     fetchNotifications,
@@ -159,9 +160,12 @@ const Header = () => {
     event
   ) => {
     event.stopPropagation();
-    setLoadingNotifications((prev) =>
-      new Map(prev).set(notificationId, action)
-    );
+    // Set loading state for this notificationId and action
+    setLoadingNotifications((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(notificationId, action);
+      return newMap;
+    });
     try {
       // Gọi API accept/decline workspace invite
       const res = await fetch(`${apiBaseUrl}/workspace/invite-response`, {
@@ -180,16 +184,265 @@ const Header = () => {
               ? 'Đã tham gia workspace'
               : 'Đã từ chối lời mời')
         );
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.notificationId === notificationId
+              ? {
+                  ...n,
+                  invitationResponse:
+                    action === 'accept' ? 'accepted' : 'declined',
+                }
+              : n
+          )
+        );
+        await markNotificationAsRead(notificationId);
         await fetchNotifications(true);
       } else {
         toast.error(data.message || 'Có lỗi xảy ra');
       }
     } catch (err) {
+      console.error(err);
       toast.error('Có lỗi xảy ra khi xử lý lời mời workspace');
+    } finally {
+      // Only clear loading state for this notificationId if it matches the current action
+      setLoadingNotifications((prev) => {
+        const newMap = new Map(prev);
+        if (newMap.get(notificationId) === action) {
+          newMap.delete(notificationId);
+        }
+        return newMap;
+      });
+    }
+  };
+
+  // Thêm handler cho board invitation
+  // const handleBoardInvitationResponse = async (
+  //   invitationToken,
+  //   action,
+  //   notificationId,
+  //   event
+  // ) => {
+  //   event.stopPropagation();
+  //   setLoadingNotifications((prev) => {
+  //     const newMap = new Map(prev);
+  //     newMap.set(notificationId, action);
+  //     return newMap;
+  //   });
+  //   try {
+  //     const notif = notifications.find(
+  //       (n) => n.notificationId === notificationId
+  //     );
+  //     const workspaceId = notif?.targetWorkspaceId;
+  //     if (!workspaceId) {
+  //       toast.error('Cannot find workspaceId for this invitation');
+  //       return;
+  //     }
+  //     const res = await fetch(
+  //       `${apiBaseUrl}/workspace/${workspaceId}/board/invite-response`,
+  //       {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+  //         },
+  //         body: JSON.stringify({ token: invitationToken, action }),
+  //       }
+  //     );
+  //     const data = await res.json();
+  //     if (res.ok) {
+  //       toast.success(
+  //         data.message ||
+  //           (action === 'accept'
+  //             ? 'You have joined the board'
+  //             : 'You have declined the invitation')
+  //       );
+  //       setNotifications((prev) =>
+  //         prev.map((n) =>
+  //           n.notificationId === notificationId
+  //             ? {
+  //                 ...n,
+  //                 invitationResponse:
+  //                   action === 'accept' ? 'accepted' : 'declined',
+  //               }
+  //             : n
+  //         )
+  //       );
+  //       await markNotificationAsRead(notificationId);
+  //       await fetchNotifications(true);
+  //     } else {
+  //       toast.error(data.message || 'An error occurred');
+  //     }
+  //   } catch (err) {
+  //     toast.error('An error occurred while processing the board invitation');
+  //   } finally {
+  //     setLoadingNotifications((prev) => {
+  //       const newMap = new Map(prev);
+  //       if (newMap.get(notificationId) === action) {
+  //         newMap.delete(notificationId);
+  //       }
+  //       return newMap;
+  //     });
+  //   }
+  // };
+  // const handleBoardInvitationResponse = async (
+  //   invitationToken,
+  //   action,
+  //   notificationId,
+  //   event
+  // ) => {
+  //   event.stopPropagation();
+  //   setLoadingNotifications((prev) => {
+  //     const newMap = new Map(prev);
+  //     newMap.set(notificationId, action);
+  //     return newMap;
+  //   });
+  //   try {
+  //     const notif = notifications.find(
+  //       (n) => n.notificationId === notificationId
+  //     );
+  //     const workspaceId = notif?.targetWorkspaceId;
+  //     if (!workspaceId) {
+  //       toast.error('Cannot find workspaceId for this invitation');
+  //       return;
+  //     }
+  //     const res = await fetch(
+  //       `${apiBaseUrl}/workspace/${workspaceId}/board/invite-response`,
+  //       {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+  //         },
+  //         body: JSON.stringify({ token: invitationToken, action }),
+  //       }
+  //     );
+  //     const data = await res.json();
+  //     if (res.ok) {
+  //       toast.success(
+  //         data.message ||
+  //           (action === 'accept'
+  //             ? 'You have joined the board'
+  //             : 'You have declined the invitation')
+  //       );
+  //       // Cập nhật state với dữ liệu notification từ API
+  //       if (data.notification) {
+  //         setNotifications((prev) =>
+  //           prev.map((n) =>
+  //             n.notificationId === notificationId ? data.notification : n
+  //           )
+  //         );
+  //       } else {
+  //         setNotifications((prev) =>
+  //           prev.map((n) =>
+  //             n.notificationId === notificationId
+  //               ? {
+  //                   ...n,
+  //                   invitationResponse:
+  //                     action === 'accept' ? 'accepted' : 'declined',
+  //                 }
+  //               : n
+  //           )
+  //         );
+  //       }
+  //       await markNotificationAsRead(notificationId);
+  //       // Làm mới sau 5 giây để đồng bộ với backend
+  //       setTimeout(() => fetchNotifications(true), 5000);
+  //     } else {
+  //       toast.error(data.message || 'An error occurred');
+  //     }
+  //   } catch (err) {
+  //     console.error(err);
+  //     toast.error('An error occurred while processing the board invitation');
+  //   } finally {
+  //     setLoadingNotifications((prev) => {
+  //       const newMap = new Map(prev);
+  //       if (newMap.get(notificationId) === action) {
+  //         newMap.delete(notificationId);
+  //       }
+  //       return newMap;
+  //     });
+  //   }
+  // };
+  const handleBoardInvitationResponse = async (
+    invitationToken,
+    action,
+    notificationId,
+    event
+  ) => {
+    event.stopPropagation();
+    setLoadingNotifications((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(notificationId, action);
+      return newMap;
+    });
+    try {
+      const notif = notifications.find(
+        (n) => n.notificationId === notificationId
+      );
+      const workspaceId = notif?.targetWorkspaceId;
+      if (!workspaceId) {
+        toast.error('Cannot find workspaceId for this invitation');
+        return;
+      }
+      const res = await fetch(
+        `${apiBaseUrl}/workspace/${workspaceId}/board/invite-response`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+          body: JSON.stringify({ token: invitationToken, action }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(
+          data.message ||
+            (action === 'accept'
+              ? 'You have joined the board'
+              : 'You have declined the invitation')
+        );
+        // Cập nhật state với dữ liệu membership từ API
+        if (data.membership) {
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.notificationId === notificationId
+                ? {
+                    ...n,
+                    invitationResponse: data.membership.invitationResponse,
+                  }
+                : n
+            )
+          );
+        } else {
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.notificationId === notificationId
+                ? {
+                    ...n,
+                    invitationResponse:
+                      action === 'accept' ? 'accepted' : 'declined',
+                  }
+                : n
+            )
+          );
+        }
+        await markNotificationAsRead(notificationId);
+        // Làm mới sau 5 giây để đồng bộ với backend
+        setTimeout(() => fetchNotifications(true), 5000);
+      } else {
+        toast.error(data.message || 'An error occurred');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('An error occurred while processing the board invitation');
     } finally {
       setLoadingNotifications((prev) => {
         const newMap = new Map(prev);
-        newMap.delete(notificationId);
+        if (newMap.get(notificationId) === action) {
+          newMap.delete(notificationId);
+        }
         return newMap;
       });
     }
@@ -367,69 +620,216 @@ const Header = () => {
               </small>
 
               {/* Nút Accept/Decline cho workspace_invite */}
-              {notif.type === 'workspace_invite' &&
+              {notif.type === 'workspace_invite' && notif.invitationToken && (
+                <>
+                  {/* Hiển thị nút nếu trạng thái là pending */}
+                  {(notif.invitationResponse === 'pending' ||
+                    notif.invitationResponse == null) && (
+                    <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                      <button
+                        className='btn btn-success btn-sm'
+                        onClick={(e) =>
+                          handleWorkspaceInvitationResponse(
+                            notif.invitationToken,
+                            'accept',
+                            notif.notificationId,
+                            e
+                          )
+                        }
+                        disabled={
+                          loadingNotifications.get(notif.notificationId) ===
+                          'accept'
+                        }
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          minWidth: '85px',
+                          opacity:
+                            loadingNotifications.get(notif.notificationId) ===
+                            'accept'
+                              ? 0.7
+                              : 1,
+                          cursor:
+                            loadingNotifications.get(notif.notificationId) ===
+                            'accept'
+                              ? 'not-allowed'
+                              : 'pointer',
+                        }}
+                      >
+                        {loadingNotifications.get(notif.notificationId) ===
+                        'accept'
+                          ? 'Đang xử lý...'
+                          : 'Chấp nhận'}
+                      </button>
+                      <button
+                        className='btn btn-outline-danger btn-sm'
+                        onClick={(e) =>
+                          handleWorkspaceInvitationResponse(
+                            notif.invitationToken,
+                            'decline',
+                            notif.notificationId,
+                            e
+                          )
+                        }
+                        disabled={
+                          loadingNotifications.get(notif.notificationId) ===
+                          'decline'
+                        }
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          minWidth: '80px',
+                          opacity:
+                            loadingNotifications.get(notif.notificationId) ===
+                            'decline'
+                              ? 0.7
+                              : 1,
+                          cursor:
+                            loadingNotifications.get(notif.notificationId) ===
+                            'decline'
+                              ? 'not-allowed'
+                              : 'pointer',
+                        }}
+                      >
+                        {loadingNotifications.get(notif.notificationId) ===
+                        'decline'
+                          ? 'Đang xử lý...'
+                          : 'Từ chối'}
+                      </button>
+                    </div>
+                  )}
+                  {/* Hiển thị badge trạng thái nếu đã xử lý */}
+                  {notif.invitationResponse &&
+                    notif.invitationResponse !== 'pending' && (
+                      <div className='mt-2'>
+                        <small
+                          className={`badge ${
+                            notif.invitationResponse === 'accepted'
+                              ? 'bg-success'
+                              : notif.invitationResponse === 'declined'
+                              ? 'bg-danger'
+                              : 'bg-secondary'
+                          }`}
+                          style={{ fontSize: '10px' }}
+                        >
+                          {notif.invitationResponse === 'accepted'
+                            ? '✓ Accepted'
+                            : notif.invitationResponse === 'declined'
+                            ? '✗ Declined'
+                            : ''}
+                        </small>
+                      </div>
+                    )}
+                </>
+              )}
+
+              {/* Nút Accept/Decline cho board_invite */}
+              {notif.type === 'board_invite' &&
                 notif.invitationToken &&
-                !notif.isRead && (
-                  <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
-                    <button
-                      className='btn btn-success btn-sm'
-                      onClick={(e) =>
-                        handleWorkspaceInvitationResponse(
-                          notif.invitationToken,
-                          'accept',
-                          notif.notificationId,
-                          e
-                        )
-                      }
-                      disabled={loadingNotifications.has(notif.notificationId)}
-                      style={{
-                        fontSize: '12px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        minWidth: '85px',
-                        opacity: loadingNotifications.has(notif.notificationId)
-                          ? 0.7
-                          : 1,
-                        cursor: loadingNotifications.has(notif.notificationId)
-                          ? 'not-allowed'
-                          : 'pointer',
-                      }}
-                    >
-                      {loadingNotifications.get(notif.notificationId) ===
-                      'accept'
-                        ? 'Đang xử lý...'
-                        : 'Chấp nhận'}
-                    </button>
-                    <button
-                      className='btn btn-outline-danger btn-sm'
-                      onClick={(e) =>
-                        handleWorkspaceInvitationResponse(
-                          notif.invitationToken,
-                          'decline',
-                          notif.notificationId,
-                          e
-                        )
-                      }
-                      disabled={loadingNotifications.has(notif.notificationId)}
-                      style={{
-                        fontSize: '12px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        minWidth: '80px',
-                        opacity: loadingNotifications.has(notif.notificationId)
-                          ? 0.7
-                          : 1,
-                        cursor: loadingNotifications.has(notif.notificationId)
-                          ? 'not-allowed'
-                          : 'pointer',
-                      }}
-                    >
-                      {loadingNotifications.get(notif.notificationId) ===
-                      'decline'
-                        ? 'Đang xử lý...'
-                        : 'Từ chối'}
-                    </button>
-                  </div>
+                !notif.isDeleted &&
+                !notif._shouldHide && (
+                  <>
+                    {(notif.invitationResponse === 'pending' ||
+                      notif.invitationResponse == null) && (
+                      <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                        <button
+                          className='btn btn-success btn-sm'
+                          onClick={(e) =>
+                            handleBoardInvitationResponse(
+                              notif.invitationToken,
+                              'accept',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={
+                            loadingNotifications.get(notif.notificationId) ===
+                            'accept'
+                          }
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '85px',
+                            opacity:
+                              loadingNotifications.get(notif.notificationId) ===
+                              'accept'
+                                ? 0.7
+                                : 1,
+                            cursor:
+                              loadingNotifications.get(notif.notificationId) ===
+                              'accept'
+                                ? 'not-allowed'
+                                : 'pointer',
+                          }}
+                        >
+                          {loadingNotifications.get(notif.notificationId) ===
+                          'accept'
+                            ? 'Processing...'
+                            : 'Accept'}
+                        </button>
+                        <button
+                          className='btn btn-outline-danger btn-sm'
+                          onClick={(e) =>
+                            handleBoardInvitationResponse(
+                              notif.invitationToken,
+                              'decline',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={
+                            loadingNotifications.get(notif.notificationId) ===
+                            'decline'
+                          }
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '80px',
+                            opacity:
+                              loadingNotifications.get(notif.notificationId) ===
+                              'decline'
+                                ? 0.7
+                                : 1,
+                            cursor:
+                              loadingNotifications.get(notif.notificationId) ===
+                              'decline'
+                                ? 'not-allowed'
+                                : 'pointer',
+                          }}
+                        >
+                          {loadingNotifications.get(notif.notificationId) ===
+                          'decline'
+                            ? 'Processing...'
+                            : 'Decline'}
+                        </button>
+                      </div>
+                    )}
+                    {notif.invitationResponse &&
+                      notif.invitationResponse !== 'pending' && (
+                        <div className='mt-2'>
+                          <small
+                            className={`badge ${
+                              notif.invitationResponse === 'accepted'
+                                ? 'bg-success'
+                                : notif.invitationResponse === 'declined'
+                                ? 'bg-danger'
+                                : 'bg-secondary'
+                            }`}
+                            style={{ fontSize: '10px' }}
+                          >
+                            {notif.invitationResponse === 'accepted'
+                              ? '✓ Accepted'
+                              : notif.invitationResponse === 'declined'
+                              ? '✗ Declined'
+                              : ''}
+                          </small>
+                        </div>
+                      )}
+                  </>
                 )}
 
               {/* Hiển thị buttons cho event invitation nếu chưa respond hoặc đang pending */}
@@ -809,8 +1209,7 @@ const Header = () => {
 
                   {/* Nút Accept/Decline cho workspace_invite */}
                   {notif.type === 'workspace_invite' &&
-                    notif.invitationToken &&
-                    !notif.isRead && (
+                    notif.invitationToken && (
                       <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
                         <button
                           className='btn btn-success btn-sm'
@@ -884,6 +1283,113 @@ const Header = () => {
                         </button>
                       </div>
                     )}
+
+                  {/* Nút Accept/Decline cho board_invite */}
+                  {notif.type === 'board_invite' && notif.invitationToken && (
+                    <>
+                      {/* Hiển thị nút nếu trạng thái là pending */}
+                      {(notif.invitationResponse === 'pending' ||
+                        notif.invitationResponse == null) && (
+                        <div
+                          className='d-flex gap-2 mt-2'
+                          style={{ gap: '8px' }}
+                        >
+                          <button
+                            className='btn btn-success btn-sm'
+                            onClick={(e) =>
+                              handleBoardInvitationResponse(
+                                notif.invitationToken,
+                                'accept',
+                                notif.notificationId,
+                                e
+                              )
+                            }
+                            disabled={loadingNotifications.has(
+                              notif.notificationId
+                            )}
+                            style={{
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              minWidth: '85px',
+                              opacity: loadingNotifications.has(
+                                notif.notificationId
+                              )
+                                ? 0.7
+                                : 1,
+                              cursor: loadingNotifications.has(
+                                notif.notificationId
+                              )
+                                ? 'not-allowed'
+                                : 'pointer',
+                            }}
+                          >
+                            {loadingNotifications.get(notif.notificationId) ===
+                            'accept'
+                              ? 'Processing...'
+                              : 'Accept'}
+                          </button>
+                          <button
+                            className='btn btn-outline-danger btn-sm'
+                            onClick={(e) =>
+                              handleBoardInvitationResponse(
+                                notif.invitationToken,
+                                'decline',
+                                notif.notificationId,
+                                e
+                              )
+                            }
+                            disabled={loadingNotifications.has(
+                              notif.notificationId
+                            )}
+                            style={{
+                              fontSize: '12px',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              minWidth: '80px',
+                              opacity: loadingNotifications.has(
+                                notif.notificationId
+                              )
+                                ? 0.7
+                                : 1,
+                              cursor: loadingNotifications.has(
+                                notif.notificationId
+                              )
+                                ? 'not-allowed'
+                                : 'pointer',
+                            }}
+                          >
+                            {loadingNotifications.get(notif.notificationId) ===
+                            'decline'
+                              ? 'Processing...'
+                              : 'Decline'}
+                          </button>
+                        </div>
+                      )}
+                      {/* Hiển thị badge trạng thái nếu đã xử lý */}
+                      {notif.invitationResponse &&
+                        notif.invitationResponse !== 'pending' && (
+                          <div className='mt-2'>
+                            <small
+                              className={`badge ${
+                                notif.invitationResponse === 'accepted'
+                                  ? 'bg-success'
+                                  : notif.invitationResponse === 'declined'
+                                  ? 'bg-danger'
+                                  : 'bg-secondary'
+                              }`}
+                              style={{ fontSize: '10px' }}
+                            >
+                              {notif.invitationResponse === 'accepted'
+                                ? '✓ Accepted'
+                                : notif.invitationResponse === 'declined'
+                                ? '✗ Declined'
+                                : ''}
+                            </small>
+                          </div>
+                        )}
+                    </>
+                  )}
 
                   {/* Hiển thị buttons cho event invitation nếu chưa respond hoặc đang pending */}
                   {(() => {

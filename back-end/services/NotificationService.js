@@ -22,6 +22,7 @@ class NotificationService {
     taskId = null,
     messageId = null,
     invitationToken = null, // thêm trường này
+    boardId = null, // thêm trường này
   }) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -61,6 +62,7 @@ class NotificationService {
             eventId,
             taskId,
             messageId,
+            boardId, // thêm trường này
             ...notificationData, // phòng trường hợp muốn lưu trực tiếp
           },
         ],
@@ -94,6 +96,7 @@ class NotificationService {
         eventId,
         taskId,
         messageId,
+        boardId, // thêm trường này
         audienceType: 'personal',
         createdAt: notification.createdAt,
       };

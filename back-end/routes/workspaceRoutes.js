@@ -29,7 +29,7 @@ router.post(
   isAdminWorkspace,
   workspaceController.inviteMember
 );
-router.post('/invite-response', workspaceController.respondToInvite);
+router.post('/invite-response', protect, workspaceController.respondToInvite);
 router.get(
   '/:workspaceId/users',
   protect,

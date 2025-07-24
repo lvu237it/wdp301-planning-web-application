@@ -347,6 +347,8 @@ exports.respondToInvite = async (req, res) => {
       status: membership.invitationStatus,
     });
   } catch (err) {
+    // Chỉ trả về lỗi 500 cho lỗi thực sự bất ngờ
+    console.error('Lỗi server khi phản hồi lời mời:', err);
     res.status(500).json({
       message: 'Lỗi server khi phản hồi lời mời',
       error: err.message,

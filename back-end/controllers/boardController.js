@@ -9,6 +9,8 @@ const Workspace = require('../models/workspaceModel');
 const List = require('../models/listModel');
 const NotificationService = require('../services/NotificationService');
 const Task = require('../models/taskModel');
+const Notification = require('../models/notificationModel');
+const NotificationUser = require('../models/notificationUserModel');
 // get all boards theo workspaceId, boardId, visibility, isDeleted
 exports.getBoardsByWorkspace = async (req, res) => {
   try {
@@ -349,109 +351,6 @@ exports.deleteBoard = async (req, res) => {
   }
 };
 
-// thêm người dùng với read-only role trên Board
-// exports.inviteBoardMembers = async (req, res) => {
-//   try {
-//     const { workspaceId, boardId } = req.params;
-//     const { emails, role = 'read-only' } = req.body;
-//     const inviterId = req.user._id;
-
-//     // 1) Lấy board đích
-//     const board = await Board.findById(boardId);
-//     if (!board) return res.status(404).json({ message: 'Board không tồn tại' });
-//     const { workDuration: wdTarget } = board.criteria;
-
-//     // 2) Lấy users theo emails
-//     const users = await User.find({ email: { $in: emails } });
-//     if (!users.length)
-//       return res
-//         .status(400)
-//         .json({ message: 'Không tìm thấy user nào với emails đã cho' });
-
-//     // 3) Check xem có invite hoặc member rồi
-//     const existing = await BoardMembership.findOne({
-//       boardId,
-//       userId: { $in: users.map((u) => u._id) },
-//       isDeleted: false,
-//     });
-//     if (existing)
-//       return res.status(400).json({
-//         message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
-//       });
-
-//     // 4) Lấy tất cả các board khác mà user đã accepted
-//     const acceptedMems = await BoardMembership.find({
-//       userId: { $in: users.map((u) => u._id) },
-//       invitationResponse: 'accepted',
-//       isDeleted: false,
-//       boardId: { $ne: boardId },
-//     }).populate('boardId', 'criteria.workDuration name');
-
-//     // 5) Kiểm tra overlap
-//     const overlap = acceptedMems.find((m) => {
-//       const wd = m.boardId.criteria.workDuration;
-//       return wdTarget.startDate < wd.endDate && wd.startDate < wdTarget.endDate;
-//     });
-//     if (overlap) {
-//       const {
-//         name: otherName,
-//         criteria: { workDuration: wd },
-//       } = overlap.boardId;
-//       return res.status(400).json({
-//         message:
-//           `User ${users[0].fullname} đang tham gia "${otherName}" trong giai đoạn ` +
-//           `${wd.startDate.toISOString().slice(0, 10)} → ` +
-//           `${wd.endDate
-//             .toISOString()
-//             .slice(0, 10)} vui lòng mời người dùng khác`,
-//       });
-//     }
-
-//     // 6) Nếu OK, tạo invite như cũ
-//     const token = crypto.randomBytes(32).toString('hex');
-//     const invites = users.map((u) => ({
-//       boardId,
-//       userId: u._id,
-//       role,
-//       applicationStatus: 'applied',
-//       invitationResponse: 'pending',
-//       invitedBy: inviterId,
-//       invitedAt: new Date(),
-//       invitationToken: token,
-//     }));
-//     await BoardMembership.insertMany(invites);
-
-//     // 7) Gửi mail cho từng user
-//     for (const user of users) {
-//       const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
-//       await sendEmail(
-//         user.email,
-//         `Bạn được mời vào Board "${board.name}"`,
-//         `
-//           <p>Xin chào ${user.fullname},</p>
-//           <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
-//           <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
-//           <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
-//         `
-//       );
-//       await NotificationService.createPersonalNotification({
-//         title: `Lời mời tham gia board`,
-//         content: `Bạn được mời tham gia board "${board.name}"`,
-//         type: 'board_invite',
-//         targetUserId: user._id,
-//         targetWorkspaceId: board.workspaceId,
-//         createdBy: inviterId,
-//       });
-//     }
-
-//     return res.status(200).json({ message: 'Đã gửi lời mời thành công' });
-//   } catch (err) {
-//     console.error(err);
-//     return res
-//       .status(500)
-//       .json({ message: 'Server error', error: err.message });
-//   }
-// };
 exports.inviteBoardMembers = async (req, res) => {
   try {
     const { workspaceId, boardId } = req.params;
@@ -459,9 +358,13 @@ exports.inviteBoardMembers = async (req, res) => {
     const inviterId = req.user._id;
 
     // 1) Lấy board đích
-    const board = await Board.findById(boardId);
+    const boardFound = await Board.find({ _id: boardId, isDeleted: false });
+    const board = boardFound[0];
+    console.log('board found', board);
     if (!board) {
-      return res.status(404).json({ message: 'Board không tồn tại' });
+      return res
+        .status(404)
+        .json({ message: 'Board không tồn tại hoặc đã bị xoá' });
     }
 
     // Check criteria tồn tại
@@ -489,12 +392,35 @@ exports.inviteBoardMembers = async (req, res) => {
     }
 
     // 3) Check xem có invite hoặc member rồi
-    const existing = await BoardMembership.findOne({
+    // Tìm tất cả membership liên quan đến board và user
+    const userIds = users.map((u) => u._id);
+    const existingMemberships = await BoardMembership.find({
       boardId,
-      userId: { $in: users.map((u) => u._id) },
-      isDeleted: false,
+      userId: { $in: userIds },
     });
-    if (existing) {
+
+    // Tách userIds thành các nhóm: đã là member, đang chờ xác nhận, đã declined, chưa có
+    const alreadyMemberIds = new Set();
+    const pendingIds = new Set();
+    const declinedIds = new Set();
+    const toInviteIds = new Set(userIds.map((id) => id.toString()));
+    const membershipMap = {};
+    for (const mem of existingMemberships) {
+      membershipMap[mem.userId.toString()] = mem;
+      if (!mem.isDeleted && mem.invitationResponse === 'accepted') {
+        alreadyMemberIds.add(mem.userId.toString());
+        toInviteIds.delete(mem.userId.toString());
+      } else if (!mem.isDeleted && mem.invitationResponse === 'pending') {
+        pendingIds.add(mem.userId.toString());
+        toInviteIds.delete(mem.userId.toString());
+      } else if (mem.invitationResponse === 'declined' || mem.isDeleted) {
+        // Cho phép mời lại
+        declinedIds.add(mem.userId.toString());
+      }
+    }
+
+    // Nếu tất cả user đều đã là member hoặc đang chờ xác nhận, trả về lỗi
+    if (toInviteIds.size === 0 && declinedIds.size === 0) {
       return res.status(400).json({
         message: 'Người dùng đã là thành viên hoặc đang chờ xác nhận',
       });
@@ -502,7 +428,7 @@ exports.inviteBoardMembers = async (req, res) => {
 
     // 4) Lấy tất cả các board khác mà user đã accepted
     const acceptedMems = await BoardMembership.find({
-      userId: { $in: users.map((u) => u._id) },
+      userId: { $in: userIds },
       invitationResponse: 'accepted',
       isDeleted: false,
       boardId: { $ne: boardId },
@@ -550,33 +476,49 @@ exports.inviteBoardMembers = async (req, res) => {
       });
     }
 
-    // 6) Nếu OK, tạo invite
+    // 6) Nếu OK, tạo hoặc cập nhật invite
     const token = crypto.randomBytes(32).toString('hex');
-    const invites = users.map((u) => ({
-      boardId,
-      userId: u._id,
-      role,
-      applicationStatus: 'applied',
-      invitationResponse: 'pending',
-      invitedBy: inviterId,
-      invitedAt: new Date(),
-      invitationToken: token,
-    }));
-    await BoardMembership.insertMany(invites);
+    const invites = [];
+    // Cập nhật lại các membership đã declined hoặc isDeleted
+    for (const userId of declinedIds) {
+      if (!toInviteIds.has(userId)) continue; // chỉ update nếu user nằm trong danh sách mời lại
+      const mem = membershipMap[userId];
+      mem.role = role;
+      mem.applicationStatus = 'applied';
+      mem.invitationResponse = 'pending';
+      mem.invitedBy = inviterId;
+      mem.invitedAt = new Date();
+      mem.invitationToken = token;
+      mem.isDeleted = false;
+      mem.deletedAt = undefined;
+      await mem.save();
+      toInviteIds.delete(userId);
+    }
+    // Tạo mới cho các user chưa có membership
+    for (const userId of toInviteIds) {
+      invites.push({
+        boardId,
+        userId,
+        role,
+        applicationStatus: 'applied',
+        invitationResponse: 'pending',
+        invitedBy: inviterId,
+        invitedAt: new Date(),
+        invitationToken: token,
+      });
+    }
+    if (invites.length > 0) {
+      await BoardMembership.insertMany(invites);
+    }
 
-    // 7) Gửi mail và thông báo cho từng user
+    // 7)Gửi thông báo cho từng user
     for (const user of users) {
+      if (
+        alreadyMemberIds.has(user._id.toString()) ||
+        pendingIds.has(user._id.toString())
+      )
+        continue; // Không gửi lại cho member hoặc đang pending
       const inviteLink = `${process.env.FRONTEND_URL}/board-invite-response?token=${token}`;
-      await sendEmail(
-        user.email,
-        `Bạn được mời vào Board "${board.name}"`,
-        `
-          <p>Xin chào ${user.fullname || user.username},</p>
-          <p>Bạn được mời tham gia Board <strong>${board.name}</strong>.</p>
-          <p>Nhấn vào link sau để chấp nhận hoặc từ chối:</p>
-          <p><a href="${inviteLink}">Xác nhận lời mời</a></p>
-        `
-      );
       await NotificationService.createPersonalNotification({
         title: `Invitation to join board`,
         content: `You were invited to join board "${board.name}"`,
@@ -584,6 +526,8 @@ exports.inviteBoardMembers = async (req, res) => {
         targetUserId: user._id,
         targetWorkspaceId: board.workspaceId,
         createdBy: inviterId,
+        invitationToken: token,
+        boardId: board._id, // thêm trường này
       });
     }
 
@@ -598,10 +542,16 @@ exports.inviteBoardMembers = async (req, res) => {
 
 // phản hồi lời mời Board
 exports.respondToBoardInvite = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { token, action } = req.body; // action: 'accept' | 'decline'
+    const userId = req.user._id; // Lấy từ authMiddleware
 
     if (!token || !['accept', 'decline'].includes(action)) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: 'Thiếu token hoặc action không hợp lệ' });
@@ -610,8 +560,11 @@ exports.respondToBoardInvite = async (req, res) => {
     // 1. Tìm membership theo token
     const membership = await BoardMembership.findOne({
       invitationToken: token,
-    });
+    }).session(session);
+
     if (!membership) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
@@ -619,38 +572,59 @@ exports.respondToBoardInvite = async (req, res) => {
 
     // 2. Kiểm tra đã xử lý rồi?
     if (membership.invitationResponse !== 'pending') {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: 'Lời mời đã được xử lý trước đó' });
     }
 
     // 3. Xử lý action
-    //    Chúng ta gán invitationResponse (thay vì applicationStatus)
     if (action === 'accept') {
       membership.invitationResponse = 'accepted';
+      // accepted: applicationStatus and role will be set by pre-save middleware
+      membership.invitationToken = undefined;
+      await membership.save({ session });
     } else {
+      // decline: mark as deleted and set deletedAt
       membership.invitationResponse = 'declined';
+      membership.isDeleted = true;
+      membership.deletedAt = new Date();
+      membership.invitationToken = undefined;
+      await membership.save({ session });
+    }
+    const responseStatus = membership.invitationResponse;
+
+    // 4. Tìm và cập nhật NotificationUser để đánh dấu thông báo đã đọc
+    const notification = await Notification.findOne({
+      boardId: membership.boardId,
+      type: 'board_invite',
+      targetUserId: userId,
+    }).session(session);
+
+    if (notification) {
+      await NotificationUser.findOneAndUpdate(
+        { notificationId: notification._id, userId },
+        { isRead: true, readAt: new Date() },
+        { new: true, upsert: true, session }
+      );
     }
 
-    // Lưu lại trước khi save, để trả về cho client
-    const responseStatus = membership.invitationResponse; // 'accepted' hoặc 'declined'
+    // 7. Commit transaction
+    await session.commitTransaction();
+    session.endSession();
 
-    // 4. Xóa token để không dùng lại
-    membership.invitationToken = undefined;
-
-    // 5. Lưu object; middleware pre('save') sẽ tự bật logic:
-    //    - Nếu accepted → gán applicationStatus='accepted', role='member', invitationResponse=null, appliedAt
-    //    - Nếu declined → gán isDeleted=true, deletedAt
-    await membership.save();
-
-    // 6. Trả về cho client
+    // 8. Trả về cho client
     return res.status(200).json({
-      message: `Bạn đã ${
-        action === 'accept' ? 'chấp nhận' : 'từ chối'
-      } lời mời vào Board.`,
-      status: responseStatus, // trả 'accepted' hoặc 'declined'
+      message: `You have ${
+        action === 'accept' ? 'accepted' : 'declined'
+      } the invitation to the Board.`,
+      status: responseStatus,
+      membership, // Trả về membership đã cập nhật
     });
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Lỗi khi xử lý invite-response:', err);
     return res.status(500).json({
       message: 'Lỗi server khi phản hồi lời mời',

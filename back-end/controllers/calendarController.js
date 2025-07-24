@@ -21,7 +21,7 @@ exports.createCalendar = async (req, res) => {
     // Kiểm tra các trường bắt buộc
     if (!name || !ownerType || !ownerId) {
       return res.status(400).json({
-        message: 'Thiếu các trường bắt buộc: name, ownerType hoặc ownerId',
+        message: 'Missing required fields: name, ownerType or ownerId',
         status: 400,
       });
     }
@@ -29,7 +29,7 @@ exports.createCalendar = async (req, res) => {
     // Kiểm tra ownerType hợp lệ
     if (!['user', 'board'].includes(ownerType)) {
       return res.status(400).json({
-        message: 'ownerType không hợp lệ. Phải là "user" hoặc "board"',
+        message: 'Invalid ownerType. Must be "user" or "board"',
         status: 400,
       });
     }
@@ -44,7 +44,7 @@ exports.createCalendar = async (req, res) => {
       if (personalCalendar.length > 0) {
         console.log('Lịch cá nhân đã tồn tại');
         return res.status(409).json({
-          message: 'Bạn đã có lịch cá nhân của mình',
+          message: 'You already have a personal calendar',
           status: 409,
         });
       }
@@ -62,7 +62,7 @@ exports.createCalendar = async (req, res) => {
       });
 
       return res.status(201).json({
-        message: 'Tạo lịch cá nhân thành công',
+        message: 'Personal calendar created successfully',
         status: 201,
         data: newCalendar,
       });
@@ -76,7 +76,7 @@ exports.createCalendar = async (req, res) => {
       if (boardCalendar.length > 0) {
         console.log('Lịch của board đã tồn tại');
         return res.status(409).json({
-          message: 'Board này đã có lịch được tạo trước đó',
+          message: 'This board already has a calendar created before',
           status: 409,
         });
       }
@@ -94,7 +94,7 @@ exports.createCalendar = async (req, res) => {
       });
 
       return res.status(201).json({
-        message: 'Tạo lịch cá nhân thành công',
+        message: 'Personal calendar created successfully',
         status: 201,
         data: newCalendar,
       });
@@ -120,7 +120,7 @@ exports.createCalendar = async (req, res) => {
   } catch (error) {
     console.error('Lỗi khi tạo lịch:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -140,20 +140,20 @@ exports.getCalendarById = async (req, res) => {
 
     if (!calendar) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch',
+        message: 'Calendar not found',
         status: 404,
       });
     }
 
     return res.status(200).json({
-      message: 'Lấy thông tin lịch thành công',
+      message: 'Retrieved calendar information successfully',
       status: 200,
       data: calendar,
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -175,20 +175,20 @@ exports.getCalendarByUserId = async (req, res) => {
 
     if (!calendars.length) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch cho người dùng này',
+        message: 'No calendar found for this user',
         status: 404,
       });
     }
 
     return res.status(200).json({
-      message: 'Lấy danh sách lịch thành công',
+      message: 'Retrieved list of calendars successfully',
       status: 200,
       data: calendars,
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch của người dùng:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -210,20 +210,20 @@ exports.getCalendarByBoardId = async (req, res) => {
 
     if (!calendars.length) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch cho board này',
+        message: 'No calendar found for this board',
         status: 404,
       });
     }
 
     return res.status(200).json({
-      message: 'Lấy danh sách lịch board thành công',
+      message: 'Retrieved list of board calendars successfully',
       status: 200,
       data: calendars,
     });
   } catch (error) {
     console.error('Lỗi khi lấy thông tin lịch của board:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -237,7 +237,7 @@ exports.getAllCalendarsUserOrGroup = async (req, res) => {
 
     if (!ownerType || !ownerId) {
       return res.status(400).json({
-        message: 'Thiếu ownerType hoặc ownerId',
+        message: 'Missing ownerType or ownerId',
         status: 400,
       });
     }
@@ -252,14 +252,14 @@ exports.getAllCalendarsUserOrGroup = async (req, res) => {
       .select('-isDeleted -deletedAt');
 
     return res.status(200).json({
-      message: 'Lấy danh sách lịch thành công',
+      message: 'Retrieved list of calendars successfully',
       status: 200,
       data: calendars,
     });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách lịch:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -285,7 +285,7 @@ exports.updateCalendar = async (req, res) => {
     );
     if (!calendar) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch',
+        message: 'Calendar not found',
         status: 404,
       });
     }
@@ -293,7 +293,7 @@ exports.updateCalendar = async (req, res) => {
     const ownerId = req.user._id;
     if (calendar.ownerId.toString() !== ownerId.toString()) {
       return res.status(403).json({
-        message: 'Bạn không có quyền sửa đổi lịch này',
+        message: 'You do not have permission to modify this calendar',
         status: 403,
       });
     }
@@ -310,14 +310,14 @@ exports.updateCalendar = async (req, res) => {
     await calendar.save();
 
     return res.status(200).json({
-      message: 'Cập nhật lịch thành công',
+      message: 'Calendar updated successfully',
       status: 200,
       data: calendar,
     });
   } catch (error) {
     console.error('Lỗi khi cập nhật lịch:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -336,19 +336,19 @@ exports.deleteCalendar = async (req, res) => {
 
     if (!calendar) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch',
+        message: 'Calendar not found',
         status: 404,
       });
     }
 
     return res.status(200).json({
-      message: 'Xóa lịch thành công',
+      message: 'Calendar deleted successfully',
       status: 200,
     });
   } catch (error) {
     console.error('Lỗi khi xóa lịch:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });
@@ -366,7 +366,7 @@ exports.getCalendarEvents = async (req, res) => {
     );
     if (!calendar) {
       return res.status(404).json({
-        message: 'Không tìm thấy lịch',
+        message: 'Calendar not found',
         status: 404,
       });
     }
@@ -385,7 +385,7 @@ exports.getCalendarEvents = async (req, res) => {
       };
     } else {
       return res.status(400).json({
-        message: 'Thiếu ngày bắt đầu hoặc ngày kết thúc',
+        message: 'Missing start date or end date',
         status: 400,
       });
     }
@@ -472,14 +472,14 @@ exports.getCalendarEvents = async (req, res) => {
     }));
 
     return res.status(200).json({
-      message: `Lấy danh sách sự kiện từ lịch ${id} thành công`,
+      message: `Retrieved event list from calendar ${id} successfully`,
       status: 200,
       data: fullCalendarEvents,
     });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách sự kiện:', error);
     return res.status(500).json({
-      message: 'Lỗi máy chủ',
+      message: 'Server error',
       status: 500,
       error: error.message,
     });

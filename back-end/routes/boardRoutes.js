@@ -43,8 +43,8 @@ router.post(
   boardController.inviteBoardMembers
 );
 
-// 7. Phản hồi lời mời (không cần verifyToken, vì user có thể bấm link từ email)
-router.post('/invite-response', boardController.respondToBoardInvite);
+// 7. Phản hồi lời mời
+router.post('/invite-response', protect, boardController.respondToBoardInvite);
 
 //7. lấy ra user đủ điều kiện trên board
 router.get(

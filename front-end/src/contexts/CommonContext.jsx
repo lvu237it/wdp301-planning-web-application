@@ -886,6 +886,24 @@ export const Common = ({ children }) => {
       const handleNewNotification = (notification) => {
         console.log('📱 New notification received:', notification);
 
+        // Parse invitationToken nếu là workspace_invite
+        let invitationToken = undefined;
+        let content = notification.content;
+        if (
+          notification.type === 'workspace_invite' &&
+          typeof content === 'string'
+        ) {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed && parsed.invitationToken) {
+              invitationToken = parsed.invitationToken;
+              content = parsed.content || content;
+            }
+          } catch (e) {
+            // Không phải JSON, bỏ qua
+          }
+        }
+
         // Add notification to local state
         setNotifications((prev) => {
           // Avoid duplicates
@@ -894,10 +912,21 @@ export const Common = ({ children }) => {
           );
           if (exists) return prev;
 
+          let invitationResponse = notification.invitationResponse;
+          // Nếu là workspace_invite hoặc board_invite mà chưa có invitationResponse, fetch lại từ backend
+          if (
+            (notification.type === 'workspace_invite' ||
+              notification.type === 'board_invite') &&
+            !invitationResponse
+          ) {
+            // Gọi API hoặc fetch lại notifications để lấy trạng thái mới nhất
+            fetchNotifications(true);
+          }
+
           const newNotification = {
             notificationId: notification.notificationId,
             title: notification.title,
-            content: notification.content,
+            content,
             type: notification.type,
             isRead: false,
             createdAt: notification.createdAt,
@@ -906,6 +935,8 @@ export const Common = ({ children }) => {
             messageId: notification.messageId || null,
             responseStatus: notification.responseStatus || null,
             responded: notification.responded || false,
+            ...(invitationToken ? { invitationToken } : {}),
+            ...(invitationResponse ? { invitationResponse } : {}),
           };
           return [newNotification, ...prev];
         });
@@ -2475,6 +2506,7 @@ export const Common = ({ children }) => {
         setIsLinkingGoogle,
         isAuthenticated,
         notifications,
+        setNotifications,
         notificationCount,
         setNotificationCount,
         fetchNotifications,

@@ -4,6 +4,7 @@ const { formatDateToTimeZone } = require('../utils/dateUtils');
 const User = require('../models/userModel');
 const NotificationUser = require('../models/notificationUserModel');
 const Event = require('../models/eventModel');
+const Membership = require('../models/memberShipModel');
 
 // Helper function để format date theo format Việt Nam
 const formatDateForVN = (date) => {
@@ -57,7 +58,7 @@ exports.getUserNotifications = async (req, res, next) => {
         path: 'notificationId',
         match: { isDeleted: false },
         select:
-          'title content type targetUserId targetWorkspaceId createdBy audienceType createdAt eventId taskId messageId',
+          'title content type targetUserId targetWorkspaceId boardId createdBy audienceType createdAt eventId taskId messageId',
         populate: [
           {
             path: 'messageId',
@@ -117,6 +118,7 @@ exports.getUserNotifications = async (req, res, next) => {
             type: n.notificationId.type,
             targetUserId: n.notificationId.targetUserId,
             targetWorkspaceId: n.notificationId.targetWorkspaceId,
+            boardId: n.notificationId.boardId,
             createdBy: {
               userId: n.notificationId.createdBy?._id,
               fullname: n.notificationId.createdBy?.fullname,
@@ -204,8 +206,83 @@ exports.getUserNotifications = async (req, res, next) => {
             };
           }
 
+          // Nếu là workspace_invite, lấy trạng thái từ Membership
+          if (
+            n.notificationId.type === 'workspace_invite' &&
+            n.notificationId.targetWorkspaceId
+          ) {
+            try {
+              const membership = await Membership.findOne({
+                workspaceId: n.notificationId.targetWorkspaceId,
+                userId: userId,
+              });
+              if (membership) {
+                baseNotification.invitationResponse =
+                  membership.invitationStatus;
+              }
+            } catch (err) {
+              baseNotification.invitationResponse = undefined;
+            }
+          }
+          // Nếu là board_invite, lấy trạng thái từ BoardMembership
+          if (n.notificationId.type === 'board_invite') {
+            try {
+              const boardMembership =
+                await require('../models/boardMembershipModel').findOne({
+                  boardId: n.notificationId.boardId,
+                  userId: userId,
+                });
+              if (boardMembership) {
+                baseNotification.invitationResponse =
+                  boardMembership.invitationResponse;
+                baseNotification.isDeleted = boardMembership.isDeleted;
+                // Nếu membership đã bị xóa, đánh dấu để loại bỏ ở bước filter phía dưới
+                if (boardMembership.isDeleted) {
+                  baseNotification._shouldHide = true;
+                }
+              } else {
+                // Nếu không tìm thấy membership, cũng ẩn
+                baseNotification._shouldHide = true;
+              }
+            } catch (err) {
+              baseNotification.invitationResponse = undefined;
+              baseNotification.isDeleted = undefined;
+              baseNotification._shouldHide = true;
+            }
+          }
+
           return baseNotification;
         })
+    );
+
+    // Chỉ giữ lại thông báo board_invite mới nhất cho mỗi cặp (boardId, userId)
+    const seenBoardInvites = new Map(); // key: boardId, value: notification (giữ notificationId lớn nhất)
+    const filteredNotifications = [];
+    for (const notif of formattedNotifications) {
+      if (notif.type === 'board_invite') {
+        if (notif._shouldHide) continue;
+        const key = notif.boardId?.toString?.() || '';
+        // Nếu đã có boardId này, so sánh createdAt để giữ cái mới nhất
+        if (!seenBoardInvites.has(key)) {
+          seenBoardInvites.set(key, notif);
+        } else {
+          // So sánh createdAt
+          const prev = seenBoardInvites.get(key);
+          if (new Date(notif.createdAt) > new Date(prev.createdAt)) {
+            seenBoardInvites.set(key, notif);
+          }
+        }
+      } else {
+        filteredNotifications.push(notif);
+      }
+    }
+    // Thêm các board_invite mới nhất vào danh sách
+    for (const notif of seenBoardInvites.values()) {
+      filteredNotifications.push(notif);
+    }
+    // Sắp xếp lại theo thời gian tạo (giảm dần)
+    filteredNotifications.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
 
     // Tính toán pagination info
@@ -215,7 +292,7 @@ exports.getUserNotifications = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      results: formattedNotifications.length,
+      results: filteredNotifications.length,
       pagination: {
         currentPage,
         totalPages,
@@ -225,7 +302,7 @@ exports.getUserNotifications = async (req, res, next) => {
         skip: skipNum,
       },
       data: {
-        notifications: formattedNotifications,
+        notifications: filteredNotifications,
       },
     });
   } catch (error) {
