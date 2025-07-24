@@ -244,103 +244,8 @@ exports.inviteMember = async (req, res) => {
       invitationToken: token,
     });
 
-    // 6. Tạo link mời
-    const inviteLink = `${process.env.FRONTEND_URL}/invite-response?token=${token}`;
-    const emailHtml = `
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <title>Invite to Workspace</title>
-</head>
-<body style="margin:0; padding:0; background-color:#f4f4f4;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4; padding:20px 0;">
-    <tr>
-      <td align="center">
-        <!-- Container chính -->
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; font-family:Arial, sans-serif; color:#333333;">
-                   <!-- Header với title PlanPro -->
-          <tr>
-            <td align="center" style="padding:30px 0; background-color:#004080;">
-              <span style="
-                font-size:32px;
-                font-weight:bold;
-                color:#ffffff;
-                font-family:Arial, sans-serif;
-                text-transform:uppercase;
-                letter-spacing:2px;
-              ">
-               PlanPro
-              </span>
-            </td>
-          </tr>
-
-          <!-- Body nội dung -->
-          <tr>
-            <td style="padding:40px;">
-              <h2 style="margin-top:0; color:#004080; font-size:24px;">Xin chào ${
-                user.username
-              },</h2>
-              <p style="font-size:16px; line-height:1.5;">
-                Bạn đã được mời tham gia <strong>workspace "${
-                  workspace.name
-                }"</strong> trên hệ thống của chúng tôi.
-              </p>
-              <p style="font-size:16px; line-height:1.5;">
-                Nhấn vào nút bên dưới để xác nhận và tham gia:
-              </p>
-
-              <!-- Nút CTA -->
-              <p style="text-align:center; margin:30px 0;">
-                <a
-                  href="${inviteLink}"
-                  style="
-                    display:inline-block;
-                    background-color:#007bff;
-                    color:#ffffff !important;
-                    text-decoration:none;
-                    padding:12px 24px;
-                    border-radius:4px;
-                    font-size:16px;
-                    font-weight:bold;
-                  "
-                >
-                  XÁC NHẬN LỜI MỜI
-                </a>
-              </p>
-
-              <p style="font-size:14px; color:#666666; line-height:1.5;">
-                Nếu bạn không quan tâm đến lời mời này, bạn có thể bỏ qua email.  
-                Lời mời sẽ tự động hết hiệu lực sau 7 ngày.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:20px; background-color:#f0f0f0; font-size:12px; color:#888888; text-align:center;">
-              <p style="margin:0;">
-                © ${new Date().getFullYear()} WebPlanPro. Đã đăng ký bản quyền.
-              </p>
-              <p style="margin:5px 0 0;">
-                Địa chỉ: WebPlanPro, Thạch Thất, Hà Nội, Việt Nam
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-`;
-    // 7. Gửi email thực tế
-    await sendEmail(
-      user.email,
-      `Bạn được mời vào workspace "${workspace.name}"`,
-      emailHtml
-    );
-    // 7.1 gửi thông báo real-time sau khi gửi lời mời
+    // 6. Không gửi email nữa, chỉ tạo notification
+    // 7. Gửi thông báo real-time sau khi gửi lời mời, truyền token vào content/data
     await NotificationService.createPersonalNotification({
       title: `Lời mời tham gia workspace`,
       content: `Bạn được mời tham gia workspace "${workspace.name}"`,
@@ -348,12 +253,15 @@ exports.inviteMember = async (req, res) => {
       targetUserId: user._id,
       targetWorkspaceId: workspace._id,
       createdBy: inviterId,
+      // Truyền thêm invitationToken vào data (nếu NotificationService hỗ trợ)
+      invitationToken: token,
     });
 
     // 8. Phản hồi
     res.status(200).json({
       message: 'Đã gửi lời mời thành công',
-      inviteLink,
+      // inviteLink,
+      invitationToken: token,
     });
   } catch (err) {
     console.error('Lỗi gửi lời mời:', err);
@@ -385,7 +293,10 @@ exports.respondToInvite = async (req, res) => {
     }
 
     // Kiểm tra user có khớp với token không
-    if (req.user._id.toString() !== membership.userId.toString()) {
+    if (
+      req.user._id.toString() !== membership.userId.toString() ||
+      req.user.id.toString() !== membership.userId.toString()
+    ) {
       return res.status(403).json({
         message: 'Bạn không có quyền xác nhận lời mời này.',
         status: 'forbidden',

@@ -102,7 +102,18 @@ exports.getUserNotifications = async (req, res, next) => {
           const baseNotification = {
             notificationId: n.notificationId._id,
             title: n.notificationId.title,
-            content: n.notificationId.content,
+            // Nếu content là JSON (do workspace_invite), parse ra
+            ...(function () {
+              try {
+                const parsed = JSON.parse(n.notificationId.content);
+                return {
+                  content: parsed.content || n.notificationId.content,
+                  invitationToken: parsed.invitationToken,
+                };
+              } catch (e) {
+                return { content: n.notificationId.content };
+              }
+            })(),
             type: n.notificationId.type,
             targetUserId: n.notificationId.targetUserId,
             targetWorkspaceId: n.notificationId.targetWorkspaceId,

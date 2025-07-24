@@ -20,6 +20,7 @@ const Header = () => {
     formatDateAMPMForVN,
     socketConnected,
     toast,
+    apiBaseUrl,
   } = useCommon();
   const [showPopover, setShowPopover] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -142,6 +143,50 @@ const Header = () => {
       }
     } finally {
       // Remove notification khỏi loading map
+      setLoadingNotifications((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(notificationId);
+        return newMap;
+      });
+    }
+  };
+
+  // Handler cho workspace invitation
+  const handleWorkspaceInvitationResponse = async (
+    invitationToken,
+    action,
+    notificationId,
+    event
+  ) => {
+    event.stopPropagation();
+    setLoadingNotifications((prev) =>
+      new Map(prev).set(notificationId, action)
+    );
+    try {
+      // Gọi API accept/decline workspace invite
+      const res = await fetch(`${apiBaseUrl}/workspace/invite-response`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: JSON.stringify({ token: invitationToken, action }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(
+          data.message ||
+            (action === 'accept'
+              ? 'Đã tham gia workspace'
+              : 'Đã từ chối lời mời')
+        );
+        await fetchNotifications(true);
+      } else {
+        toast.error(data.message || 'Có lỗi xảy ra');
+      }
+    } catch (err) {
+      toast.error('Có lỗi xảy ra khi xử lý lời mời workspace');
+    } finally {
       setLoadingNotifications((prev) => {
         const newMap = new Map(prev);
         newMap.delete(notificationId);
@@ -320,6 +365,72 @@ const Header = () => {
               <small className='text-muted mt-1'>
                 {formatDateAMPMForVN(notif.createdAt)}
               </small>
+
+              {/* Nút Accept/Decline cho workspace_invite */}
+              {notif.type === 'workspace_invite' &&
+                notif.invitationToken &&
+                !notif.isRead && (
+                  <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                    <button
+                      className='btn btn-success btn-sm'
+                      onClick={(e) =>
+                        handleWorkspaceInvitationResponse(
+                          notif.invitationToken,
+                          'accept',
+                          notif.notificationId,
+                          e
+                        )
+                      }
+                      disabled={loadingNotifications.has(notif.notificationId)}
+                      style={{
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        minWidth: '85px',
+                        opacity: loadingNotifications.has(notif.notificationId)
+                          ? 0.7
+                          : 1,
+                        cursor: loadingNotifications.has(notif.notificationId)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      }}
+                    >
+                      {loadingNotifications.get(notif.notificationId) ===
+                      'accept'
+                        ? 'Đang xử lý...'
+                        : 'Chấp nhận'}
+                    </button>
+                    <button
+                      className='btn btn-outline-danger btn-sm'
+                      onClick={(e) =>
+                        handleWorkspaceInvitationResponse(
+                          notif.invitationToken,
+                          'decline',
+                          notif.notificationId,
+                          e
+                        )
+                      }
+                      disabled={loadingNotifications.has(notif.notificationId)}
+                      style={{
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        minWidth: '80px',
+                        opacity: loadingNotifications.has(notif.notificationId)
+                          ? 0.7
+                          : 1,
+                        cursor: loadingNotifications.has(notif.notificationId)
+                          ? 'not-allowed'
+                          : 'pointer',
+                      }}
+                    >
+                      {loadingNotifications.get(notif.notificationId) ===
+                      'decline'
+                        ? 'Đang xử lý...'
+                        : 'Từ chối'}
+                    </button>
+                  </div>
+                )}
 
               {/* Hiển thị buttons cho event invitation nếu chưa respond hoặc đang pending */}
               {(() => {
@@ -695,6 +806,84 @@ const Header = () => {
                   <small className='text-muted mt-1'>
                     {formatDateAMPMForVN(notif.createdAt)}
                   </small>
+
+                  {/* Nút Accept/Decline cho workspace_invite */}
+                  {notif.type === 'workspace_invite' &&
+                    notif.invitationToken &&
+                    !notif.isRead && (
+                      <div className='d-flex gap-2 mt-2' style={{ gap: '8px' }}>
+                        <button
+                          className='btn btn-success btn-sm'
+                          onClick={(e) =>
+                            handleWorkspaceInvitationResponse(
+                              notif.invitationToken,
+                              'accept',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={loadingNotifications.has(
+                            notif.notificationId
+                          )}
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '85px',
+                            opacity: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 0.7
+                              : 1,
+                            cursor: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 'not-allowed'
+                              : 'pointer',
+                          }}
+                        >
+                          {loadingNotifications.get(notif.notificationId) ===
+                          'accept'
+                            ? 'Đang xử lý...'
+                            : 'Chấp nhận'}
+                        </button>
+                        <button
+                          className='btn btn-outline-danger btn-sm'
+                          onClick={(e) =>
+                            handleWorkspaceInvitationResponse(
+                              notif.invitationToken,
+                              'decline',
+                              notif.notificationId,
+                              e
+                            )
+                          }
+                          disabled={loadingNotifications.has(
+                            notif.notificationId
+                          )}
+                          style={{
+                            fontSize: '12px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            minWidth: '80px',
+                            opacity: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 0.7
+                              : 1,
+                            cursor: loadingNotifications.has(
+                              notif.notificationId
+                            )
+                              ? 'not-allowed'
+                              : 'pointer',
+                          }}
+                        >
+                          {loadingNotifications.get(notif.notificationId) ===
+                          'decline'
+                            ? 'Đang xử lý...'
+                            : 'Từ chối'}
+                        </button>
+                      </div>
+                    )}
 
                   {/* Hiển thị buttons cho event invitation nếu chưa respond hoặc đang pending */}
                   {(() => {

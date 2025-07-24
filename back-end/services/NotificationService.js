@@ -21,6 +21,7 @@ class NotificationService {
     eventId = null,
     taskId = null,
     messageId = null,
+    invitationToken = null, // thêm trường này
   }) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -37,12 +38,21 @@ class NotificationService {
         );
       }
 
+      // Nếu có invitationToken, nhúng vào content dạng JSON để FE lấy ra
+      let notificationContent = content;
+      let notificationData = {};
+      if (invitationToken) {
+        notificationData = { invitationToken };
+        // Nếu content là string, chuyển thành object
+        notificationContent = JSON.stringify({ content, invitationToken });
+      }
+
       // Tạo thông báo
       const [notification] = await Notification.create(
         [
           {
             title,
-            content,
+            content: notificationContent,
             type,
             audienceType: 'personal',
             targetUserId,
@@ -51,6 +61,7 @@ class NotificationService {
             eventId,
             taskId,
             messageId,
+            ...notificationData, // phòng trường hợp muốn lưu trực tiếp
           },
         ],
         { session }
@@ -71,7 +82,7 @@ class NotificationService {
 
       // Gửi thông báo real-time qua Socket.IO
       const io = getIO();
-      const notificationData = {
+      const notificationDataToEmit = {
         notificationId: notification._id,
         title,
         content,
@@ -89,10 +100,13 @@ class NotificationService {
 
       console.log(
         `📡 NotificationService: Emitting notification to user ${targetUserId}:`,
-        JSON.stringify(notificationData, null, 2)
+        JSON.stringify(notificationDataToEmit, null, 2)
       );
 
-      io.to(targetUserId.toString()).emit('new_notification', notificationData);
+      io.to(targetUserId.toString()).emit(
+        'new_notification',
+        notificationDataToEmit
+      );
 
       console.log(
         `✅ NotificationService: Đã tạo thông báo ${type} cho user ${targetUserId}`
