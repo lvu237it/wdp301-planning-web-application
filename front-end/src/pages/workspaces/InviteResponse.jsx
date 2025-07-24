@@ -18,7 +18,7 @@ const InviteResponse = () => {
 
   const handleAction = async (action) => {
     if (!token) {
-      setError('Invalid token');
+      setError('Lời mời không hợp lệ hoặc đã hết hạn.');
       return;
     }
     setLoading(true);
@@ -30,10 +30,30 @@ const InviteResponse = () => {
       );
       setResult(res.data.message);
       toast.success(res.data.message);
-      // quay về danh sách workspace sau 1s
+      // Chỉ chuyển trang nếu thành công thực sự (status 200)
       setTimeout(() => navigate('/workspaces'), 1000);
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
+      console.error('Error responding to invite, err:', err);
+      const status = err.response?.data?.status;
+      const message = err.response?.data?.message || err.message;
+      // Xử lý từng trường hợp cụ thể
+      if (status === 'invalid') {
+        setError('Lời mời không hợp lệ hoặc đã hết hạn.');
+      } else if (status === 'forbidden') {
+        setError(
+          'Bạn không có quyền xác nhận lời mời này. Hãy đăng nhập đúng tài khoản được mời.'
+        );
+      } else if (status === 'accepted') {
+        setError('Lời mời này đã được chấp nhận trước đó.');
+      } else if (status === 'declined') {
+        setError('Lời mời này đã bị từ chối trước đó.');
+      } else if (status === 'invalid_action') {
+        setError('Hành động không hợp lệ.');
+      } else if (status === 'error') {
+        setError('Có lỗi xảy ra khi xử lý lời mời.');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }

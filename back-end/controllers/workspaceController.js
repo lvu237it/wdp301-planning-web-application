@@ -370,71 +370,66 @@ exports.respondToInvite = async (req, res) => {
     const { token, action } = req.body;
 
     if (!token) {
-      return res.status(400).json({ message: 'Thiếu token xác nhận' });
+      return res
+        .status(400)
+        .json({ message: 'Thiếu token xác nhận', status: 'invalid' });
     }
 
-    //Check xem user có match với token ko - có phải người được mời hay ko
-    const userMatchTokenFound = await Membership.findOne({
-      invitationToken: token,
-    });
-    if (!userMatchTokenFound) {
-      console.log(
-        'WorkspaceController (respondToInvite): Token không hợp lệ hoặc không tìm thấy'
-      );
-      return res.status(400).json({ message: 'Token không hợp lệ' });
-    } else if (
-      req.user._id.toString() !== userMatchTokenFound.userId.toString()
-    ) {
-      console.log(
-        'WorkspaceController (respondToInvite): Người dùng không khớp với token'
-      );
-      return res
-        .status(403)
-        .json({ message: 'Bạn không có quyền xác nhận lời mời này' });
-    } else if (userMatchTokenFound.invitationStatus !== 'pending') {
-      console.log(
-        'WorkspaceController (respondToInvite): Lời mời đã được xử lý trước đó'
-      );
+    // Tìm membership theo token
+    const membership = await Membership.findOne({ invitationToken: token });
+    if (!membership) {
       return res.status(400).json({
-        message: 'Lời mời đã được xử lý trước đó',
-        status: userMatchTokenFound.invitationStatus,
+        message: 'Lời mời không hợp lệ hoặc đã hết hạn.',
+        status: 'invalid',
       });
     }
 
-    const membership = await Membership.findOne({ invitationToken: token });
-    if (!membership) {
-      return res
-        .status(400)
-        .json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
+    // Kiểm tra user có khớp với token không
+    if (req.user._id.toString() !== membership.userId.toString()) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền xác nhận lời mời này.',
+        status: 'forbidden',
+      });
     }
 
+    // Kiểm tra trạng thái lời mời
+    if (membership.invitationStatus === 'accepted') {
+      return res.status(409).json({
+        message: 'Lời mời đã được chấp nhận trước đó.',
+        status: 'accepted',
+      });
+    }
     if (membership.invitationStatus !== 'pending') {
-      return res
-        .status(400)
-        .json({ message: 'Lời mời đã được xử lý trước đó' });
+      return res.status(409).json({
+        message: 'Lời mời đã được xử lý trước đó.',
+        status: membership.invitationStatus,
+      });
     }
 
     let workspace;
-
     if (action === 'accept') {
       membership.invitationStatus = 'accepted';
-
       // Cập nhật workspace.members
       workspace = await Workspace.findById(membership.workspaceId);
       if (workspace) {
-        workspace.members.push(membership._id);
-        await workspace.save();
+        // Tránh thêm trùng membership
+        if (!workspace.members.includes(membership._id)) {
+          workspace.members.push(membership._id);
+          await workspace.save();
+        }
       }
     } else if (action === 'decline') {
       membership.invitationStatus = 'declined';
     } else {
-      return res.status(400).json({ message: 'Hành động không hợp lệ' });
+      return res
+        .status(400)
+        .json({ message: 'Hành động không hợp lệ', status: 'invalid_action' });
     }
 
     membership.invitationToken = undefined;
     await membership.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: `Bạn đã ${
         action === 'accept' ? 'chấp nhận' : 'từ chối'
       } lời mời tham gia workspace.`,
@@ -444,6 +439,7 @@ exports.respondToInvite = async (req, res) => {
     res.status(500).json({
       message: 'Lỗi server khi phản hồi lời mời',
       error: err.message,
+      status: 'error',
     });
   }
 };
