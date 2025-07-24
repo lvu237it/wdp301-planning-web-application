@@ -45,8 +45,6 @@ const InviteResponse = () => {
         );
       } else if (status === 'accepted') {
         setError('Lời mời này đã được chấp nhận trước đó.');
-      } else if (status === 'declined') {
-        setError('Lời mời này đã bị từ chối trước đó.');
       } else if (status === 'invalid_action') {
         setError('Hành động không hợp lệ.');
       } else if (status === 'error') {
