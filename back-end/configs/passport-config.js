@@ -21,6 +21,10 @@ passport.use(
     },
     async (accessToken, refreshToken, tokens, profile, done) => {
       try {
+        console.log(
+          '[passport-config.js][GoogleStrategy] Bắt đầu xác thực Google cho user:',
+          profile.emails[0].value
+        );
         console.log('Google Profile:', {
           googleId: profile.id,
           email: profile.emails[0].value,
@@ -34,7 +38,7 @@ passport.use(
             isDeleted: false,
           });
           console.log(
-            'Existing User:',
+            '[passport-config.js][GoogleStrategy] Kiểm tra user đã tồn tại:',
             existingUser ? existingUser.email : null
           );
           if (existingUser) {
@@ -85,11 +89,16 @@ passport.use(
             { upsert: true, new: true }
           );
         }
-
-        console.log('Selected User:', user.email);
+        console.log(
+          '[passport-config.js][GoogleStrategy] Đã xác thực thành công, user:',
+          user.email
+        );
         done(null, user);
       } catch (err) {
-        console.error('Google Strategy error:', err);
+        console.error(
+          '[passport-config.js][GoogleStrategy] Lỗi xác thực Google:',
+          err
+        );
         done(err, null);
       }
     }
@@ -117,6 +126,10 @@ passport.use(
     },
     async (accessToken, refreshToken, tokens, profile, done) => {
       try {
+        console.log(
+          '[passport-config.js][GoogleLinkStrategy] Bắt đầu liên kết Google cho user:',
+          profile.emails[0].value
+        );
         console.log('Google Link Profile:', {
           googleId: profile.id,
           email: profile.emails[0].value,
@@ -137,7 +150,10 @@ passport.use(
 
         done(null, googleUser);
       } catch (err) {
-        console.error('Google Link Strategy error:', err);
+        console.error(
+          '[passport-config.js][GoogleLinkStrategy] Lỗi liên kết Google:',
+          err
+        );
         done(err, null);
       }
     }

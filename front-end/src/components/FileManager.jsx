@@ -50,7 +50,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
     if (selectedFiles.length === 0) return;
 
     if (!canUploadFiles()) {
-      toast.error('Cần xác thực Google Drive trước khi upload file');
+      toast.error('You need to authenticate Google Drive to upload files');
       return;
     }
 
@@ -71,7 +71,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
           throw error; // Re-throw để dừng tất cả các upload
         }
         console.error('Error uploading file:', file.name, error);
-        toast.error(`Lỗi upload file ${file.name}`);
+        toast.error(`Error uploading file ${file.name} to Google Drive`);
         return null;
       }
     });
@@ -92,7 +92,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
         return;
       }
       console.error('Error in batch upload:', error);
-      toast.error('Có lỗi xảy ra khi upload files');
+      toast.error('Error while uploading files to Google Drive');
     } finally {
       setUploading(false);
       // Reset file input
@@ -130,7 +130,7 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
 
   const handleRename = async (fileId) => {
     if (!newFileName.trim()) {
-      toast.error('Tên file không được để trống');
+      toast.error('File name cannot be empty');
       return;
     }
 
@@ -222,15 +222,17 @@ const FileManager = ({ taskId, isOpen, onClose, onFileChange }) => {
                   {uploading ? 'Uploading...' : 'Choose a file to upload'}
                 </label>
                 {uploading && (
-                  <div className='upload-progress'>Đang upload file...</div>
+                  <div className='upload-progress'>Uploading file...</div>
                 )}
               </div>
             ) : (
               <div className='google-auth-required'>
-                <p>Cần xác thực Google Drive để upload file</p>
+                <p>
+                  You need to authenticate with Google Drive to upload files
+                </p>
                 <button className='auth-btn' onClick={openGoogleAuth}>
                   <i className='fab fa-google-drive'></i>
-                  Xác thực Google Drive
+                  Authenticate
                 </button>
               </div>
             )}

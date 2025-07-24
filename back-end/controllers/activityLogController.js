@@ -61,7 +61,7 @@ exports.getLogsByBoard = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'boardId không hợp lệ' });
+        .json({ status: 'fail', message: 'boardId is not valid' });
     }
 
     // Kiểm tra quyền truy cập board
@@ -75,7 +75,10 @@ exports.getLogsByBoard = async (req, res) => {
     if (!membership) {
       return res
         .status(403)
-        .json({ status: 'fail', message: 'Không có quyền truy cập board' });
+        .json({
+          status: 'fail',
+          message: 'You do not have permission to access this board',
+        });
     }
 
     const isAdmin = membership.role === 'admin';
@@ -200,7 +203,7 @@ exports.getAdminLogsByBoard = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'boardId không hợp lệ' });
+        .json({ status: 'fail', message: 'BoardId is not valid' });
     }
 
     // Kiểm tra quyền admin
@@ -214,7 +217,7 @@ exports.getAdminLogsByBoard = async (req, res) => {
     if (!membership) {
       return res
         .status(403)
-        .json({ status: 'fail', message: 'Chỉ admin có thể xem tất cả log' });
+        .json({ status: 'fail', message: 'Only admin can view all logs' });
     }
 
     const logs = await ActivityLog.find({ boardId })

@@ -72,7 +72,7 @@ function Home() {
             <div style={{ textAlign: 'center', padding: '2rem' }}>
               <Spinner animation='border' variant='primary' />
               <p style={{ marginTop: '1rem', color: '#666' }}>
-                Đang kiểm tra trạng thái xác thực...
+                Checking Google authentication...
               </p>
             </div>
           </div>
@@ -82,11 +82,15 @@ function Home() {
       {showGoogleAuthModal && !isCheckingGoogleAuth && (
         <div className='google-modal-overlay'>
           <div className='google-modal-content'>
-            <h2>Bạn cần xác thực Google để tiếp tục</h2>
+            <h2>You need to enable Google authentication</h2>
             <p>
-              Để sử dụng đầy đủ một số tính năng và đồng bộ dữ liệu của bạn với
+              {/* Để sử dụng đầy đủ một số tính năng và đồng bộ dữ liệu của bạn với
               tài khoản Google cá nhân, bạn cần cấp quyền cho ứng dụng. Bạn có
-              muốn tiếp tục không?
+              muốn tiếp tục không? */}
+              To fully utilize some features and sync your data with your
+              personal Google account, you need to grant permissions to the
+              application. Do you want to proceed? Otherwise, please try to
+              login again.
             </p>
             <button
               onClick={handleConfirmGoogleAuth}
@@ -103,11 +107,11 @@ function Home() {
                   aria-hidden='true'
                 />
               ) : (
-                'Có'
+                'Yes'
               )}
             </button>
             <button onClick={handleCancelGoogleAuth} disabled={isLoading}>
-              Không
+              No
             </button>
           </div>
         </div>

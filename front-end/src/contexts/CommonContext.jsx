@@ -77,8 +77,8 @@ export const Common = ({ children }) => {
 
   // Đổi sang biến env tương ứng (VITE_API_BASE_URL_DEVELOPMENT hoặc VITE_API_BASE_URL_PRODUCTION)
   // và build lại để chạy server frontend trên môi trường dev hoặc production
-  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_DEVELOPMENT;
+  // const apiBaseUrl = import.meta.env.VITE_API_BASE_URL_PRODUCTION;
 
   const [calendarUser, setCalendarUser] = useState(null);
   const [calendarBoard, setCalendarBoard] = useState(null);
@@ -163,7 +163,6 @@ export const Common = ({ children }) => {
   //Kiểm tra xem người dùng đã xác thực Google chưa với logic cải thiện
   const checkGoogleAuth = async (force = false) => {
     if (!accessToken || (isCheckingGoogleAuth && !force)) return;
-
     setIsCheckingGoogleAuth(true);
     try {
       const response = await axios.get(
@@ -173,107 +172,29 @@ export const Common = ({ children }) => {
           timeout: 10000,
         }
       );
-
-      console.log('🔍 Google auth check response:', response.data);
-
-      // Log token expiry details from response
-      if (response.data.tokens) {
-        response.data.tokens.forEach((token) => {
-          const now = new Date();
-          const expiryDate = token.expiryDate
-            ? new Date(token.expiryDate)
-            : null;
-          const timeUntilExpiry = expiryDate ? expiryDate - now : null;
-          console.log('timeUntilExpiry', timeUntilExpiry);
-          const hoursUntilExpiry = timeUntilExpiry
-            ? Math.round(timeUntilExpiry / (1000 * 60 * 60))
-            : null;
-
-          console.log(`
-📅 Frontend - Google Token Status:
-   Service: ${token.service}
-   Status: ${token.status}
-   Expiry: ${expiryDate ? expiryDate.toLocaleString() : 'No expiry'}
-   Time until expiry: ${hoursUntilExpiry ? `${hoursUntilExpiry} hours` : 'N/A'}
-   Valid: ${token.isValid ? 'Yes' : 'No'}
-          `);
-
-          // Show toast notification if token is expiring soon (within 24 hours)
-          // if (
-          //   hoursUntilExpiry !== null &&
-          //   hoursUntilExpiry < 24 &&
-          //   hoursUntilExpiry > 0
-          // ) {
-          //   toast.warning(
-          //     `Google ${token.service} token will expire in ${hoursUntilExpiry} hours`
-          //   );
-          // }
-        });
-      }
-
-      if (response.data.status === 'success') {
-        if (response.data.hasValidTokens) {
-          // User has all valid Google tokens
-          console.log('✅ User has all valid Google tokens');
-          setIsGoogleAuthenticated(true);
-          setShowGoogleAuthModal(false);
-        } else {
-          // User needs to authenticate or refresh tokens
-          console.log('❌ User needs Google authentication');
-          setIsGoogleAuthenticated(false);
-
-          // Only show modal if user has linked Google account but tokens need refresh
-          // Don't force modal for users who haven't linked Google account yet
-          if (googleLinkStatus.hasGoogleAccount) {
-            console.log(
-              '📢 User has linked Google account, checking if modal needed'
-            );
-            if (
-              response.data.needsRefresh ||
-              response.data.missingScopes?.length > 0
-            ) {
-              console.log('🔑 Showing Google auth modal for token refresh');
-              setShowGoogleAuthModal(true);
-            }
-          } else {
-            console.log(
-              '🚫 User has not linked Google account, not showing modal'
-            );
-            setShowGoogleAuthModal(false);
-          }
-        }
-      } else {
-        // Error response
-        console.log('❌ Error checking Google auth');
+      if (response.data.status === 'success' && response.data.hasValidTokens) {
+        setIsGoogleAuthenticated(true);
+        setShowGoogleAuthModal(false);
+      } else if (
+        response.data.needReauth ||
+        response.data.needsRefresh ||
+        !response.data.hasValidTokens
+      ) {
         setIsGoogleAuthenticated(false);
-
-        // Only show modal for users who have linked Google account
-        if (googleLinkStatus.hasGoogleAccount) {
-          console.log(
-            '🔑 Showing Google auth modal due to error for linked user'
-          );
-          setShowGoogleAuthModal(true);
-        } else {
-          console.log(
-            '🚫 User has not linked Google account, not showing modal on error'
-          );
-          setShowGoogleAuthModal(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking Google auth:', error);
-      setIsGoogleAuthenticated(false);
-
-      // Only show modal for authentication-related errors if user has linked Google account
-      if (googleLinkStatus.hasGoogleAccount && error.response?.status === 401) {
-        console.log(
-          '🔑 Showing Google auth modal due to 401 error for linked user'
-        );
         setShowGoogleAuthModal(true);
       } else {
-        console.log(
-          '🚫 Not showing modal for error - user not linked or not auth error'
-        );
+        setIsGoogleAuthenticated(false);
+        setShowGoogleAuthModal(false);
+      }
+    } catch (error) {
+      setIsGoogleAuthenticated(false);
+      // Chỉ hiện modal nếu backend trả về 401 hoặc needReauth
+      if (
+        googleLinkStatus.hasGoogleAccount &&
+        (error.response?.status === 401 || error.response?.data?.needReauth)
+      ) {
+        setShowGoogleAuthModal(true);
+      } else {
         setShowGoogleAuthModal(false);
       }
     } finally {
@@ -1249,7 +1170,6 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200 && response.data.data?.length > 0) {
-        console.log('lich cua board', response.data.data[0]);
         setCalendarBoard(response.data.data[0]);
         return {
           success: true,
@@ -1349,7 +1269,7 @@ export const Common = ({ children }) => {
   const linkGoogleAccount = async () => {
     try {
       if (!userDataLocal || !accessToken) {
-        toast.error('Bạn cần đăng nhập để liên kết tài khoản Google');
+        toast.error('You need to be logged in to link Google account');
         return;
       }
 
@@ -1365,7 +1285,7 @@ export const Common = ({ children }) => {
     } catch (error) {
       console.error('Error initiating Google account linking:', error);
       setIsLinkingGoogle(false);
-      toast.error('Không thể bắt đầu liên kết tài khoản Google');
+      toast.error('Cannot link Google account at this time');
     }
   };
 
@@ -1513,7 +1433,7 @@ export const Common = ({ children }) => {
     }
     // Loại bỏ workspace đã đóng khỏi state
     setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
-    toast.success('Workspace đã được đóng thành công');
+    toast.success('Workspace closed successfully');
     return res.data.workspace;
   };
 
@@ -1527,7 +1447,7 @@ export const Common = ({ children }) => {
     }
     // remove khỏi state
     setWorkspaces((prev) => prev.filter((ws) => ws._id !== workspaceId));
-    toast.success('Workspace đã bị xóa vĩnh viễn');
+    toast.success('Workspace is deleted successfully');
     return true;
   };
 
@@ -1832,7 +1752,7 @@ export const Common = ({ children }) => {
 
     if (error === 'google_auth_failed') {
       toast.error(
-        message || 'Email tài khoản đã tồn tại.'
+        message || 'Email is exist.'
         // Vui lòng đăng nhập thủ công và kết nối với tài khoản Google của bạn.
       );
       navigate('/login', { replace: true });
@@ -1854,7 +1774,7 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 200) {
-        toast.success('Đã hủy tham gia sự kiện thành công');
+        toast.success('Cancelled event participation successfully');
 
         // Trigger calendar refresh
         window.dispatchEvent(
@@ -1869,7 +1789,7 @@ export const Common = ({ children }) => {
     } catch (error) {
       console.error('Error canceling event participation:', error);
       toast.error(
-        error.response?.data?.message || 'Không thể hủy tham gia sự kiện'
+        error.response?.data?.message || 'Cannot cancel event participation'
       );
       return false;
     }
@@ -2058,7 +1978,7 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Tạo task thành công');
+        toast.success('Successfully created task from calendar');
         return {
           success: true,
           data: response.data.data,
@@ -2085,7 +2005,7 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Cập nhật task thành công');
+        toast.success('Update task successfully');
         return {
           success: true,
           data: response.data.data,
@@ -2111,7 +2031,7 @@ export const Common = ({ children }) => {
       );
 
       if (response.data.status === 'success') {
-        toast.success('Xóa task thành công');
+        toast.success('Delete task successfully');
         return { success: true };
       }
     } catch (error) {
@@ -2200,18 +2120,14 @@ export const Common = ({ children }) => {
   // Upload file to task
   const uploadFileToTask = async (taskId, file) => {
     if (!accessToken || !taskId || !file) return { success: false };
-
     try {
-      // Đảm bảo tên file được normalize UTF-8
       const normalizedFile = new File([file], file.name.normalize('NFC'), {
         type: file.type,
         lastModified: file.lastModified,
       });
-
       const formData = new FormData();
       formData.append('file', normalizedFile);
       formData.append('taskId', taskId);
-
       const response = await axios.post(
         `${apiBaseUrl}/files/upload-to-task`,
         formData,
@@ -2220,37 +2136,25 @@ export const Common = ({ children }) => {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'multipart/form-data',
           },
-          timeout: 30000, // Tăng timeout cho upload
+          timeout: 30000,
         }
       );
-
       if (response.data.status === 'success') {
-        toast.success('Upload file thành công');
+        toast.success('Upload file successfully');
         return {
           success: true,
           data: response.data.data,
         };
       }
     } catch (error) {
-      console.error('Error uploading file to task:', error);
-
-      // Kiểm tra nếu là lỗi token hết hạn
-      if (
-        error.response?.status === 401 &&
-        error.response?.data?.message?.includes('Token đã hết hạn')
-      ) {
-        // Lấy URL xác thực từ thông báo lỗi
-        const authUrl = error.response.data.message.split(': ')[1];
-        if (authUrl) {
-          toast.warning(
-            'Token Google Drive đã hết hạn, đang chuyển hướng đến trang xác thực...'
-          );
-          // Chuyển hướng đến trang xác thực Google
-          window.location.href = authUrl;
-          return { success: false, needReauth: true };
+      // Nếu backend trả về needReauth hoặc 401, hiện modal xác thực lại Google
+      if (error.response?.status === 401 || error.response?.data?.needReauth) {
+        setShowGoogleAuthModal(true);
+        if (error.response?.data?.authUrl) {
+          window.location.href = error.response.data.authUrl;
         }
+        return { success: false, needReauth: true };
       }
-
       toast.error(error.response?.data?.message || 'Failed to upload file');
       return { success: false, error: error.response?.data?.message };
     }
@@ -2327,7 +2231,7 @@ export const Common = ({ children }) => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      toast.success('Tải file thành công');
+      toast.success('Download file successfully');
       return { success: true };
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -2348,7 +2252,7 @@ export const Common = ({ children }) => {
       });
 
       if (response.data.status === 'success') {
-        toast.success('Xóa file thành công');
+        toast.success('Remove file successfully');
         return { success: true };
       }
     } catch (error) {

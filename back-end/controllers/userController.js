@@ -209,7 +209,7 @@ exports.findUsersByEmails = async (req, res, next) => {
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return res.status(400).json({
         status: 'error',
-        message: 'Danh sách email không hợp lệ',
+        message: 'Email list is required and must be an array.',
       });
     }
 
@@ -219,7 +219,7 @@ exports.findUsersByEmails = async (req, res, next) => {
     if (invalidEmails.length > 0) {
       return res.status(400).json({
         status: 'error',
-        message: `Email không hợp lệ: ${invalidEmails.join(', ')}`,
+        message: `Email is invalid: ${invalidEmails.join(', ')}`,
       });
     }
 
@@ -229,7 +229,7 @@ exports.findUsersByEmails = async (req, res, next) => {
     if (selfInvite) {
       return res.status(400).json({
         status: 'error',
-        message: 'Bạn không thể mời chính mình tham gia sự kiện',
+        message: 'You cannot invite yourself.',
       });
     }
 

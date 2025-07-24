@@ -99,26 +99,8 @@ exports.createCalendar = async (req, res) => {
         data: newCalendar,
       });
     }
-
-    // // Tạo lịch mới
-    // const newCalendar = await Calendar.create({
-    //   name,
-    //   description,
-    //   ownerType,
-    //   ownerId,
-    //   defaultView: defaultView || 'dayGridMonth',
-    //   timeZone: timeZone || 'Asia/Ho_Chi_Minh',
-    //   color: color || '#378006',
-    //   isPublic: isPublic || false,
-    // });
-
-    // return res.status(201).json({
-    //   message: 'Tạo lịch thành công',
-    //   status: 201,
-    //   data: newCalendar,
-    // });
   } catch (error) {
-    console.error('Lỗi khi tạo lịch:', error);
+    console.error('Error while creating calendar:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,
@@ -130,8 +112,6 @@ exports.createCalendar = async (req, res) => {
 exports.getCalendarById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log('id getcalendarbyid', id);
 
     const calendar = await Calendar.findById(id)
       .populate('events')
@@ -151,7 +131,7 @@ exports.getCalendarById = async (req, res) => {
       data: calendar,
     });
   } catch (error) {
-    console.error('Lỗi khi lấy thông tin lịch:', error);
+    console.error('Error while getting calendar information:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,
@@ -186,7 +166,7 @@ exports.getCalendarByUserId = async (req, res) => {
       data: calendars,
     });
   } catch (error) {
-    console.error('Lỗi khi lấy thông tin lịch của người dùng:', error);
+    console.error('Error while getting calendar information:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,
@@ -257,7 +237,7 @@ exports.getAllCalendarsUserOrGroup = async (req, res) => {
       data: calendars,
     });
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách lịch:', error);
+    console.error('Error while getting calendar information:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,
@@ -315,7 +295,7 @@ exports.updateCalendar = async (req, res) => {
       data: calendar,
     });
   } catch (error) {
-    console.error('Lỗi khi cập nhật lịch:', error);
+    console.error('Error while updating calendar:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,
@@ -415,15 +395,6 @@ exports.getCalendarEvents = async (req, res) => {
       .populate('boardId', 'name')
       .select('-isDeleted -deletedAt');
 
-    events.forEach((event) => {
-      event.participants.forEach((e) => {
-        console.log(
-          'e.participants in getCalendarEvents in calendarController',
-          e
-        );
-      });
-    });
-
     // Format for FullCalendar
     const fullCalendarEvents = events.map((event) => ({
       id: event._id.toString(),
@@ -477,7 +448,7 @@ exports.getCalendarEvents = async (req, res) => {
       data: fullCalendarEvents,
     });
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách sự kiện:', error);
+    console.error('Error while getting calendar events:', error);
     return res.status(500).json({
       message: 'Server error',
       status: 500,

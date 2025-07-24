@@ -418,10 +418,10 @@ exports.deleteEventMessage = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      message: 'Tin nhắn đã được xóa',
+      message: 'Message is deleted successfully',
     });
   } catch (error) {
-    next(new AppError(`Lỗi khi xóa tin nhắn: ${error.message}`, 500));
+    next(new AppError(`Error deleting message: ${error.message}`, 500));
   }
 };
 

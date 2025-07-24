@@ -360,7 +360,7 @@ exports.markAsRead = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      message: 'Đã đánh dấu thông báo là đã đọc',
+      message: 'Marked notification as read successfully',
       data: {
         notificationId: notificationUser.notificationId,
         isRead: notificationUser.isRead,

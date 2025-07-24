@@ -26,7 +26,7 @@ const InviteBoardModal = ({
     if (!show) return;
     setLoadingUsers(true);
     setFetchError(null);
-    setInviteError(null);               // reset lỗi khi mở lại modal
+    setInviteError(null); // reset lỗi khi mở lại modal
 
     axios
       .get(
@@ -41,7 +41,7 @@ const InviteBoardModal = ({
         setQualifiedOptions(opts);
       })
       .catch((err) => {
-        setFetchError(err.response?.data?.message || 'Không lấy được danh sách users');
+        setFetchError(err.response?.data?.message || 'Error fetching users');
       })
       .finally(() => setLoadingUsers(false));
   }, [show, workspaceId, boardId]);
@@ -53,9 +53,9 @@ const InviteBoardModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setInviteError(null);               // reset lỗi mới
+    setInviteError(null);
     if (!selectedOptions.length) {
-      setInviteError('Chọn ít nhất một user');
+      setInviteError('Choose at least one user to invite.');
       return;
     }
     setInviting(true);
@@ -85,14 +85,14 @@ const InviteBoardModal = ({
 
       <Modal.Body>
         {loadingUsers ? (
-          <div className="text-center py-4">
-            <Spinner animation="border" />
+          <div className='text-center py-4'>
+            <Spinner animation='border' />
           </div>
         ) : fetchError ? (
-          <Alert variant="danger">{fetchError}</Alert>
+          <Alert variant='danger'>{fetchError}</Alert>
         ) : qualifiedOptions.length === 0 ? (
-          <Alert variant="info">
-            Không có user nào thỏa mãn tiêu chí của board này.
+          <Alert variant='info'>
+            There is no user qualified for this board's criteria.
           </Alert>
         ) : (
           <>
@@ -101,13 +101,13 @@ const InviteBoardModal = ({
               options={qualifiedOptions}
               value={selectedOptions}
               onChange={setSelectedOptions}
-              placeholder="Chọn user để gửi lời mời…"
+              placeholder='Chọn user để gửi lời mời…'
               isDisabled={inviting}
             />
 
             {/* NEW: hiển thị lỗi invite nếu có */}
             {inviteError && (
-              <Alert className="mt-3" variant="danger">
+              <Alert className='mt-3' variant='danger'>
                 {inviteError}
               </Alert>
             )}
@@ -116,15 +116,15 @@ const InviteBoardModal = ({
       </Modal.Body>
 
       <Modal.Footer>
-        <Button variant="secondary" onClick={handleHide} disabled={inviting}>
+        <Button variant='secondary' onClick={handleHide} disabled={inviting}>
           Cancel
         </Button>
         <Button
-          variant="primary"
+          variant='primary'
           onClick={handleSubmit}
           disabled={inviting || loadingUsers || qualifiedOptions.length === 0}
         >
-          {inviting ? <Spinner animation="border" size="sm" /> : 'Send Invites'}
+          {inviting ? <Spinner animation='border' size='sm' /> : 'Send Invites'}
         </Button>
       </Modal.Footer>
     </Modal>

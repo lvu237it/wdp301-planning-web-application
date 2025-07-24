@@ -19,7 +19,7 @@ const BoardInviteResponse = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Thiếu token xác nhận.');
+      setError('Missing token.');
     }
   }, [token]);
 

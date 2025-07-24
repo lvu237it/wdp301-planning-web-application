@@ -87,7 +87,7 @@ function Login() {
   const handleGoogleLogin = async () => {
     if (isLoading) return;
     setIsLoading(true);
-    setLoadingMessage('Đang chuyển hướng đến Google...');
+    setLoadingMessage('Redirecting to Google...');
     try {
       await googleLogin();
     } catch (error) {

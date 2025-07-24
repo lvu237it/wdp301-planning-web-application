@@ -117,8 +117,8 @@ const Header = () => {
           if (result.success) {
             toast.success(
               status === 'accepted'
-                ? 'Đã chấp nhận lời mời sự kiện'
-                : 'Đã từ chối lời mời sự kiện'
+                ? 'Accepted the invitation successfully.'
+                : 'Declined the invitation successfully.'
             );
           }
         }, 100);
@@ -181,8 +181,8 @@ const Header = () => {
         toast.success(
           data.message ||
             (action === 'accept'
-              ? 'Đã tham gia workspace'
-              : 'Đã từ chối lời mời')
+              ? 'Accepted the invitation.'
+              : 'Declined the invitation.')
         );
         setNotifications((prev) =>
           prev.map((n) =>
@@ -198,11 +198,11 @@ const Header = () => {
         await markNotificationAsRead(notificationId);
         await fetchNotifications(true);
       } else {
-        toast.error(data.message || 'Có lỗi xảy ra');
+        toast.error(data.message || 'Failed to respond to workspace invite.');
       }
     } catch (err) {
       console.error(err);
-      toast.error('Có lỗi xảy ra khi xử lý lời mời workspace');
+      toast.error('Failed to respond to workspace invite. Please try again.');
     } finally {
       // Only clear loading state for this notificationId if it matches the current action
       setLoadingNotifications((prev) => {
@@ -215,154 +215,6 @@ const Header = () => {
     }
   };
 
-  // Thêm handler cho board invitation
-  // const handleBoardInvitationResponse = async (
-  //   invitationToken,
-  //   action,
-  //   notificationId,
-  //   event
-  // ) => {
-  //   event.stopPropagation();
-  //   setLoadingNotifications((prev) => {
-  //     const newMap = new Map(prev);
-  //     newMap.set(notificationId, action);
-  //     return newMap;
-  //   });
-  //   try {
-  //     const notif = notifications.find(
-  //       (n) => n.notificationId === notificationId
-  //     );
-  //     const workspaceId = notif?.targetWorkspaceId;
-  //     if (!workspaceId) {
-  //       toast.error('Cannot find workspaceId for this invitation');
-  //       return;
-  //     }
-  //     const res = await fetch(
-  //       `${apiBaseUrl}/workspace/${workspaceId}/board/invite-response`,
-  //       {
-  //         method: 'POST',
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-  //         },
-  //         body: JSON.stringify({ token: invitationToken, action }),
-  //       }
-  //     );
-  //     const data = await res.json();
-  //     if (res.ok) {
-  //       toast.success(
-  //         data.message ||
-  //           (action === 'accept'
-  //             ? 'You have joined the board'
-  //             : 'You have declined the invitation')
-  //       );
-  //       setNotifications((prev) =>
-  //         prev.map((n) =>
-  //           n.notificationId === notificationId
-  //             ? {
-  //                 ...n,
-  //                 invitationResponse:
-  //                   action === 'accept' ? 'accepted' : 'declined',
-  //               }
-  //             : n
-  //         )
-  //       );
-  //       await markNotificationAsRead(notificationId);
-  //       await fetchNotifications(true);
-  //     } else {
-  //       toast.error(data.message || 'An error occurred');
-  //     }
-  //   } catch (err) {
-  //     toast.error('An error occurred while processing the board invitation');
-  //   } finally {
-  //     setLoadingNotifications((prev) => {
-  //       const newMap = new Map(prev);
-  //       if (newMap.get(notificationId) === action) {
-  //         newMap.delete(notificationId);
-  //       }
-  //       return newMap;
-  //     });
-  //   }
-  // };
-  // const handleBoardInvitationResponse = async (
-  //   invitationToken,
-  //   action,
-  //   notificationId,
-  //   event
-  // ) => {
-  //   event.stopPropagation();
-  //   setLoadingNotifications((prev) => {
-  //     const newMap = new Map(prev);
-  //     newMap.set(notificationId, action);
-  //     return newMap;
-  //   });
-  //   try {
-  //     const notif = notifications.find(
-  //       (n) => n.notificationId === notificationId
-  //     );
-  //     const workspaceId = notif?.targetWorkspaceId;
-  //     if (!workspaceId) {
-  //       toast.error('Cannot find workspaceId for this invitation');
-  //       return;
-  //     }
-  //     const res = await fetch(
-  //       `${apiBaseUrl}/workspace/${workspaceId}/board/invite-response`,
-  //       {
-  //         method: 'POST',
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-  //         },
-  //         body: JSON.stringify({ token: invitationToken, action }),
-  //       }
-  //     );
-  //     const data = await res.json();
-  //     if (res.ok) {
-  //       toast.success(
-  //         data.message ||
-  //           (action === 'accept'
-  //             ? 'You have joined the board'
-  //             : 'You have declined the invitation')
-  //       );
-  //       // Cập nhật state với dữ liệu notification từ API
-  //       if (data.notification) {
-  //         setNotifications((prev) =>
-  //           prev.map((n) =>
-  //             n.notificationId === notificationId ? data.notification : n
-  //           )
-  //         );
-  //       } else {
-  //         setNotifications((prev) =>
-  //           prev.map((n) =>
-  //             n.notificationId === notificationId
-  //               ? {
-  //                   ...n,
-  //                   invitationResponse:
-  //                     action === 'accept' ? 'accepted' : 'declined',
-  //                 }
-  //               : n
-  //           )
-  //         );
-  //       }
-  //       await markNotificationAsRead(notificationId);
-  //       // Làm mới sau 5 giây để đồng bộ với backend
-  //       setTimeout(() => fetchNotifications(true), 5000);
-  //     } else {
-  //       toast.error(data.message || 'An error occurred');
-  //     }
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error('An error occurred while processing the board invitation');
-  //   } finally {
-  //     setLoadingNotifications((prev) => {
-  //       const newMap = new Map(prev);
-  //       if (newMap.get(notificationId) === action) {
-  //         newMap.delete(notificationId);
-  //       }
-  //       return newMap;
-  //     });
-  //   }
-  // };
   const handleBoardInvitationResponse = async (
     invitationToken,
     action,
@@ -468,13 +320,13 @@ const Header = () => {
             aria-hidden='true'
             style={{ width: '12px', height: '12px' }}
           ></span>
-          Đang xử lý...
+          Processing...
         </span>
       );
     }
 
     // actionType có thể là 'accepted' hoặc 'declined'
-    return actionType === 'accepted' ? 'Chấp nhận' : 'Từ chối';
+    return actionType === 'accepted' ? 'Accept' : 'Decline';
   };
 
   const toggleNotifDropdown = () => {
@@ -659,8 +511,8 @@ const Header = () => {
                       >
                         {loadingNotifications.get(notif.notificationId) ===
                         'accept'
-                          ? 'Đang xử lý...'
-                          : 'Chấp nhận'}
+                          ? 'Processing...'
+                          : 'Accept'}
                       </button>
                       <button
                         className='btn btn-outline-danger btn-sm'
@@ -695,8 +547,8 @@ const Header = () => {
                       >
                         {loadingNotifications.get(notif.notificationId) ===
                         'decline'
-                          ? 'Đang xử lý...'
-                          : 'Từ chối'}
+                          ? 'Processing...'
+                          : 'Decline'}
                       </button>
                     </div>
                   )}
@@ -949,7 +801,7 @@ const Header = () => {
           <div className='text-center py-3'>
             <Spinner animation='border' size='sm' variant='primary' />
             <div className='text-muted mt-2' style={{ fontSize: '0.85rem' }}>
-              Đang tải thêm thông báo...
+              Loading more notifications...
             </div>
           </div>
         )}
@@ -958,7 +810,7 @@ const Header = () => {
         {!notificationPagination.hasMore && notifications.length > 0 && (
           <div className='text-center py-2'>
             <small className='text-muted'>
-              Đã hiển thị tất cả thông báo ({notificationPagination.totalCount})
+              No more notifications ({notificationPagination.totalCount})
             </small>
           </div>
         )}
@@ -1243,8 +1095,8 @@ const Header = () => {
                         >
                           {loadingNotifications.get(notif.notificationId) ===
                           'accept'
-                            ? 'Đang xử lý...'
-                            : 'Chấp nhận'}
+                            ? 'Processing...'
+                            : 'Accept'}
                         </button>
                         <button
                           className='btn btn-outline-danger btn-sm'
@@ -1278,8 +1130,8 @@ const Header = () => {
                         >
                           {loadingNotifications.get(notif.notificationId) ===
                           'decline'
-                            ? 'Đang xử lý...'
-                            : 'Từ chối'}
+                            ? 'Processing...'
+                            : 'Decline'}
                         </button>
                       </div>
                     )}

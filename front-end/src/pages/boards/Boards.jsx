@@ -55,7 +55,7 @@ const Boards = () => {
 
   const handleDelete = async (e, board) => {
     e.stopPropagation();
-    if (!window.confirm('Xác nhận xóa vĩnh viễn board này?')) return;
+    if (!window.confirm('Confirm to delete this board?')) return;
     try {
       await deleteBoard(workspaceId, board._id);
       await fetchBoards(workspaceId);
@@ -224,7 +224,7 @@ const Boards = () => {
           {/* Empty State */}
           {boards.length === 0 && (
             <Alert variant='info' className='boards-empty-alert'>
-              Chưa có board nào trong workspace này.
+              There is no board in this workspace.
             </Alert>
           )}
 
@@ -244,7 +244,7 @@ const Boards = () => {
               const canManage = isBoardAdmin || isCreator;
               const handleClose = async (e) => {
                 e.stopPropagation();
-                if (!window.confirm('Bạn có muốn đóng board này?')) return;
+                if (!window.confirm('You want to close this board?')) return;
                 try {
                   await closeBoard(workspaceId, board._id);
                   fetchBoards(workspaceId);

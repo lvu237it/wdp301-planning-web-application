@@ -451,7 +451,7 @@ const sendGoogleAuthToken = async (user, res) => {
     // Gửi token trong cookie với cấu hình phù hợp cho cross-origin
     const cookieOptions = {
       httpOnly: true,
-      maxAge: 2 * 24 * 60 * 60 * 1000, // 2 ngày
+      maxAge: 2 * 24 * 60 * 60 * 1000, // 2 ngày // Cookie expires in 2 days
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-origin for OAuth
     };
@@ -508,12 +508,18 @@ exports.googleAuthCallback = async (req, res, next) => {
     },
     async (err, user) => {
       if (err || !user) {
-        console.error('Google auth failed:', err);
+        console.error(
+          '[authenticationController.js][googleAuthCallback] Lỗi xác thực Google:',
+          err
+        );
         return res.redirect(
           `${process.env.FRONTEND_URL}/login?error=google_auth_failed`
         );
       }
-      console.log('Google auth user:', user.email);
+      console.log(
+        '[authenticationController.js][googleAuthCallback] Nhận callback từ Google, user:',
+        user ? user.email : null
+      );
       await sendGoogleAuthToken(user, res);
     }
   )(req, res, next);
@@ -600,7 +606,10 @@ exports.linkGoogleAccount = async (req, res, next) => {
     },
     async (err, googleUser) => {
       if (err || !googleUser) {
-        console.error('Google link failed:', err);
+        console.error(
+          '[authenticationController.js][linkGoogleAccount] Lỗi liên kết Google:',
+          err
+        );
         return res.redirect(
           `${
             process.env.FRONTEND_URL
@@ -609,6 +618,10 @@ exports.linkGoogleAccount = async (req, res, next) => {
           )}`
         );
       }
+      console.log(
+        '[authenticationController.js][linkGoogleAccount] Nhận callback liên kết Google, googleUser:',
+        googleUser ? googleUser.email : null
+      );
 
       try {
         console.log('🔗 Google link callback received');
@@ -743,7 +756,10 @@ exports.linkGoogleAccount = async (req, res, next) => {
           `${process.env.FRONTEND_URL}/profile?success=google_link_success`
         );
       } catch (err) {
-        console.error('Error linking Google account:', err);
+        console.error(
+          '[authenticationController.js][linkGoogleAccount] Lỗi khi xử lý liên kết Google:',
+          err
+        );
         res.redirect(
           `${
             process.env.FRONTEND_URL
@@ -786,7 +802,10 @@ exports.checkGoogleLinkStatus = async (req, res, next) => {
 
 // Initiate Google account linking
 exports.initiateGoogleLink = (req, res, next) => {
-  console.log('🔗 Initiating Google account linking for user:', req.user._id);
+  console.log(
+    '[authenticationController.js][initiateGoogleLink] Bắt đầu quy trình liên kết Google cho user:',
+    req.user.email
+  );
   console.log('🔗 User email:', req.user.email);
 
   // Create state parameter with user info
@@ -797,8 +816,14 @@ exports.initiateGoogleLink = (req, res, next) => {
   };
   const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
 
-  console.log('🔗 Created state parameter:', state);
-  console.log('🔗 State data:', stateData);
+  console.log(
+    '[authenticationController.js][initiateGoogleLink] Đã tạo state parameter:',
+    state
+  );
+  console.log(
+    '[authenticationController.js][initiateGoogleLink] State data:',
+    stateData
+  );
 
   passport.authenticate('google-link', {
     scope: [

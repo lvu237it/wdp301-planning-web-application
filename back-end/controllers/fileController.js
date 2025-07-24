@@ -49,7 +49,7 @@ exports.getGoogleAuthUrl = async (req, res, next) => {
     const state = jwt.sign({ userId, services }, process.env.JWT_SECRET, {
       expiresIn: '10m',
     });
-    console.log('getGoogleAuthUrl - created state:', state);
+    console.log('getGoogleAuthUrl at fileController - created state:', state);
 
     const urlWithState = new URL(authUrl);
     urlWithState.searchParams.set('state', state);
@@ -255,8 +255,6 @@ exports.checkGoogleAuth = async (req, res, next) => {
 exports.handleGoogleAuthCallback = async (req, res, next) => {
   try {
     const { code, state } = req.query;
-    console.log('handleGoogleAuthCallback - code:', code);
-    console.log('handleGoogleAuthCallback - raw state:', state);
 
     if (!code || !state) {
       return next(new AppError('Mã xác thực hoặc state không hợp lệ', 400));
@@ -265,10 +263,8 @@ exports.handleGoogleAuthCallback = async (req, res, next) => {
     let decoded;
     try {
       const decodedState = decodeURIComponent(state);
-      console.log('handleGoogleAuthCallback - decoded state:', decodedState);
 
       decoded = jwt.verify(decodedState, process.env.JWT_SECRET);
-      console.log('handleGoogleAuthCallback - verified state:', decoded);
 
       if (!decoded.userId || !decoded.services) {
         return next(new AppError('State không hợp lệ', 400));
@@ -334,8 +330,31 @@ exports.uploadFile = async (req, res, next) => {
     if (!file) {
       return next(new AppError('Chưa chọn file để tải lên', 400));
     }
-
-    const auth = await authorize(userId, 'drive', DRIVE_SCOPES);
+    console.log(
+      '[fileController.js][uploadFile] Bắt đầu upload file lên Google Drive cho user:',
+      userId,
+      'Tên file:',
+      file.originalname
+    );
+    let auth;
+    try {
+      auth = await authorize(userId, 'drive', DRIVE_SCOPES);
+    } catch (err) {
+      // Nếu lỗi là do token hết hạn hoặc không có refreshToken, trả về 401 kèm needReauth và authUrl
+      if (
+        err.statusCode === 401 &&
+        err.message.includes('Vui lòng xác thực lại')
+      ) {
+        return res.status(401).json({
+          status: 'error',
+          needReauth: true,
+          message:
+            'Google token đã hết hạn hoặc không còn hiệu lực. Vui lòng xác thực lại Google để tiếp tục sử dụng tính năng này.',
+          authUrl: err.message.split('Vui lòng xác thực lại: ')[1] || null,
+        });
+      }
+      return next(err);
+    }
     const drive = google.drive({ version: 'v3', auth });
 
     // Đảm bảo tên file được encode đúng UTF-8 cho Google Drive
@@ -354,6 +373,12 @@ exports.uploadFile = async (req, res, next) => {
       media,
       fields: 'id, name, webViewLink',
     });
+    console.log(
+      '[fileController.js][uploadFile] Upload thành công. FileId:',
+      data.id,
+      'Link:',
+      data.webViewLink
+    );
 
     await fsPromises.unlink(file.path);
 
@@ -366,7 +391,10 @@ exports.uploadFile = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Error uploading file:', error.message);
+    console.error(
+      '[fileController.js][uploadFile] Lỗi upload file lên Google Drive:',
+      error.message
+    );
     next(new AppError('Error uploading file: ' + error.message, 500));
   }
 };
@@ -383,8 +411,13 @@ exports.uploadFileToTask = async (req, res, next) => {
     if (!taskId) {
       return next(new AppError('Vui lòng cung cấp taskId', 400));
     }
-
-    // Kiểm tra task tồn tại và người dùng có quyền
+    console.log(
+      '[fileController.js][uploadFileToTask] Bắt đầu upload file vào task:',
+      taskId,
+      'cho user:',
+      userId
+    );
+    // Lấy task từ DB và kiểm tra quyền
     const task = await Task.findById(taskId);
     if (!task) {
       return next(new AppError('Không tìm thấy task', 404));
@@ -392,15 +425,29 @@ exports.uploadFileToTask = async (req, res, next) => {
     // Kiểm tra quyền: user phải là assignedTo, assignedBy, hoặc nếu task chưa assign thì assignedBy có quyền
     const isAssignedTo = task.assignedTo && task.assignedTo.equals(userId);
     const isAssignedBy = task.assignedBy && task.assignedBy.equals(userId);
-
     if (!isAssignedTo && !isAssignedBy) {
       return next(
         new AppError('Bạn không có quyền thêm file vào task này', 403)
       );
     }
-
-    // Tải file lên Google Drive
-    const auth = await authorize(userId, 'drive', DRIVE_SCOPES);
+    let auth;
+    try {
+      auth = await authorize(userId, 'drive', DRIVE_SCOPES);
+    } catch (err) {
+      if (
+        err.statusCode === 401 &&
+        err.message.includes('Vui lòng xác thực lại')
+      ) {
+        return res.status(401).json({
+          status: 'error',
+          needReauth: true,
+          message:
+            'Google token đã hết hạn hoặc không còn hiệu lực. Vui lòng xác thực lại Google để tiếp tục sử dụng tính năng này.',
+          authUrl: err.message.split('Vui lòng xác thực lại: ')[1] || null,
+        });
+      }
+      return next(err);
+    }
     const drive = google.drive({ version: 'v3', auth });
 
     // Đảm bảo tên file được encode đúng UTF-8 cho Google Drive
@@ -418,6 +465,12 @@ exports.uploadFileToTask = async (req, res, next) => {
       media,
       fields: 'id, name, webViewLink, mimeType',
     });
+    console.log(
+      '[fileController.js][uploadFileToTask] Upload thành công. FileId:',
+      data.id,
+      'Task:',
+      taskId
+    );
 
     // Lưu vào model File
     const fileDoc = await File.create({
@@ -495,7 +548,10 @@ exports.uploadFileToTask = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Error uploading file:', error.message);
+    console.error(
+      '[fileController.js][uploadFileToTask] Lỗi upload file vào task:',
+      error.message
+    );
     next(new AppError('Error uploading file: ' + error.message, 500));
   }
 };

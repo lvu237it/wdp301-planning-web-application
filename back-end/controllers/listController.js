@@ -10,7 +10,7 @@ exports.getAllList = async (req, res) => {
     if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
         status: 'fail',
-        message: 'boardId không hợp lệ',
+        message: 'boardId is not valid',
       });
     }
     const lists = await List.find({ boardId, isDeleted: false }).sort(
@@ -35,18 +35,18 @@ exports.getListById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'ID không hợp lệ' });
+        .json({ status: 'fail', message: 'Id is not valid' });
     }
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
       return res
         .status(404)
-        .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
+        .json({ status: 'fail', message: 'List not found' });
     }
     if (boardId && list.boardId.toString() !== boardId) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'boardId không khớp' });
+        .json({ status: 'fail', message: 'boardId is not match' });
     }
 
     res.status(200).json({ status: 'success', data: list });
@@ -56,50 +56,6 @@ exports.getListById = async (req, res) => {
   }
 };
 
-// CREATE a new list
-// exports.createList = async (req, res) => {
-//   try {
-//     const { title, boardId, position } = req.body;
-//     if (!title || !boardId) {
-//       return res
-//         .status(400)
-//         .json({ status: 'fail', message: 'title và boardId là bắt buộc' });
-//     }
-//     if (!mongoose.Types.ObjectId.isValid(boardId)) {
-//       return res
-//         .status(400)
-//         .json({ status: 'fail', message: 'boardId không hợp lệ' });
-//     }
-
-//     // shift existing lists
-//     if (typeof position === 'number') {
-//       await List.updateMany(
-//         { boardId, position: { $gte: position }, isDeleted: false },
-//         { $inc: { position: 1 } }
-//       );
-//     }
-
-//     // create
-//     const newList = await List.create({
-//       title,
-//       boardId,
-//       position: typeof position === 'number' ? position : 0,
-//       tasks: [],
-//       isDeleted: false,
-//     });
-
-//     // push to Board.lists array
-//     await Board.findByIdAndUpdate(boardId, { $push: { lists: newList._id } });
-
-//     res.status(201).json({ status: 'success', data: newList });
-//   } catch (error) {
-//     console.error('Error while creating list:', error);
-//     res
-//       .status(500)
-//       .json({ status: 'error', message: 'Có lỗi xảy ra khi tạo danh sách' });
-//   }
-// };
-
 exports.createList = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -107,7 +63,6 @@ exports.createList = async (req, res) => {
   try {
     const { title, boardId, position } = req.body;
     const userId = req.user._id;
-    console.log('userId', userId);
 
     if (!title || !boardId) {
       throw new Error('title và boardId là bắt buộc');
@@ -196,72 +151,11 @@ exports.createList = async (req, res) => {
     console.error('Error while creating list:', error);
     res
       .status(500)
-      .json({ status: 'error', message: 'Có lỗi xảy ra khi tạo danh sách' });
+      .json({ status: 'error', message: 'Error while creating list' });
   } finally {
     session.endSession();
   }
 };
-
-// UPDATE list title or position
-// exports.updateList = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { title, position } = req.body;
-
-//     if (!mongoose.Types.ObjectId.isValid(id)) {
-//       return res
-//         .status(400)
-//         .json({ status: 'fail', message: 'ID không hợp lệ' });
-//     }
-//     const list = await List.findOne({ _id: id, isDeleted: false });
-//     if (!list) {
-//       return res
-//         .status(404)
-//         .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
-//     }
-
-//     // reposition within same board
-//     if (typeof position === 'number' && position !== list.position) {
-//       const boardId = list.boardId;
-//       const oldPos = list.position;
-//       const newPos = position < 0 ? 0 : position;
-//       if (newPos > oldPos) {
-//         await List.updateMany(
-//           {
-//             boardId,
-//             position: { $gt: oldPos, $lte: newPos },
-//             isDeleted: false,
-//           },
-//           { $inc: { position: -1 } }
-//         );
-//       } else {
-//         await List.updateMany(
-//           {
-//             boardId,
-//             position: { $gte: newPos, $lt: oldPos },
-//             isDeleted: false,
-//           },
-//           { $inc: { position: 1 } }
-//         );
-//       }
-//       list.position = newPos;
-//     }
-
-//     // rename
-//     if (typeof title === 'string' && title.trim() !== '') {
-//       list.title = title.trim();
-//     }
-
-//     const updatedList = await list.save();
-//     res.status(200).json({ status: 'success', data: updatedList });
-//   } catch (error) {
-//     console.error('Error while updating list:', error);
-//     res.status(500).json({
-//       status: 'error',
-//       message: 'Có lỗi xảy ra khi cập nhật danh sách',
-//     });
-//   }
-// };
 
 exports.updateList = async (req, res) => {
   try {
@@ -272,13 +166,13 @@ exports.updateList = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res
         .status(400)
-        .json({ status: 'fail', message: 'ID không hợp lệ' });
+        .json({ status: 'fail', message: 'ID is not valid' });
     }
     const list = await List.findOne({ _id: id, isDeleted: false });
     if (!list) {
       return res
         .status(404)
-        .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
+        .json({ status: 'fail', message: 'List not found' });
     }
 
     // Kiểm tra quyền truy cập board
@@ -291,7 +185,7 @@ exports.updateList = async (req, res) => {
     if (!membership || membership.role === 'read-only') {
       return res
         .status(403)
-        .json({ status: 'fail', message: 'Không có quyền cập nhật danh sách' });
+        .json({ status: 'fail', message: 'You do not have permission' });
     }
 
     // Reposition within same board
@@ -351,52 +245,10 @@ exports.updateList = async (req, res) => {
     console.error('Error while updating list:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Có lỗi xảy ra khi cập nhật danh sách',
+      message: 'Error while updating list',
     });
   }
 };
-
-// DELETE list
-// exports.deleteList = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!mongoose.Types.ObjectId.isValid(id)) {
-//       return res
-//         .status(400)
-//         .json({ status: 'fail', message: 'ID không hợp lệ' });
-//     }
-
-//     const list = await List.findOne({ _id: id, isDeleted: false });
-//     if (!list) {
-//       return res
-//         .status(404)
-//         .json({ status: 'fail', message: 'Không tìm thấy danh sách' });
-//     }
-//     const { boardId, position: delPos } = list;
-
-//     await List.deleteOne({ _id: id });
-
-//     await Board.findByIdAndUpdate(
-//       boardId,
-//       { $pull: { lists: id } },
-//       { new: true }
-//     );
-
-//     await List.updateMany(
-//       { boardId, position: { $gt: delPos }, isDeleted: false },
-//       { $inc: { position: -1 } }
-//     );
-
-//     res
-//       .status(200)
-//       .json({ status: 'success', message: 'Xóa danh sách thành công' });
-//   } catch (error) {
-//     console.error('Error while deleting list:', error);
-//     res
-//       .status(500)
-//       .json({ status: 'error', message: 'Có lỗi xảy ra khi xóa danh sách' });
-//   }
-// };
 
 // DELETE list - soft delete
 exports.deleteList = async (req, res) => {
@@ -471,13 +323,13 @@ exports.deleteList = async (req, res) => {
     await session.commitTransaction();
     res
       .status(200)
-      .json({ status: 'success', message: 'Xóa danh sách thành công' });
+      .json({ status: 'success', message: 'Delete list successfully' });
   } catch (error) {
     await session.abortTransaction();
     console.error('Error while deleting list:', error);
     res
       .status(500)
-      .json({ status: 'error', message: 'Có lỗi xảy ra khi xóa danh sách' });
+      .json({ status: 'error', message: 'Error while deleting list' });
   } finally {
     session.endSession();
   }
@@ -490,7 +342,7 @@ exports.getListsByBoard = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(boardId)) {
       return res.status(400).json({
         status: 'fail',
-        message: 'boardId không hợp lệ',
+        message: 'BoardId is not valid',
       });
     }
 
@@ -577,13 +429,13 @@ exports.moveTask = async (req, res) => {
     await session.commitTransaction();
     res
       .status(200)
-      .json({ status: 'success', message: 'Di chuyển task thành công' });
+      .json({ status: 'success', message: 'Move task successfully' });
   } catch (error) {
     await session.abortTransaction();
     console.error('Error while moving task:', error);
     res
       .status(500)
-      .json({ status: 'error', message: 'Có lỗi xảy ra khi di chuyển task' });
+      .json({ status: 'error', message: 'Error while moving task' });
   } finally {
     session.endSession();
   }

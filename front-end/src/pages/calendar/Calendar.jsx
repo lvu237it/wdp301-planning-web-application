@@ -1588,7 +1588,7 @@ const Calendar = () => {
         <button
           onClick={handleOpenMaps}
           className={`map-location-btn-xs ${className}`}
-          title='Xem trên bản đồ'
+          title='View on Google Maps'
         >
           🗺️
         </button>
@@ -1604,7 +1604,7 @@ const Calendar = () => {
         style={{ marginLeft: '8px' }}
       >
         <span style={{ marginRight: '4px' }}>🗺️</span>
-        Xem trên bản đồ
+        View on Google Maps
       </Button>
     );
   };
@@ -1892,7 +1892,7 @@ const Calendar = () => {
         <Modal.Header closeButton>
           <Modal.Title>
             <i className='fas fa-exclamation-triangle text-warning me-2'></i>
-            Phát hiện xung đột lịch trình
+            There is conflict while you are creating this event
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -1900,14 +1900,14 @@ const Calendar = () => {
             <i className='fas fa-clock me-2'></i>
             <div>
               <strong>
-                Sự kiện "{newEvent.title}" bị xung đột với các sự kiện khác
+                Event "{newEvent.title}" conflicts with the following events:
               </strong>
             </div>
           </div>
 
           {/* Sự kiện hiện tại muốn tạo */}
           <div className='mb-4'>
-            <h6 className='fw-bold'>Sự kiện muốn tạo:</h6>
+            <h6 className='fw-bold'>Event you want to create:</h6>
             <div className='alert mb-2 rounded-2 p-3 border-1 border-info bg-info-subtle'>
               <div className='d-flex justify-content-between align-items-start'>
                 <div>
@@ -1921,7 +1921,7 @@ const Calendar = () => {
                   {newEvent.allDay && (
                     <span className='badge bg-info'>
                       <i className='fas fa-calendar-day me-1'></i>
-                      Cả ngày
+                      All day
                     </span>
                   )}
                   <span className='badge bg-primary'>New</span>
@@ -1934,7 +1934,7 @@ const Calendar = () => {
           <div className='mb-4'>
             <h6 className='fw-bold'>
               <i className='fas fa-exclamation-triangle text-warning me-2'></i>
-              Các sự kiện xung đột ({conflictingEvents.length}):
+              Conflict events ({conflictingEvents.length}):
             </h6>
             {conflictingEvents.map((conflict, index) => (
               <div
@@ -1953,7 +1953,7 @@ const Calendar = () => {
                     {conflict.allDay && (
                       <span className='badge bg-info'>
                         <i className='fas fa-calendar-day me-1'></i>
-                        Cả ngày
+                        All day
                       </span>
                     )}
                     {/* <span className='badge bg-danger'>Xung đột</span> */}
@@ -1966,13 +1966,13 @@ const Calendar = () => {
           {/* Show suggested time slots if available */}
           {availableTimeSlots.length > 0 && (
             <div className='mb-4'>
-              <h6 className='fw-bold mb-3'>Khung thời gian gợi ý:</h6>
+              <h6 className='fw-bold mb-3'>Suggested time slots:</h6>
 
               {/* Morning slots */}
               <div className='mb-3'>
                 <div className='d-flex align-items-center mb-2'>
                   <i className='fas fa-sun text-warning me-2'></i>
-                  <h6 className='mb-0'>Buổi sáng</h6>
+                  <h6 className='mb-0'>Morning</h6>
                 </div>
                 {availableTimeSlots
                   .filter((slot) => slot.period === 'morning')
@@ -1991,7 +1991,7 @@ const Calendar = () => {
                         </div>
                         <Button size='sm' variant='success'>
                           <i className='fas fa-check me-1'></i>
-                          Chọn
+                          Choose
                         </Button>
                       </div>
                     </div>
@@ -2000,7 +2000,7 @@ const Calendar = () => {
                   .length === 0 && (
                   <div className='text-muted small fst-italic'>
                     <i className='fas fa-info-circle me-1'></i>
-                    Không có khung giờ phù hợp vào buổi sáng
+                    No available time slots in the morning
                   </div>
                 )}
               </div>
@@ -2009,7 +2009,7 @@ const Calendar = () => {
               <div>
                 <div className='d-flex align-items-center mb-2'>
                   <i className='fas fa-cloud-sun text-info me-2'></i>
-                  <h6 className='mb-0'>Buổi chiều</h6>
+                  <h6 className='mb-0'>Afternoon</h6>
                 </div>
                 {availableTimeSlots
                   .filter((slot) => slot.period === 'afternoon')
@@ -2028,7 +2028,7 @@ const Calendar = () => {
                         </div>
                         <Button size='sm' variant='success'>
                           <i className='fas fa-check me-1'></i>
-                          Chọn
+                          Choose
                         </Button>
                       </div>
                     </div>
@@ -2038,7 +2038,7 @@ const Calendar = () => {
                 ).length === 0 && (
                   <div className='text-muted small fst-italic'>
                     <i className='fas fa-info-circle me-1'></i>
-                    Không có khung giờ phù hợp vào buổi chiều
+                    No available time slots in the afternoon
                   </div>
                 )}
               </div>
@@ -2047,23 +2047,22 @@ const Calendar = () => {
 
           {/* Action explanation */}
           <div className='alert alert-info'>
-            <h6 className='fw-bold mb-2'>Bạn có thể:</h6>
+            <h6 className='fw-bold mb-2'>You can:</h6>
             <ul className='mb-0'>
               <li>
-                <strong>Hủy:</strong> Không tạo sự kiện
+                <strong>Cancel:</strong> Close this modal and do nothing
               </li>
               <li>
-                <strong>Tái thiết lập thủ công:</strong> Mở lại form để thay đổi
-                thời gian
+                <strong>Resetting time:</strong> Manually change the time
               </li>
               {!newEvent.allDay && (
                 <li>
-                  <strong>Xem gợi ý:</strong> Hệ thống gợi ý thời gian trống phù
-                  hợp
+                  <strong>View suggestions:</strong> System will suggest free
+                  time slots
                 </li>
               )}
               <li>
-                <strong>Vẫn tạo sự kiện:</strong> Tạo sự kiện dù có xung đột
+                <strong>Create anyway:</strong> Skipping conflict and create
               </li>
             </ul>
           </div>
@@ -2071,11 +2070,11 @@ const Calendar = () => {
         <Modal.Footer>
           <Button variant='secondary' onClick={handleConflictCancel}>
             <i className='fas fa-times me-1'></i>
-            Hủy
+            Cancel
           </Button>
           <Button variant='primary' onClick={handleConflictEditManually}>
             <i className='fas fa-edit me-1'></i>
-            Tái thiết lập thủ công
+            Resetting time
           </Button>
           {!newEvent.allDay && (
             <Button
@@ -2086,19 +2085,19 @@ const Calendar = () => {
               {loadingSuggestions ? (
                 <>
                   <Spinner size='sm' animation='border' className='me-1' />
-                  Đang tìm...
+                  Loading...
                 </>
               ) : (
                 <>
                   <i className='fas fa-lightbulb me-1'></i>
-                  Xem gợi ý
+                  View suggestions
                 </>
               )}
             </Button>
           )}
           <Button variant='warning' onClick={handleConflictCreateAnyway}>
             <i className='fas fa-exclamation-circle me-1'></i>
-            Vẫn tạo
+            Create anyway
           </Button>
         </Modal.Footer>
       </Modal>
@@ -2115,7 +2114,7 @@ const Calendar = () => {
         className='cancel-participation-modal'
       >
         <Modal.Header closeButton>
-          <Modal.Title>Hủy tham gia sự kiện</Modal.Title>
+          <Modal.Title>Cancel join event</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>
@@ -2125,7 +2124,7 @@ const Calendar = () => {
                 rows={3}
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                placeholder='Vui lòng nhập lý do hủy tham gia...'
+                placeholder='Please explain the reason...'
                 disabled={isSubmitting}
               />
             </Form.Group>
@@ -2154,10 +2153,10 @@ const Calendar = () => {
                   aria-hidden='true'
                   className='me-2'
                 />
-                Đang xử lý...
+                Processing...
               </>
             ) : (
-              'Xác nhận hủy'
+              'Confirm'
             )}
           </Button>
         </Modal.Footer>
@@ -2310,7 +2309,7 @@ const Calendar = () => {
                       {formatEventDate(selectedDate)}
                     </h3>
                     <Badge bg='light' text='dark' className='h-100 px-3 py-2'>
-                      {selectedDateEvents.length} sự kiện
+                      {selectedDateEvents.length} events
                     </Badge>
                   </div>
                   <div className='event-list'>
@@ -2337,7 +2336,7 @@ const Calendar = () => {
                                 </div>
                                 {!event.extendedProps.isOwn && (
                                   <div className='event-participated-badge'>
-                                    👥 Tham gia
+                                    👥 Join
                                   </div>
                                 )}
                                 {/* Status indicator */}
@@ -2348,13 +2347,13 @@ const Calendar = () => {
                                       className={`event-status-badge status-${event.extendedProps.status}`}
                                     >
                                       {event.extendedProps.status ===
-                                        'in-progress' && '🔄 Đang diễn ra'}
+                                        'in-progress' && '🔄 Ongoing'}
                                       {event.extendedProps.status ===
-                                        'completed' && '✅ Đã xong'}
+                                        'completed' && '✅ Completed'}
                                       {event.extendedProps.status ===
-                                        'cancelled' && '❌ Đã hủy'}
+                                        'cancelled' && '❌ Cancelled'}
                                       {event.extendedProps.status === 'draft' &&
-                                        '📝 Nháp'}
+                                        '📝 Draft'}
                                     </div>
                                   )}
                               </div>
@@ -2398,11 +2397,11 @@ const Calendar = () => {
                                         rel='noopener noreferrer'
                                         className='text-success'
                                       >
-                                        Link sự kiện
+                                        Meet Link
                                       </a>
                                     ) : (
                                       <span className='text-muted small'>
-                                        Link chưa có sẵn
+                                        Link is not available
                                       </span>
                                     )}
                                   </span>
@@ -2428,7 +2427,7 @@ const Calendar = () => {
                           <span className='d-flex justify-content-center'>
                             <FaCalendarAlt size={48} className='mb-3' />
                           </span>
-                          <p>Không có sự kiện nào trong ngày này</p>
+                          <p>There is no event on this day</p>
                           <Button
                             variant='outline-light'
                             onClick={handleCreateClick}
@@ -2510,7 +2509,7 @@ const Calendar = () => {
                               day: 'numeric',
                               timeZone: 'Asia/Ho_Chi_Minh',
                             }).format(selectedEvent.start)}{' '}
-                            <span className=''>(cả ngày)</span>
+                            <span className=''>(all day)</span>
                           </>
                         ) : (
                           <>
@@ -2525,7 +2524,7 @@ const Calendar = () => {
                           <div>
                             <p className='mb-1'>
                               <span className='me-2'>📍</span>
-                              Địa chỉ:{' '}
+                              Address:{' '}
                               {getAddressDisplay(selectedEvent.address)}
                             </p>
                             <MapLocationButton
@@ -2537,7 +2536,7 @@ const Calendar = () => {
                       {selectedEvent.type === 'online' && (
                         <p>
                           <span className='me-2'>🌐</span>
-                          Link sự kiện:{' '}
+                          Meet Link:{' '}
                           {selectedEvent?.onlineUrl ? (
                             <a
                               href={selectedEvent?.onlineUrl}
@@ -2546,14 +2545,16 @@ const Calendar = () => {
                               className='event-open-meeting-button'
                               title='Mở link sự kiện'
                             >
-                              Tham gia
+                              Join
                             </a>
                           ) : (
                             <span className='text-muted'>
-                              Link chưa có sẵn
+                              Link is not available
                               {selectedEvent.extendedProps?.isOwn && (
                                 <small className='d-block text-info'>
-                                  Bạn có thể thêm link khi chỉnh sửa sự kiện
+                                  You can try to update this event to add a
+                                  link. Otherwise, please login with your Google
+                                  account again.
                                 </small>
                               )}
                             </span>
@@ -2563,25 +2564,25 @@ const Calendar = () => {
                       {selectedEvent.meetingCode && (
                         <p>
                           <span className='ms-1 me-2'>🔑</span>
-                          Mã cuộc họp: {selectedEvent.meetingCode}
+                          Meeting Code: {selectedEvent.meetingCode}
                         </p>
                       )}
                       {selectedEvent.description && (
                         <p>
                           <span className='me-2'>📝</span>
-                          Mô tả: {selectedEvent.description}
+                          Description: {selectedEvent.description}
                         </p>
                       )}
                       <p>
                         <FaUser className='ms-1 me-2' />
-                        Người tạo: {selectedEvent?.organizer.username}
+                        Organizer: {selectedEvent?.organizer.username}
                       </p>
                       {selectedEvent.participants?.filter(
                         (p) => p.status === 'accepted'
                       ).length > 0 && (
                         <p>
                           <span className='me-2'>👥</span>
-                          Người tham gia:{' '}
+                          Participants:{' '}
                           {selectedEvent.participants
                             .filter((p) => p.status === 'accepted')
                             .map((p) => p.email || p.name || 'User')
@@ -2591,17 +2592,19 @@ const Calendar = () => {
 
                       <p>
                         <span className='me-2'>📊</span>
-                        Trạng thái:{' '}
+                        Status:{' '}
                         <span
                           className={`event-status-badge status-${selectedEvent.status} ms-1`}
                         >
                           {selectedEvent.status === 'in-progress' &&
-                            '🔄 Đang diễn ra'}
-                          {selectedEvent.status === 'completed' && '✅ Đã xong'}
-                          {selectedEvent.status === 'cancelled' && '❌ Đã hủy'}
-                          {selectedEvent.status === 'draft' && '📝 Nháp'}
+                            '🔄 Ongoing'}
+                          {selectedEvent.status === 'completed' &&
+                            '✅ Completed'}
+                          {selectedEvent.status === 'cancelled' &&
+                            '❌ Cancelled'}
+                          {selectedEvent.status === 'draft' && '📝 Draft'}
                           {selectedEvent.status === 'scheduled' &&
-                            '📅 Chưa diễn ra'}
+                            '📅 Not yet started'}
                           {![
                             'in-progress',
                             'completed',
@@ -2625,11 +2628,11 @@ const Calendar = () => {
                           <div className='d-flex justify-content-between align-items-center mb-3'>
                             <h5 className='mb-0 d-flex align-items-center'>
                               <FaComments className='me-2' />
-                              Thảo luận
+                              Discussion
                               {!canSendNewMessage(selectedEvent) &&
                                 hasMessagesInEvent && (
                                   <span className='badge bg-secondary ms-2 small'>
-                                    Chỉ xem
+                                    Only view
                                   </span>
                                 )}
                               {isCheckingMessages && (
@@ -2638,7 +2641,7 @@ const Calendar = () => {
                                   role='status'
                                 >
                                   <span className='visually-hidden'>
-                                    Đang kiểm tra...
+                                    Loading...
                                   </span>
                                 </span>
                               )}
@@ -2649,7 +2652,7 @@ const Calendar = () => {
                               onClick={() => setShowChat(!showChat)}
                               disabled={isCheckingMessages}
                             >
-                              {showChat ? 'Ẩn' : 'Hiển thị'}
+                              {showChat ? 'Hide' : 'Show'}
                             </Button>
                           </div>
 
@@ -2671,7 +2674,7 @@ const Calendar = () => {
                                       <Spinner animation='border' size='sm' />
                                     </span>
                                     <div className='mt-2 text-muted'>
-                                      Đang tải tin nhắn...
+                                      Loading...
                                     </div>
                                   </div>
                                 ) : messages.length === 0 ? (
@@ -2680,8 +2683,8 @@ const Calendar = () => {
                                       <FaComments size={24} className='mb-2' />
                                     </span>
                                     <div>
-                                      Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò
-                                      chuyện!
+                                      No available messages. Be the first to
+                                      start a conversation!
                                     </div>
                                   </div>
                                 ) : (
@@ -2715,7 +2718,7 @@ const Calendar = () => {
                                             className='small mt-1'
                                             style={{ color: '#0d6efd' }}
                                           >
-                                            Đang tải thêm tin nhắn...
+                                            Loading more messages...
                                           </div>
                                         </div>
                                       </motion.div>
@@ -2755,7 +2758,7 @@ const Calendar = () => {
                                             whileTap={{ scale: 0.95 }}
                                           >
                                             <FaChevronUp className='me-1' />
-                                            Tải thêm tin nhắn
+                                            Load more messages
                                           </motion.button>
                                         </motion.div>
                                       )}
@@ -2843,7 +2846,7 @@ const Calendar = () => {
                                           }`}
                                           title={
                                             !canEditOrDelete && isOwnMessage
-                                              ? 'Không thể chỉnh sửa tin nhắn khi sự kiện đã hoàn thành hoặc bị hủy'
+                                              ? 'Cannot edit/delete this message'
                                               : ''
                                           }
                                           onClick={(e) =>
@@ -2945,7 +2948,7 @@ const Calendar = () => {
                                                     {message.isEdited && (
                                                       <span className='messenger-edited'>
                                                         {' '}
-                                                        • đã chỉnh sửa
+                                                        • edited
                                                       </span>
                                                     )}
                                                   </div>
@@ -3002,7 +3005,7 @@ const Calendar = () => {
                                       className='messenger-action-item'
                                     >
                                       <FaEdit />
-                                      Chỉnh sửa
+                                      Edit
                                     </button>
                                     <button
                                       onClick={(e) => {
@@ -3015,7 +3018,7 @@ const Calendar = () => {
                                       className='messenger-action-item messenger-delete'
                                     >
                                       <FaTrash />
-                                      Xóa
+                                      Delete
                                     </button>
                                   </div>
                                 )}
@@ -3025,7 +3028,7 @@ const Calendar = () => {
                                 <div className='message-input d-flex gap-2'>
                                   <Form.Control
                                     type='text'
-                                    placeholder='Nhập tin nhắn...'
+                                    placeholder='Type a message...'
                                     value={newMessage}
                                     onChange={(e) =>
                                       setNewMessage(e.target.value)
@@ -3055,13 +3058,12 @@ const Calendar = () => {
                                   >
                                     <i className='fas fa-info-circle me-2'></i>
                                     {selectedEvent.status === 'completed' &&
-                                      'Sự kiện đã kết thúc. Bạn chỉ có thể xem lại tin nhắn.'}
+                                      'Event has ended. You can only view messages.'}
                                     {selectedEvent.status === 'cancelled' &&
-                                      'Sự kiện đã bị hủy. Bạn chỉ có thể xem lại tin nhắn.'}
+                                      'Event has been cancelled. You can only view messages.'}
                                     {!['completed', 'cancelled'].includes(
                                       selectedEvent.status
-                                    ) &&
-                                      'Không thể gửi tin nhắn trong trạng thái hiện tại.'}
+                                    ) && 'Cannot send messages.'}
                                   </div>
                                 )}
                             </div>
@@ -3085,7 +3087,7 @@ const Calendar = () => {
                           className='d-flex justify-content-center align-items-center'
                         >
                           <FaEdit className='me-2' />
-                          Chỉnh sửa
+                          Edit
                         </Button>
                       )}
                       {canDeleteEvent(selectedEvent) && !showChat && (
@@ -3096,7 +3098,7 @@ const Calendar = () => {
                           className='d-flex justify-content-center align-items-center'
                         >
                           <FaTrash className='me-2' />
-                          Xóa
+                          Delete
                         </Button>
                       )}
                       {/* Cancel participation button for accepted participants who are not organizers */}
@@ -3115,7 +3117,7 @@ const Calendar = () => {
                             className='cancel-participation-btn'
                           >
                             <i className='bi bi-x-circle'></i>
-                            Hủy tham gia
+                            Cancel join
                           </Button>
                         )}
                     </div>
@@ -3281,8 +3283,9 @@ const Calendar = () => {
                       required
                     />
                     <Form.Text className='text-muted'>
-                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
-                      trên bản đồ
+                      {/* Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
+                      trên bản đồ */}
+                      Enter a detailed address
                     </Form.Text>
                   </Form.Group>
                 )}
@@ -3317,9 +3320,8 @@ const Calendar = () => {
                     placeholder='Input email(s) to invite, separated by commas'
                   />
                   <Form.Text className='text-muted'>
-                    Ví dụ: user1@gmail.com, user2@fpt.edu.vn. Hệ thống sẽ tự
-                    động tìm kiếm và gửi lời mời cho những người dùng có email
-                    hợp lệ.
+                    Enter emails of users you want to invite to this event.
+                    Example: user1@gmail.com, user2@fpt.edu.vn
                   </Form.Text>
                 </Form.Group>
                 <div className='d-flex justify-content-end gap-2'>
