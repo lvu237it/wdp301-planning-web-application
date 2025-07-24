@@ -3533,8 +3533,7 @@ const Calendar = () => {
                       required
                     />
                     <Form.Text className='text-muted'>
-                      Nhập địa chỉ chi tiết để hệ thống tự động xác định tọa độ
-                      trên bản đồ
+                      Enter a detailed address
                     </Form.Text>
                   </Form.Group>
                 )}
@@ -3899,7 +3898,7 @@ const Calendar = () => {
                       aria-hidden='true'
                       className='me-2'
                     />
-                    Đang tạo...
+                    Creating...
                   </>
                 ) : (
                   'Still creating'

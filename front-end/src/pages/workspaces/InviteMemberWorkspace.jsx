@@ -74,7 +74,7 @@ const InviteMemberModal = ({ show, onHide, workspaceId }) => {
               required
             />
             <datalist id='invite-suggestions'>
-              {loadingSuggest && <option>Đang tìm…</option>}
+              {loadingSuggest && <option>Finding…</option>}
               {suggestions.map((u) => (
                 <option key={u.email} value={u.email}>
                   {u.username}

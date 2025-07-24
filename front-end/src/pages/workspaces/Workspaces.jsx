@@ -120,7 +120,7 @@ const Workspaces = () => {
 
           {workspaces.length === 0 && (
             <Alert variant='info' className='workspace-empty-alert'>
-              Bạn chưa có workspace nào. Hãy tạo mới ngay!
+              There is no workspace yet. Create one now!
             </Alert>
           )}
 
