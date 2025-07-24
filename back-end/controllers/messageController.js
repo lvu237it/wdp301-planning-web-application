@@ -526,10 +526,10 @@ exports.createMessageNotification = async (message, eventId, taskId) => {
       const senderName = user?.fullname || user?.username || 'Ai đó';
 
       return NotificationService.createPersonalNotification({
-        title: `Tin nhắn mới trong ${
-          eventId ? 'sự kiện' : 'nhiệm vụ'
+        title: `New message from ${
+          eventId ? 'event' : 'task'
         } "${contextTitle}"`,
-        content: `${senderName} đã gửi: ${message.content.substring(0, 80)}${
+        content: `${senderName} sent: ${message.content.substring(0, 80)}${
           message.content.length > 80 ? '...' : ''
         }`,
         type: 'new_message',

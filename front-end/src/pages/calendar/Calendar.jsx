@@ -2136,7 +2136,7 @@ const Calendar = () => {
             onClick={handleCloseCancelModal}
             disabled={isSubmitting}
           >
-            Đóng
+            Close
           </Button>
           <Button
             variant='danger'
@@ -2499,7 +2499,7 @@ const Calendar = () => {
                     <div className='event-info'>
                       <p>
                         <FaCalendarAlt className='ms-1 me-3' />
-                        Thời gian:{' '}
+                        Time:{' '}
                         {selectedEvent.allDay ? (
                           <>
                             {new Intl.DateTimeFormat('vi-VN', {
