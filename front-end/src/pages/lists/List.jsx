@@ -363,6 +363,9 @@ const List = ({ boardId }) => {
       {/* Filter Panel */}
       <div
         style={{
+          position: "fixed",
+          top: "80px", // khoảng cách từ trên cùng của viewport
+          right: "24px", // khoảng cách từ bên phải của viewport
           display: "flex",
           justifyContent: "flex-end",
           margin: "0 0 16px",
@@ -387,9 +390,9 @@ const List = ({ boardId }) => {
         <div
           className="filter-panel"
           style={{
-            position: "absolute",
-            top: "60px",
-            right: "16px",
+            position: "fixed",
+            top: "120px",
+            right: "24px",
             width: "320px",
             zIndex: 1000,
             background: "#fff",
@@ -399,15 +402,15 @@ const List = ({ boardId }) => {
           }}
         >
           <strong
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontSize: "14px",
-                color: "#555",
-              }}
-            >
-              Search by name task:
-            </strong>
+            style={{
+              display: "block",
+              marginBottom: "8px",
+              fontSize: "14px",
+              color: "#555",
+            }}
+          >
+            Search by name task:
+          </strong>
           <input
             type="text"
             placeholder="Search name task..."
@@ -432,43 +435,55 @@ const List = ({ boardId }) => {
                 color: "#555",
               }}
             >
-             Filter by Members:
+              Filter by Members:
             </strong>
-           
-              <select
-                value={selectedMemberFilter}
-                onChange={(e) => setSelectedMemberFilter(e.target.value)}
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: "4px",
-                  border: "1px solid #ccc",
-                }}
-              >
-                <option value="">All Members</option>
-                {boardMembers.map((m) => (
-                  <option key={m._id} value={m._id}>
-                    {m.username || m.email}
-                  </option>
-                ))}
-              </select>
-              <div style={{ display: "flex", alignItems: "center", marginTop:"5px" }}>
-                <input
-                  type="checkbox"
-                  checked={filterHasMember}
-                  onChange={(e) => setFilterHasMember(e.target.checked)}
-                  style={{ marginRight: "6px" }}
-                />
-                Members
-              </div>
-              <div style={{ display: "flex", alignItems: "center", marginTop:"5px" }}>
-                <input
-                  type="checkbox"
-                  checked={filterNoMember}
-                  onChange={(e) => setFilterNoMember(e.target.checked)}
-                  style={{ marginRight: "6px" }}
-                />
-                No Members
-              </div>
+
+            <select
+              value={selectedMemberFilter}
+              onChange={(e) => setSelectedMemberFilter(e.target.value)}
+              style={{
+                padding: "6px 8px",
+                borderRadius: "4px",
+                border: "1px solid #ccc",
+              }}
+            >
+              <option value="">All Members</option>
+              {boardMembers.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.username || m.email}
+                </option>
+              ))}
+            </select>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginTop: "5px",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={filterHasMember}
+                onChange={(e) => setFilterHasMember(e.target.checked)}
+                style={{ marginRight: "6px" }}
+              />
+              Members
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginTop: "5px",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={filterNoMember}
+                onChange={(e) => setFilterNoMember(e.target.checked)}
+                style={{ marginRight: "6px" }}
+              />
+              No Members
+            </div>
           </div>
 
           {/* Card status */}
