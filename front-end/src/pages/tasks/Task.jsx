@@ -114,14 +114,12 @@ const TaskModal = ({ isOpen, task, onClose, onUpdate }) => {
       assignedTo,
       listTitle: task.listTitle,
       assignedBy: task.assignedBy,
-      documents:
-        Array.isArray(updatedFields.documents) && updatedFields.documents.length
-          ? updatedFields.documents
-          : task.documents,
-      checklist:
-        Array.isArray(updatedFields.checklist) && updatedFields.checklist.length
-          ? updatedFields.checklist
-          : task.checklist,
+      documents: Array.isArray(updatedFields.documents)
+        ? updatedFields.documents
+        : task.documents,
+      checklist: Array.isArray(updatedFields.checklist)
+        ? updatedFields.checklist
+        : task.checklist,
     };
   };
 

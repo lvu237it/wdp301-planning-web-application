@@ -435,7 +435,7 @@ const List = ({ boardId }) => {
                 color: '#555',
               }}
             >
-              Filter by Members:
+              Filter by Members: Filter by Members:
             </strong>
 
             <select

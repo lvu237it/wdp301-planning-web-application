@@ -45,6 +45,7 @@ exports.assignTask = async (req, res, next) => {
     const startdeadline = task.startDate
       ? new Date(task.startDate).toLocaleString('vi-VN')
       : 'Chưa có ngày bắt đầu';
+
     const html = `
       <h2>Chào ${user.name || user.email},</h2>
       <p>Bạn vừa được giao một công việc mới trên WebPlanPro:</p>
@@ -53,6 +54,7 @@ exports.assignTask = async (req, res, next) => {
         <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
         <li><strong>Ngày bắt đầu:</strong> ${startdeadline}</li>
         <li><strong>Ngày kết thúc:</strong> ${deadlineText}</li>
+        <li><strong>Mô tả:</strong> ${task.description || 'Không có mô tả'}</li>
       </ul>
       <p>Vui lòng đăng nhập để xem chi tiết và cập nhật tiến độ.</p>
       <p>Trân trọng,</p>
@@ -633,6 +635,9 @@ exports.updateTask = async (req, res) => {
                 }</li>
                 <li><strong>Ngày bắt đầu:</strong> ${startText}</li>
                 <li><strong>Ngày kết thúc:</strong> ${endText}</li>
+                <li><strong>Mô tả:</strong> ${
+                  task.description || 'Không có mô tả'
+                }</li>
               </ul>
               <p>Vui lòng kiểm tra lại hệ thống để nắm thông tin mới nhất.</p>
               <p>Trân trọng,<br/>Đội ngũ WebPlanPro</p>
