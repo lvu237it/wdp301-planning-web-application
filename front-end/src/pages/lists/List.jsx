@@ -363,9 +363,12 @@ const List = ({ boardId }) => {
       {/* Filter Panel */}
       <div
         style={{
+          position: 'fixed',
+          top: '90px',
+          right: '40px',
+          margin: '0 0 16px',
           display: 'flex',
           justifyContent: 'flex-end',
-          margin: '0 0 16px',
         }}
       >
         <button
@@ -387,8 +390,8 @@ const List = ({ boardId }) => {
         <div
           className='filter-panel'
           style={{
-            position: 'absolute',
-            top: '60px',
+            position: 'fixed',
+            top: '120px',
             right: '16px',
             width: '320px',
             zIndex: 1000,

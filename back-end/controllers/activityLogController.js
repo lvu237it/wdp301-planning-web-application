@@ -73,12 +73,10 @@ exports.getLogsByBoard = async (req, res) => {
     });
 
     if (!membership) {
-      return res
-        .status(403)
-        .json({
-          status: 'fail',
-          message: 'You do not have permission to access this board',
-        });
+      return res.status(403).json({
+        status: 'fail',
+        message: 'You do not have permission to access this board',
+      });
     }
 
     const isAdmin = membership.role === 'admin';
